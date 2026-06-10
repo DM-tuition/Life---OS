@@ -89,6 +89,40 @@ const blankDay = (iso)=>({
 });
 const cloneBlocks = (blocks)=> blocks.map((b,i)=>({ id:Date.now()+i, done:false, ...b }));
 
+// ============ RESPONSIVE HOOK ============
+function useIsMobile(bp=760){
+  const [m,setM] = useState(typeof window!=="undefined" && window.innerWidth<=bp);
+  useEffect(()=>{ const on=()=>setM(window.innerWidth<=bp); window.addEventListener("resize",on); return ()=>window.removeEventListener("resize",on); },[bp]);
+  return m;
+}
+
+// ============ AUTO BREAKDOWN (derive Hourly Breakdown from timeline blocks) ============
+const BD_MAP = { Sleep:"Sleep", School:"Lessons", Revision:"Revision", Gym:"Gym", Sport:"Activity", Activity:"Activity" };
+function computeBreakdown(blocks){
+  const out = { Sleep:0,Lessons:0,Revision:0,Gym:0,Activity:0 };
+  for(const b of (blocks||[])){ const k=BD_MAP[b.cat]; if(k) out[k]+=Math.max(0,(b.e-b.t)); }
+  for(const k in out) out[k]=Math.round(out[k]*2)/2;
+  return out;
+}
+
+// ============ DATA BACKUP (export / import everything in localStorage) ============
+function exportBackup(){
+  const data={}; for(let i=0;i<localStorage.length;i++){ const k=localStorage.key(i); if(k&&k.startsWith("lifeos:")) data[k]=localStorage.getItem(k); }
+  const payload={ app:"life-os", version:1, exported:new Date().toISOString(), data };
+  const blob=new Blob([JSON.stringify(payload,null,2)],{type:"application/json"});
+  const url=URL.createObjectURL(blob); const a=document.createElement("a");
+  a.href=url; a.download=`life-os-backup-${todayISO()}.json`; a.click(); URL.revokeObjectURL(url);
+}
+function importBackup(file,onDone){
+  const reader=new FileReader();
+  reader.onload=()=>{ try{
+    const parsed=JSON.parse(reader.result); const data=parsed&&parsed.data?parsed.data:parsed;
+    let n=0; for(const k in data){ if(k.startsWith("lifeos:")){ localStorage.setItem(k, data[k]); n++; } }
+    onDone(n);
+  }catch{ onDone(-1); } };
+  reader.readAsText(file);
+}
+
 // ============ UI PRIMITIVES ============
 const Panel = ({ accent,title,right,children,style })=>(
   <div style={{ background:C.panel, border:`1px solid ${C.line}`, borderRadius:14, padding:18, ...style }}>
@@ -141,6 +175,8 @@ export default function LifeOS(){
   const [allDays,setAllDays] = useState({});
   const [finance,setFinance] = useState(null);
   const [toast,setToast] = useState("");
+  const [showBackup,setShowBackup] = useState(false);
+  const isMobile = useIsMobile();
 
   useEffect(()=>{ (async()=>{
     setDayTypes(await sGet("dayTypes:v2", SEED_DAYTYPES));
@@ -170,6 +206,8 @@ export default function LifeOS(){
     // migrate older saved days lacking new fields
     if(!d.reps) d.reps = { target:dayOfYear(date), done:false };
     if(d.bs===undefined) d.bs = false;
+    // breakdown is now auto-derived from the timeline blocks
+    d.breakdown = computeBreakdown(d.blocks);
     setDay(d);
   })(); },[date, loading]); // eslint-disable-line
 
@@ -196,13 +234,18 @@ export default function LifeOS(){
         ::-webkit-scrollbar{width:8px;height:8px;} ::-webkit-scrollbar-thumb{background:${C.line};border-radius:4px;}
       `}</style>
 
-      <div style={{ borderBottom:`1px solid ${C.line}`, padding:"18px 24px", display:"flex", alignItems:"center", justifyContent:"space-between", position:"sticky", top:0, background:C.bg, zIndex:50 }}>
-        <div style={{ display:"flex", alignItems:"baseline", gap:12 }}>
-          <span style={{ fontFamily:"'Caveat',cursive", fontSize:34, color:C.teal, lineHeight:1 }}>Life OS</span>
-          <span style={{ fontSize:11, color:C.faint, letterSpacing:2, textTransform:"uppercase" }}>Plan · Track · Compound</span>
+      <div style={{ borderBottom:`1px solid ${C.line}`, padding:isMobile?"14px 16px":"18px 24px", display:"flex", alignItems:"center", justifyContent:"space-between", position:"sticky", top:0, background:C.bg, zIndex:50, gap:10 }}>
+        <div style={{ display:"flex", alignItems:"baseline", gap:12, minWidth:0 }}>
+          <span style={{ fontFamily:"'Caveat',cursive", fontSize:isMobile?28:34, color:C.teal, lineHeight:1 }}>Life OS</span>
+          {!isMobile && <span style={{ fontSize:11, color:C.faint, letterSpacing:2, textTransform:"uppercase" }}>Plan · Track · Compound</span>}
         </div>
-        <button onClick={()=>{ setDate(todayISO()); setTab("today"); }} style={{ ...addBtn, width:"auto", padding:"7px 14px", fontSize:12 }}>Jump to Today</button>
+        <div style={{ display:"flex", gap:8, flexShrink:0 }}>
+          <button onClick={()=>setShowBackup(true)} style={{ ...addBtn, width:"auto", padding:"7px 12px", fontSize:12 }}>Backup</button>
+          <button onClick={()=>{ setDate(todayISO()); setTab("today"); }} style={{ ...addBtn, width:"auto", padding:"7px 14px", fontSize:12 }}>{isMobile?"Today":"Jump to Today"}</button>
+        </div>
       </div>
+
+      {showBackup && <BackupModal close={()=>setShowBackup(false)} flash={flash} />}
 
       <div style={{ display:"flex", gap:4, padding:"12px 24px 0", borderBottom:`1px solid ${C.line}`, overflowX:"auto" }}>
         {[["today","Today"],["month","Month"],["week","Weekly Review"],["trends","Trends"],["finance","Finance"],["types","Day Types"]].map(([k,l])=>(
@@ -211,7 +254,7 @@ export default function LifeOS(){
         ))}
       </div>
 
-      <div style={{ maxWidth:1180, margin:"0 auto", padding:"24px" }}>
+      <div style={{ maxWidth:1180, margin:"0 auto", padding:isMobile?"16px 12px":"24px" }}>
         {tab==="today" && <TodayView day={day} date={date} setDate={setDate} upd={upd} dayTypes={dayTypes} applyDayType={applyDayType} />}
         {tab==="month" && <MonthView date={date} setDate={setDate} setTab={setTab} allDays={allDays} dayTypes={dayTypes} flash={flash} />}
         {tab==="week" && <WeekView allDays={allDays} date={date} setDate={setDate} />}
@@ -221,6 +264,29 @@ export default function LifeOS(){
       </div>
 
       {toast && <div style={{ position:"fixed", bottom:24, left:"50%", transform:"translateX(-50%)", background:C.teal, color:"#001014", padding:"10px 22px", borderRadius:30, fontWeight:600, fontSize:14, zIndex:100, boxShadow:"0 8px 30px rgba(0,0,0,.5)" }}>{toast}</div>}
+    </div>
+  );
+}
+
+// ============ BACKUP MODAL ============
+function BackupModal({ close,flash }){
+  const fileRef = useRef(null);
+  const onFile = (e)=>{ const f=e.target.files&&e.target.files[0]; if(!f) return;
+    importBackup(f,(n)=>{ if(n<0){ flash("Couldn't read that file"); return; }
+      flash(`Restored ${n} items — reloading…`); setTimeout(()=>location.reload(),900); }); };
+  return (
+    <div onClick={close} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,.6)", zIndex:200, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
+      <div onClick={e=>e.stopPropagation()} style={{ background:C.panel, border:`1px solid ${C.line}`, borderRadius:14, padding:22, width:"100%", maxWidth:380 }}>
+        <div style={{ fontFamily:"'Caveat',cursive", fontSize:28, color:C.teal, marginBottom:6 }}>Backup & Restore</div>
+        <div style={{ fontSize:12, color:C.dim, lineHeight:1.6, marginBottom:18 }}>
+          Your data lives only on this device. Export a backup file regularly and keep it somewhere safe (email it to yourself, save to cloud). You can restore it here or on a new phone.
+        </div>
+        <button onClick={()=>{ exportBackup(); flash("Backup downloaded"); }} style={{ ...addBtn, borderColor:C.green, color:C.green, marginBottom:10 }}>⬇  Export backup file</button>
+        <button onClick={()=>fileRef.current&&fileRef.current.click()} style={{ ...addBtn, borderColor:C.blue, color:C.blue }}>⬆  Restore from a backup file</button>
+        <input ref={fileRef} type="file" accept="application/json,.json" onChange={onFile} style={{ display:"none" }}/>
+        <div style={{ fontSize:11, color:C.faint, marginTop:14, lineHeight:1.5 }}>Restoring merges the backup into this device and reloads the app.</div>
+        <button onClick={close} style={{ ...addBtn, marginTop:16 }}>Close</button>
+      </div>
     </div>
   );
 }
@@ -235,6 +301,7 @@ function Timeline({ blocks,onChange }){
   const railRef = useRef(null);
   const [drag,setDrag] = useState(null);
   const [editing,setEditing] = useState(null);
+  const isMobile = useIsMobile();
   const hours=[]; for(let h=DAY_START;h<=DAY_END;h++) hours.push(h);
   const height=(DAY_END-DAY_START)*PX_PER_HOUR;
 
@@ -279,8 +346,11 @@ function Timeline({ blocks,onChange }){
               {h>34 && <div style={{ fontSize:10, color:C.dim, marginTop:2 }}>{hhmm(b.t)}–{hhmm(b.e)} · {b.cat}</div>}
               <div onMouseDown={(e)=>onPointerDown(e,b,"resize")} onTouchStart={(e)=>onPointerDown(e,b,"resize")} onClick={(e)=>e.stopPropagation()}
                 style={{ position:"absolute", bottom:0, left:0, right:0, height:8, cursor:"ns-resize" }}/>
+              {editing===b.id && isMobile && <div onMouseDown={e=>{e.stopPropagation();setEditing(null);}} onClick={e=>{e.stopPropagation();setEditing(null);}} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,.55)", zIndex:190 }}/>}
               {editing===b.id && (
-                <div onMouseDown={e=>e.stopPropagation()} onClick={e=>e.stopPropagation()} style={{ position:"absolute", top:0, left:"calc(100% + 8px)", width:210, background:C.panel2, border:`1px solid ${C.line}`, borderRadius:10, padding:12, zIndex:20, boxShadow:"0 8px 30px rgba(0,0,0,.6)" }}>
+                <div onMouseDown={e=>e.stopPropagation()} onClick={e=>e.stopPropagation()} style={ isMobile
+                  ? { position:"fixed", left:"50%", top:"50%", transform:"translate(-50%,-50%)", width:"min(300px,90vw)", background:C.panel2, border:`1px solid ${C.line}`, borderRadius:10, padding:14, zIndex:200, boxShadow:"0 8px 30px rgba(0,0,0,.6)" }
+                  : { position:"absolute", top:0, left:"calc(100% + 8px)", width:210, background:C.panel2, border:`1px solid ${C.line}`, borderRadius:10, padding:12, zIndex:20, boxShadow:"0 8px 30px rgba(0,0,0,.6)" } }>
                   <input value={b.label} onChange={e=>updBlock(b.id,{label:e.target.value})} style={{ ...inp, width:"100%", marginBottom:8 }} placeholder="Label"/>
                   <div style={{ display:"flex", gap:6, marginBottom:8 }}>
                     <div style={{ flex:1 }}><Label>Start</Label><input type="time" value={hhmm(b.t)} onChange={e=>{ const [H,M]=e.target.value.split(":").map(Number); updBlock(b.id,{t:H+M/60}); }} style={{ ...inp, width:"100%" }}/></div>
@@ -309,12 +379,12 @@ function Timeline({ blocks,onChange }){
 function TodayView({ day,date,setDate,upd,dayTypes,applyDayType }){
   const [newTask,setNewTask] = useState("");
   const [showApply,setShowApply] = useState(false);
+  const isMobile = useIsMobile();
   const dn = dayNameOf(date);
-  const setBlocks = (updater)=>{ const next=typeof updater==="function"?updater(day.blocks):updater; upd({ blocks:next }); };
+  const setBlocks = (updater)=>{ const next=typeof updater==="function"?updater(day.blocks):updater; upd({ blocks:next, breakdown:computeBreakdown(next) }); };
   const addTask=(b)=>{ if(!newTask.trim())return; upd({ todos:{ ...day.todos,[b]:[...day.todos[b],{text:newTask.trim(),done:false}] } }); setNewTask(""); };
   const toggleTask=(b,i)=>{ const a=[...day.todos[b]]; a[i]={...a[i],done:!a[i].done}; upd({ todos:{ ...day.todos,[b]:a } }); };
   const delTask=(b,i)=> upd({ todos:{ ...day.todos,[b]:day.todos[b].filter((_,j)=>j!==i) } });
-  const setBd=(k,v)=> upd({ breakdown:{ ...day.breakdown,[k]:Math.max(0,Math.min(14,v)) } });
   const toggleHabit=(k)=> upd({ habits:{ ...day.habits,[k]:!day.habits[k] } });
   const currentType = day.dayTypeId && dayTypes[day.dayTypeId];
 
@@ -344,9 +414,9 @@ function TodayView({ day,date,setDate,upd,dayTypes,applyDayType }){
         )}
       </div>
 
-      <div style={{ display:"grid", gridTemplateColumns:"1.05fr 1fr", gap:18 }}>
+      <div style={{ display:"grid", gridTemplateColumns:isMobile?"1fr":"1.05fr 1fr", gap:18 }}>
         <div style={{ display:"flex", flexDirection:"column", gap:18 }}>
-          <Panel accent={C.pink} title="Day Timeline" right={<span style={{ fontSize:11, color:C.faint }}>drag · resize · dbl-click to add</span>}>
+          <Panel accent={C.pink} title="Day Timeline" right={<span style={{ fontSize:11, color:C.faint }}>{isMobile?"tap block · dbl-tap to add":"drag · resize · dbl-click to add"}</span>}>
             <Timeline blocks={day.blocks} onChange={setBlocks} />
           </Panel>
         </div>
@@ -385,8 +455,9 @@ function TodayView({ day,date,setDate,upd,dayTypes,applyDayType }){
             </div>
           </Panel>
 
-          <Panel accent={C.sleep} title="Hourly Breakdown">
-            {BREAKDOWN.map(k=> <div key={k} style={{ display:"flex", alignItems:"center", gap:12, marginBottom:9 }}><span style={{ width:80, fontSize:13, color:C.dim }}>{k}</span><div style={{ flex:1, height:8, background:C.panel2, borderRadius:4, overflow:"hidden" }}><div style={{ width:`${(day.breakdown[k]/12)*100}%`, height:"100%", background:C.sleep }}/></div><Stepper v={day.breakdown[k]} set={(v)=>setBd(k,v)} /></div>)}
+          <Panel accent={C.sleep} title="Hourly Breakdown" right={<span style={{ fontSize:11, color:C.faint }}>auto from timeline</span>}>
+            {BREAKDOWN.map(k=> <div key={k} style={{ display:"flex", alignItems:"center", gap:12, marginBottom:9 }}><span style={{ width:80, fontSize:13, color:C.dim }}>{k}</span><div style={{ flex:1, height:8, background:C.panel2, borderRadius:4, overflow:"hidden" }}><div style={{ width:`${Math.min(100,(day.breakdown[k]/12)*100)}%`, height:"100%", background:C.sleep }}/></div><span style={{ width:44, textAlign:"right", fontSize:13, color:C.ink, fontVariantNumeric:"tabular-nums" }}>{day.breakdown[k]}h</span></div>)}
+            <Mini>Calculated from your Day Timeline blocks. Add School / Revision / Gym / Sleep / Activity blocks and these fill in.</Mini>
           </Panel>
 
           <Panel accent={C.teal} title="Productive Hours">
@@ -421,6 +492,7 @@ function TodoBucket({ label,color,items,bucket,toggle,del }){
 
 // ============ MONTH VIEW ============
 function MonthView({ date,setDate,setTab,allDays,dayTypes,flash }){
+  const isMobile = useIsMobile();
   const d = pd(date);
   const [viewY,setViewY] = useState(d.getFullYear());
   const [viewM,setViewM] = useState(d.getMonth());
@@ -458,7 +530,7 @@ function MonthView({ date,setDate,setTab,allDays,dayTypes,flash }){
           const rating=logged?.rating; const bs=logged?.bs;
           return (
             <div key={dd} onClick={()=>{ setDate(iso); setTab("today"); }}
-              style={{ minHeight:84, background:isToday?C.panel2:C.panel, border:`1px solid ${isToday?C.teal:C.line}`, borderRadius:10, padding:8, cursor:"pointer", position:"relative", display:"flex", flexDirection:"column", gap:3 }}>
+              style={{ minHeight:isMobile?58:84, background:isToday?C.panel2:C.panel, border:`1px solid ${isToday?C.teal:C.line}`, borderRadius:isMobile?8:10, padding:isMobile?4:8, cursor:"pointer", position:"relative", display:"flex", flexDirection:"column", gap:3 }}>
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
                 <span style={{ fontSize:13, fontWeight:700, color:isToday?C.teal:C.dim }}>{dd}</span>
                 <div style={{ display:"flex", gap:3 }}>
@@ -490,6 +562,7 @@ function MonthView({ date,setDate,setTab,allDays,dayTypes,flash }){
 
 // ============ WEEKLY REVIEW ============
 function WeekView({ allDays,date,setDate }){
+  const isMobile = useIsMobile();
   const wk = weekKeyOf(date);
   const weekDays = useMemo(()=>Array.from({length:7},(_,i)=> allDays[addDays(wk,i)]||null),[wk,allDays]);
   const filled = weekDays.filter(Boolean);
@@ -516,9 +589,9 @@ function WeekView({ allDays,date,setDate }){
         </div>
         <Nav onClick={()=>setDate(addDays(wk,7))}>›</Nav>
       </div>
-      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:18 }}>
+      <div style={{ display:"grid", gridTemplateColumns:isMobile?"1fr":"1fr 1fr", gap:18 }}>
         <Panel accent={C.teal} title="At a Glance" style={{ gridColumn:"1 / -1" }}>
-          <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:14 }}>
+          <div style={{ display:"grid", gridTemplateColumns:isMobile?"repeat(2,1fr)":"repeat(5,1fr)", gap:14 }}>
             <Stat label="Avg day score" value={avgRating} sub="/10" color={C.red}/>
             <Stat label="BS days" value={bsCount} sub="/7" color={C.red}/>
             <Stat label="Reps hit" value={repsHit} sub={`/${filled.length||7}`} color={C.green}/>
@@ -552,6 +625,7 @@ function WeekView({ allDays,date,setDate }){
 
 // ============ TRENDS ============
 function TrendsView({ allDays }){
+  const isMobile = useIsMobile();
   const sorted = useMemo(()=>Object.values(allDays).filter(Boolean).sort((a,b)=>a.date.localeCompare(b.date)),[allDays]);
   if(sorted.length<2) return <Empty big>Log at least 2 days to see trends. Your behaviour patterns accumulate here over weeks and months — including your BS-day count, the metric to actually beat.</Empty>;
   const last30 = sorted.slice(-30);
@@ -582,12 +656,12 @@ function TrendsView({ allDays }){
       </Panel>
 
       <Panel accent={C.gold} title="Current Streaks" style={{ marginBottom:18 }}>
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:12 }}>
+        <div style={{ display:"grid", gridTemplateColumns:isMobile?"repeat(3,1fr)":"repeat(5,1fr)", gap:12 }}>
           {streaks.map(s=> <div key={s.key} style={{ background:C.panel2, borderRadius:10, padding:"14px 10px", textAlign:"center" }}><div style={{ fontSize:30, fontWeight:700, color:s.streak>0?s.color:C.faint, lineHeight:1 }}>{s.streak}</div><div style={{ fontSize:11, color:C.dim, marginTop:6 }}>{s.label}</div></div>)}
         </div>
       </Panel>
 
-      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:18 }}>
+      <div style={{ display:"grid", gridTemplateColumns:isMobile?"1fr":"1fr 1fr", gap:18 }}>
         <Panel accent={C.red} title="Day Score (last 30)"><Bars data={ratings} color={C.red} max={10}/><Mini>Avg {(ratings.reduce((a,b)=>a+b,0)/ratings.length).toFixed(1)}/10</Mini></Panel>
         <Panel accent={C.green} title="Productive Hours (last 30)"><Bars data={prod} color={C.green} max={maxProd}/><Mini>Total {prod.reduce((a,b)=>a+b,0)}h · avg {(prod.reduce((a,b)=>a+b,0)/prod.length).toFixed(1)}h/day</Mini></Panel>
         <Panel accent={C.sleep} title="Sleep Hours (last 30)"><Bars data={sleepH} color={C.sleep} max={maxSleep}/><Mini>Avg {(sleepH.reduce((a,b)=>a+b,0)/sleepH.length).toFixed(1)}h — target 8h+</Mini></Panel>
@@ -602,6 +676,7 @@ function TrendsView({ allDays }){
 
 // ============ DAY TYPES EDITOR ============
 function DayTypesView({ dayTypes,save,weekMap,saveWeekMap,flash }){
+  const isMobile = useIsMobile();
   const [selId,setSelId] = useState(Object.keys(dayTypes)[0]);
   const sel = dayTypes[selId];
   const updType=(patch)=> save({ ...dayTypes, [selId]:{ ...sel, ...patch } });
@@ -616,7 +691,7 @@ function DayTypesView({ dayTypes,save,weekMap,saveWeekMap,flash }){
         <div style={{ fontFamily:"'Caveat',cursive", fontSize:40, color:C.teal }}>Day Types</div>
         <div style={{ fontSize:12, color:C.dim }}>Build a format once · apply it to any day from the Today tab</div>
       </div>
-      <div style={{ display:"grid", gridTemplateColumns:"260px 1fr", gap:18 }}>
+      <div style={{ display:"grid", gridTemplateColumns:isMobile?"1fr":"260px 1fr", gap:18 }}>
         <div style={{ display:"flex", flexDirection:"column", gap:18 }}>
           <Panel accent={C.teal} title="Your Formats">
             {Object.entries(dayTypes).map(([id,t])=> <button key={id} onClick={()=>setSelId(id)} style={{ display:"flex", alignItems:"center", gap:8, width:"100%", padding:"9px 10px", borderRadius:8, marginBottom:4, cursor:"pointer", textAlign:"left", border:`1px solid ${selId===id?t.color:"transparent"}`, background:selId===id?C.panel2:"transparent", color:C.ink, fontSize:13 }}><span style={{ width:9,height:9,borderRadius:"50%",background:t.color,flexShrink:0 }}/><span style={{ flex:1 }}>{t.name}</span><span style={{ fontSize:10, color:C.faint }}>{(t.blocks||[]).length}</span></button>)}
@@ -647,6 +722,7 @@ function DayTypesView({ dayTypes,save,weekMap,saveWeekMap,flash }){
 
 // ============ FINANCE ============
 function FinanceView({ finance,save,flash }){
+  const isMobile = useIsMobile();
   const [sub,setSub] = useState("networth");
   const totalNW = finance.accounts.reduce((s,a)=>s+(+a.balance||0),0);
   const addAccount=()=> save({ ...finance, accounts:[...finance.accounts,{ id:Date.now(),name:"New account",balance:0 }] });
@@ -673,7 +749,7 @@ function FinanceView({ finance,save,flash }){
       </div>
 
       {sub==="networth" && (
-        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:18 }}>
+        <div style={{ display:"grid", gridTemplateColumns:isMobile?"1fr":"1fr 1fr", gap:18 }}>
           <Panel accent={C.green} title="Accounts & Balances">
             {finance.accounts.map(a=> <div key={a.id} style={{ display:"flex", gap:8, marginBottom:10, alignItems:"center" }}><input value={a.name} onChange={e=>updAccount(a.id,{name:e.target.value})} style={{ ...inp, flex:1 }}/><span style={{ color:C.faint }}>£</span><input type="number" value={a.balance} onChange={e=>updAccount(a.id,{balance:e.target.value})} style={{ ...inp, width:90 }}/><button onClick={()=>delAccount(a.id)} style={delBtn}>×</button></div>)}
             <button onClick={addAccount} style={addBtn}>+ Add account</button>
@@ -687,7 +763,7 @@ function FinanceView({ finance,save,flash }){
       )}
 
       {sub==="business" && (
-        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:18 }}>
+        <div style={{ display:"grid", gridTemplateColumns:isMobile?"1fr":"1fr 1fr", gap:18 }}>
           <Panel accent={C.pink} title="DM Tuition — Clients">
             <div style={{ fontSize:11, color:C.faint, marginBottom:12 }}>With Mazin · rate × lessons this month</div>
             {finance.clients.map(c=> <div key={c.id} style={{ background:C.panel2, borderRadius:10, padding:12, marginBottom:10 }}><div style={{ display:"flex", gap:8, marginBottom:8 }}><input value={c.name} onChange={e=>updClient(c.id,{name:e.target.value})} style={{ ...inp, flex:1 }}/><button onClick={()=>delClient(c.id)} style={delBtn}>×</button></div><div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}><span style={{ fontSize:11, color:C.faint }}>£/lesson</span><input type="number" value={c.rate} onChange={e=>updClient(c.id,{rate:e.target.value})} style={{ ...inp, width:64 }}/><span style={{ fontSize:11, color:C.faint }}>lessons/mo</span><input type="number" value={c.lessonsThisMonth} onChange={e=>updClient(c.id,{lessonsThisMonth:e.target.value})} style={{ ...inp, width:54 }}/><input value={c.status} onChange={e=>updClient(c.id,{status:e.target.value})} style={{ ...inp, flex:1, minWidth:90, fontSize:12 }}/></div><div style={{ textAlign:"right", marginTop:6, fontSize:13, color:C.green }}>£{((+c.rate||0)*(+c.lessonsThisMonth||0)).toFixed(0)}/mo</div></div>)}
@@ -702,7 +778,7 @@ function FinanceView({ finance,save,flash }){
       )}
 
       {sub==="lump" && (
-        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:18 }}>
+        <div style={{ display:"grid", gridTemplateColumns:isMobile?"1fr":"1fr 1fr", gap:18 }}>
           <Panel accent={C.gold} title="£10k Allocation Plan">
             <div style={{ display:"flex", gap:10, alignItems:"center", marginBottom:14 }}><span style={{ fontSize:13, color:C.dim }}>Lump sum £</span><input type="number" value={L.amount} onChange={e=>updLump({amount:+e.target.value})} style={{ ...inp, width:110 }}/><label style={{ display:"flex", alignItems:"center", gap:6, fontSize:12, color:C.dim, marginLeft:"auto" }}><Check on={L.received} color={C.green} onClick={()=>updLump({received:!L.received})} size={18}/> Received</label></div>
             {L.allocations.map(a=> <div key={a.id} style={{ marginBottom:12 }}><div style={{ display:"flex", gap:8, alignItems:"center", marginBottom:5 }}><input value={a.name} onChange={e=>updAlloc(a.id,{name:e.target.value})} style={{ ...inp, flex:1, fontSize:13 }}/><input type="number" value={a.pct} onChange={e=>updAlloc(a.id,{pct:+e.target.value})} style={{ ...inp, width:54 }}/><span style={{ color:C.faint, fontSize:13 }}>%</span></div><div style={{ display:"flex", alignItems:"center", gap:8 }}><div style={{ flex:1, height:7, background:C.panel2, borderRadius:4, overflow:"hidden" }}><div style={{ width:`${a.pct}%`, height:"100%", background:C.gold }}/></div><span style={{ fontSize:12, color:C.ink, width:64, textAlign:"right" }}>£{(L.amount*a.pct/100).toFixed(0)}</span></div></div>)}
