@@ -115,6 +115,8 @@ function computeBreakdown(blocks){
 }
 // final breakdown = auto-from-timeline + manual ± adjustments, clamped at 0
 function withAdj(auto,adj){ const o={}; for(const k in auto) o[k]=Math.max(0,(auto[k]||0)+((adj&&adj[k])||0)); return o; }
+// a habit counts as done if ticked manually OR auto-satisfied by a kept timeline block of its linked category
+const habitDone = (day,key,links)=> !!(day && ((day.habits&&day.habits[key]) || (links && links[key] && (day.blocks||[]).some(b=>b.cat===links[key] && b.status!=="missed"))));
 
 // ============ DATA BACKUP (export / import everything in localStorage) ============
 function exportBackup(){
@@ -151,6 +153,19 @@ const Check = ({ on,color,onClick,size=22 })=>(
     border:`2px solid ${on?color:C.faint}`, background:on?color:"transparent", display:"flex",
     alignItems:"center", justifyContent:"center", color:"#fff", fontSize:size*0.6, fontWeight:700, padding:0 }}>{on?"✓":""}</button>
 );
+const Ring = ({ pct,color,value,label,size=68 })=>{
+  const r=(size-8)/2, circ=2*Math.PI*r;
+  return <div style={{ position:"relative", width:size, height:size, flexShrink:0 }}>
+    <svg width={size} height={size}>
+      <circle cx={size/2} cy={size/2} r={r} stroke={C.panel2} strokeWidth={6} fill="none"/>
+      <circle cx={size/2} cy={size/2} r={r} stroke={color} strokeWidth={6} fill="none" strokeLinecap="round" strokeDasharray={circ} strokeDashoffset={circ*(1-Math.min(1,Math.max(0,pct)))} transform={`rotate(-90 ${size/2} ${size/2})`}/>
+    </svg>
+    <div style={{ position:"absolute", inset:0, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center" }}>
+      <span style={{ fontSize:20, fontWeight:700, color }}>{value}</span>
+      <span style={{ fontSize:8, color:C.faint, textTransform:"uppercase", letterSpacing:0.5 }}>{label}</span>
+    </div>
+  </div>;
+};
 const inp = { background:"#101218", border:`1px solid ${C.line}`, borderRadius:8, padding:"9px 11px", color:C.ink, fontSize:13, outline:"none" };
 const addBtn = { width:"100%", padding:"9px", borderRadius:8, border:`1px dashed ${C.line}`, background:"transparent", color:C.dim, cursor:"pointer", fontSize:13 };
 const delBtn = { width:28,height:28,borderRadius:6,border:`1px solid ${C.line}`,background:"transparent",color:C.faint,cursor:"pointer",fontSize:16,flexShrink:0 };
@@ -185,6 +200,7 @@ export default function LifeOS(){
   const [weekMap,setWeekMap] = useState(DEFAULT_WEEK);      // Week A
   const [weekMapB,setWeekMapB] = useState(DEFAULT_WEEK_B);  // Week B
   const [weekAnchorA,setWeekAnchorA] = useState(todayISO());// Monday of a week designated "Week A"
+  const [habitLinks,setHabitLinks] = useState({});         // habit key -> block category (auto-complete)
   const [allDays,setAllDays] = useState({});
   const [finance,setFinance] = useState(null);
   const [toast,setToast] = useState("");
@@ -196,6 +212,7 @@ export default function LifeOS(){
     setWeekMap(await sGet("weekMap:v2", DEFAULT_WEEK));
     setWeekMapB(await sGet("weekMapB:v1", DEFAULT_WEEK_B));
     setWeekAnchorA(await sGet("weekAnchorA:v1", todayISO()));
+    setHabitLinks(await sGet("habitLinks:v1", {}));
     const idx = await sGet("index:days", []);
     const map={}; for(const iso of idx) map[iso]=await sGet(`day:${iso}`, null);
     setAllDays(map);
@@ -238,6 +255,7 @@ export default function LifeOS(){
   const persistWeekMap = async (wm)=>{ setWeekMap(wm); await sSet("weekMap:v2", wm); };
   const persistWeekMapB = async (wm)=>{ setWeekMapB(wm); await sSet("weekMapB:v1", wm); };
   const persistWeekAnchor = async (iso)=>{ setWeekAnchorA(iso); await sSet("weekAnchorA:v1", iso); };
+  const persistHabitLinks = async (l)=>{ setHabitLinks(l); await sSet("habitLinks:v1", l); };
   const applyDayType = (typeId)=>{ const dt=dayTypes[typeId]; if(!dt) return;
     persistDay({ ...day, dayTypeId:typeId, blocks:cloneBlocks(dt.blocks) }); flash(`Applied: ${dt.name}`); };
 
@@ -267,17 +285,19 @@ export default function LifeOS(){
       {showBackup && <BackupModal close={()=>setShowBackup(false)} flash={flash} />}
 
       <div style={{ display:"flex", gap:4, padding:"12px 24px 0", borderBottom:`1px solid ${C.line}`, overflowX:"auto" }}>
-        {[["today","Today"],["month","Month"],["week","Weekly Review"],["trends","Trends"],["finance","Finance"],["types","Day Types"]].map(([k,l])=>(
+        {[["today","Today"],["month","Month"],["habits","Habits"],["week","Weekly Review"],["trends","Reports"],["journal","Journal"],["finance","Finance"],["types","Day Types"]].map(([k,l])=>(
           <button key={k} onClick={()=>setTab(k)} style={{ padding:"10px 18px", cursor:"pointer", border:"none", background:"transparent",
             color:tab===k?C.ink:C.faint, fontWeight:600, fontSize:14, borderBottom:`2px solid ${tab===k?C.teal:"transparent"}`, marginBottom:-1, whiteSpace:"nowrap" }}>{l}</button>
         ))}
       </div>
 
       <div style={{ maxWidth:1180, margin:"0 auto", padding:isMobile?"16px 12px":"24px" }}>
-        {tab==="today" && <TodayView day={day} date={date} setDate={setDate} upd={upd} dayTypes={dayTypes} applyDayType={applyDayType} />}
+        {tab==="today" && <TodayView day={day} date={date} setDate={setDate} upd={upd} dayTypes={dayTypes} applyDayType={applyDayType} links={habitLinks} />}
         {tab==="month" && <MonthView date={date} setDate={setDate} setTab={setTab} allDays={allDays} dayTypes={dayTypes} flash={flash} />}
-        {tab==="week" && <WeekView allDays={allDays} date={date} setDate={setDate} />}
-        {tab==="trends" && <TrendsView allDays={allDays} />}
+        {tab==="habits" && <HabitsView allDays={allDays} links={habitLinks} saveLinks={persistHabitLinks} />}
+        {tab==="week" && <WeekView allDays={allDays} date={date} setDate={setDate} links={habitLinks} />}
+        {tab==="trends" && <TrendsView allDays={allDays} links={habitLinks} />}
+        {tab==="journal" && <JournalView allDays={allDays} setDate={setDate} setTab={setTab} />}
         {tab==="finance" && <FinanceView finance={finance} save={persistFinance} flash={flash} />}
         {tab==="types" && <DayTypesView dayTypes={dayTypes} save={persistDayTypes} weekMap={weekMap} saveWeekMap={persistWeekMap} weekMapB={weekMapB} saveWeekMapB={persistWeekMapB} weekAnchorA={weekAnchorA} saveWeekAnchor={persistWeekAnchor} flash={flash} />}
       </div>
@@ -486,7 +506,7 @@ function Timeline({ blocks,onChange,isToday=false,isPast=false,sketch,onSketch }
 }
 
 // ============ TODAY ============
-function TodayView({ day,date,setDate,upd,dayTypes,applyDayType }){
+function TodayView({ day,date,setDate,upd,dayTypes,applyDayType,links }){
   const [newTask,setNewTask] = useState("");
   const [showApply,setShowApply] = useState(false);
   const isMobile = useIsMobile();
@@ -571,7 +591,7 @@ function TodayView({ day,date,setDate,upd,dayTypes,applyDayType }){
 
           <Panel accent={C.purple} title="Habit Tracker">
             <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"10px 14px" }}>
-              {HABITS.map(h=> <div key={h.key} style={{ display:"flex", alignItems:"center", gap:10 }}><Check on={day.habits[h.key]} color={h.color} onClick={()=>toggleHabit(h.key)} /><span style={{ fontSize:13, color:day.habits[h.key]?C.ink:C.dim }}>{h.label}</span></div>)}
+              {HABITS.map(h=>{ const on=habitDone(day,h.key,links); const auto=on&&!(day.habits&&day.habits[h.key]); return <div key={h.key} style={{ display:"flex", alignItems:"center", gap:10 }}><Check on={on} color={h.color} onClick={()=>toggleHabit(h.key)} /><span style={{ fontSize:13, color:on?C.ink:C.dim }}>{h.label}{auto && <span style={{ fontSize:9, color:h.color, marginLeft:4 }}>auto</span>}</span></div>; })}
             </div>
           </Panel>
 
@@ -702,12 +722,12 @@ function MonthView({ date,setDate,setTab,allDays,dayTypes,flash }){
 }
 
 // ============ WEEKLY REVIEW ============
-function WeekView({ allDays,date,setDate }){
+function WeekView({ allDays,date,setDate,links }){
   const isMobile = useIsMobile();
   const wk = weekKeyOf(date);
   const weekDays = useMemo(()=>Array.from({length:7},(_,i)=> allDays[addDays(wk,i)]||null),[wk,allDays]);
   const filled = weekDays.filter(Boolean);
-  const habitConsistency = HABITS.map(h=>({ ...h, count:filled.filter(d=>d.habits[h.key]).length, total:filled.length }));
+  const habitConsistency = HABITS.map(h=>({ ...h, count:filled.filter(d=>habitDone(d,h.key,links)).length, total:filled.length }));
   const avgRating = filled.length ? (filled.reduce((s,d)=>s+d.rating,0)/filled.length).toFixed(1) : "—";
   const totalProd = filled.reduce((s,d)=>s+(+d.prodHours||0),0);
   const totalUnprod = filled.reduce((s,d)=>s+(+d.unprodHours||0),0);
@@ -769,7 +789,7 @@ function WeekView({ allDays,date,setDate }){
 }
 
 // ============ TRENDS ============
-function TrendsView({ allDays }){
+function TrendsView({ allDays,links }){
   const isMobile = useIsMobile();
   const sorted = useMemo(()=>Object.values(allDays).filter(Boolean).sort((a,b)=>a.date.localeCompare(b.date)),[allDays]);
   if(sorted.length<2) return <Empty big>Log at least 2 days to see trends. Your behaviour patterns accumulate here over weeks and months — including your BS-day count, the metric to actually beat.</Empty>;
@@ -777,8 +797,8 @@ function TrendsView({ allDays }){
   const Bars = ({ data,color,max })=> <div style={{ display:"flex", alignItems:"flex-end", gap:2, height:90, marginTop:8 }}>{data.map((v,i)=> <div key={i} style={{ flex:1, minWidth:3, height:`${(v/max*100)||2}%`, background:color, borderRadius:2, opacity:0.85 }}/>)}</div>;
   const ratings=last30.map(d=>d.rating||0), prod=last30.map(d=>+d.prodHours||0), sleepH=last30.map(d=>d.breakdown.Sleep||0);
   const maxProd=Math.max(8,...prod), maxSleep=Math.max(10,...sleepH);
-  const streaks = HABITS.map(h=>{ let s=0; for(let i=sorted.length-1;i>=0;i--){ if(sorted[i].habits[h.key]) s++; else break; } return {...h,streak:s}; });
-  const habitRate = HABITS.map(h=>({ ...h, rate:Math.round(sorted.filter(d=>d.habits[h.key]).length/sorted.length*100) }));
+  const streaks = HABITS.map(h=>{ let s=0; for(let i=sorted.length-1;i>=0;i--){ if(habitDone(sorted[i],h.key,links)) s++; else break; } return {...h,streak:s}; });
+  const habitRate = HABITS.map(h=>({ ...h, rate:Math.round(sorted.filter(d=>habitDone(d,h.key,links)).length/sorted.length*100) }));
   const bsTotal = sorted.filter(d=>d.bs).length;
   const bsRate = Math.round(bsTotal/sorted.length*100);
   const repsRate = Math.round(sorted.filter(d=>d.reps?.done).length/sorted.length*100);
@@ -887,6 +907,97 @@ function DayTypesView({ dayTypes,save,weekMap,saveWeekMap,weekMapB,saveWeekMapB,
             </Panel>
           )}
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ============ HABITS (contribution grid + streak rings + block linking) ============
+const GRID_WEEKS = 18;
+function HabitsView({ allDays, links, saveLinks }){
+  const today = todayISO();
+  const start = addDays(weekKeyOf(today), -(GRID_WEEKS-1)*7);
+  const weeks = useMemo(()=>{ const arr=[]; for(let w=0;w<GRID_WEEKS;w++){ const col=[]; for(let d=0;d<7;d++) col.push(addDays(start, w*7+d)); arr.push(col); } return arr; },[start]);
+  const sorted = useMemo(()=> Object.values(allDays).filter(Boolean).sort((a,b)=>a.date.localeCompare(b.date)),[allDays]);
+  const stats = (key)=>{ let cur=0; for(let i=sorted.length-1;i>=0;i--){ if(habitDone(sorted[i],key,links)) cur++; else break; }
+    let lng=0,run=0; for(const d of sorted){ if(habitDone(d,key,links)){ run++; lng=Math.max(lng,run); } else run=0; }
+    const done=sorted.filter(d=>habitDone(d,key,links)).length; const rate=sorted.length?Math.round(done/sorted.length*100):0;
+    return { cur,lng,rate }; };
+
+  return (
+    <div>
+      <div style={{ textAlign:"center", marginBottom:20 }}>
+        <div style={{ fontFamily:"'Caveat',cursive", fontSize:40, color:C.teal }}>Habits</div>
+        <div style={{ fontSize:12, color:C.dim }}>Don't break the chain · last {GRID_WEEKS} weeks</div>
+      </div>
+      <div style={{ display:"flex", flexDirection:"column", gap:18 }}>
+        {HABITS.map(h=>{ const s=stats(h.key);
+          return (
+            <Panel key={h.key} accent={h.color} title={h.label} right={
+              <select value={links[h.key]||""} onChange={e=>saveLinks({ ...links, [h.key]: e.target.value })} style={{ ...inp, fontSize:11, padding:"5px 7px", cursor:"pointer" }}>
+                <option value="">Manual tick</option>
+                {CAT_KEYS.map(c=> <option key={c} value={c} style={{ background:C.panel }}>Auto: {c} block</option>)}
+              </select>}>
+              <div style={{ display:"flex", gap:18, alignItems:"center", flexWrap:"wrap", marginBottom:14 }}>
+                <Ring pct={s.cur/30} color={h.color} value={s.cur} label="streak"/>
+                <div style={{ display:"flex", gap:12, flexWrap:"wrap" }}>
+                  <Stat label="Current" value={s.cur} sub="d" color={h.color}/>
+                  <Stat label="Longest" value={s.lng} sub="d" color={C.gold}/>
+                  <Stat label="All-time" value={s.rate} sub="%" color={C.dim}/>
+                </div>
+              </div>
+              <div style={{ display:"flex", gap:3, overflowX:"auto", paddingBottom:4 }}>
+                {weeks.map((col,wi)=> <div key={wi} style={{ display:"flex", flexDirection:"column", gap:3, flexShrink:0 }}>
+                  {col.map(iso=>{ const d=allDays[iso]; const future=iso>today; const done=habitDone(d,h.key,links);
+                    return <div key={iso} title={iso} style={{ width:12, height:12, borderRadius:3, background: future?"transparent" : done? h.color : d? `${h.color}22` : C.panel2 }}/>; })}
+                </div>)}
+              </div>
+            </Panel>
+          );
+        })}
+      </div>
+      <Mini>Link a habit to a timeline category (top-right of each card) and it auto-completes whenever you keep a block of that type.</Mini>
+    </div>
+  );
+}
+
+// ============ JOURNAL (daily reflections + weekly reviews, newest first) ============
+function JournalView({ allDays, setDate, setTab }){
+  const [reviews,setReviews] = useState([]);
+  useEffect(()=>{ const out=[]; for(let i=0;i<localStorage.length;i++){ const k=localStorage.key(i); if(k&&k.startsWith("lifeos:review:")){ try{ const r=JSON.parse(localStorage.getItem(k)); if(r&&(r.feedback||r.adapt1||r.adapt2||r.target1||r.target2)) out.push({ wk:k.replace("lifeos:review:",""), ...r }); }catch{} } } setReviews(out); },[allDays]);
+  const entries = useMemo(()=>{
+    const days = Object.values(allDays).filter(d=>d&&(d.feedback||d.rating>0)).map(d=>({ type:"day", date:d.date, rating:d.rating, bs:d.bs, text:d.feedback }));
+    const wks = reviews.map(r=>({ type:"week", date:r.wk, ...r }));
+    return [...days,...wks].sort((a,b)=> b.date.localeCompare(a.date));
+  },[allDays,reviews]);
+
+  return (
+    <div>
+      <div style={{ textAlign:"center", marginBottom:20 }}>
+        <div style={{ fontFamily:"'Caveat',cursive", fontSize:40, color:C.teal }}>Journal</div>
+        <div style={{ fontSize:12, color:C.dim }}>{entries.length} entr{entries.length===1?"y":"ies"} · your year, written down</div>
+      </div>
+      {entries.length===0 && <Empty big>Rate a day or leave feedback on the Today tab, or write a Weekly Review — they collect here as a scrollable journal.</Empty>}
+      <div style={{ display:"flex", flexDirection:"column", gap:12, maxWidth:760, margin:"0 auto" }}>
+        {entries.map((e,i)=> e.type==="day" ? (
+          <div key={"d"+i} onClick={()=>{ setDate(e.date); setTab("today"); }} style={{ background:C.panel, border:`1px solid ${C.line}`, borderRadius:12, padding:16, cursor:"pointer" }}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6 }}>
+              <span style={{ fontSize:13, color:C.teal, fontWeight:600 }}>{fmt(e.date)}</span>
+              <div style={{ display:"flex", gap:6, alignItems:"center" }}>
+                {e.bs && <span style={{ fontSize:9, fontWeight:700, color:"#fff", background:C.red, borderRadius:4, padding:"1px 5px" }}>BS</span>}
+                {e.rating>0 && <span style={{ fontSize:12, color:C.red, fontWeight:700 }}>{e.rating}/10</span>}
+              </div>
+            </div>
+            {e.text && <div style={{ fontSize:13, color:C.dim, lineHeight:1.5, whiteSpace:"pre-wrap" }}>{e.text}</div>}
+          </div>
+        ) : (
+          <div key={"w"+i} style={{ background:C.panel, border:`1px solid ${C.cyan}55`, borderRadius:12, padding:16 }}>
+            <div style={{ fontSize:13, color:C.cyan, fontWeight:600, marginBottom:8 }}>Weekly Review · week of {fmt(e.date)}</div>
+            {e.feedback && <div style={{ fontSize:13, color:C.dim, lineHeight:1.5, whiteSpace:"pre-wrap", marginBottom:8 }}>{e.feedback}</div>}
+            {(e.adapt1||e.adapt2) && <div style={{ fontSize:12, color:C.faint, marginBottom:4 }}><b style={{ color:C.cyan }}>Adapt:</b> {[e.adapt1,e.adapt2].filter(Boolean).join(" · ")}</div>}
+            {(e.target1||e.target2) && <div style={{ fontSize:12, color:C.faint }}><b style={{ color:C.pink }}>Targets:</b> {[e.target1,e.target2].filter(Boolean).join(" · ")}</div>}
+          </div>
+        ))}
       </div>
     </div>
   );
