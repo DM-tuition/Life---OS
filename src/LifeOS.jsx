@@ -63,6 +63,10 @@ const DEFAULT_WEEK = {
   Monday:"school-a-mon", Tuesday:"school-a-tue", Wednesday:"school-a-wed",
   Thursday:"school-a-thu", Friday:"school-a-fri", Saturday:"weekend", Sunday:"weekend",
 };
+const DEFAULT_WEEK_B = {
+  Monday:"school-b-mon", Tuesday:"school-a-tue", Wednesday:"school-a-wed",
+  Thursday:"school-a-thu", Friday:"school-a-fri", Saturday:"weekend", Sunday:"weekend",
+};
 
 // ============ DATE HELPERS (all parse noon to dodge timezone/DST drift) ============
 const pd = (iso)=> new Date(iso+"T12:00:00");
@@ -74,6 +78,9 @@ const weekKeyOf = (iso)=>{ const d=pd(iso); const off=(d.getDay()+6)%7; d.setDat
 const fmt = (iso)=> pd(iso).toLocaleDateString("en-GB",{weekday:"short",day:"numeric",month:"short"});
 const dayOfYear = (iso)=>{ const d=pd(iso); const start=new Date(d.getFullYear(),0,0,12); return Math.floor((d-start)/86400000); };
 const hhmm = (dec)=>{ const h=Math.floor(dec); const m=Math.round((dec-h)*60); return `${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}`; };
+const weeksBetween = (isoA,isoB)=> Math.round((pd(isoB)-pd(isoA))/(7*86400000));
+// true if the week containing `iso` is a "Week B" given `anchorA` (a Monday designated Week A)
+const weekIsB = (iso,anchorA)=> ((((weeksBetween(weekKeyOf(anchorA), weekKeyOf(iso)))%2)+2)%2)===1;
 
 // localStorage-backed (works on any host; persists on the device)
 async function sGet(key,fb){ try{ const r=localStorage.getItem("lifeos:"+key); return r!==null?JSON.parse(r):fb; }catch{ return fb; } }
@@ -83,6 +90,7 @@ const blankDay = (iso)=>({
   date:iso, dayTypeId:null, blocks:[], bs:false,
   reps:{ target:dayOfYear(iso), done:false },
   breakdown:{ Sleep:0,Lessons:0,Revision:0,Gym:0,Activity:0 },
+  breakdownAdj:{ Sleep:0,Lessons:0,Revision:0,Gym:0,Activity:0 },
   habits:{ sleep8:false,eatwell:false,exercise:false,screen:false,icebath:false },
   todos:{ shortImp:[],longImp:[],shortUnimp:[],longUnimp:[] },
   rating:0, feedback:"", prodHours:0, unprodHours:0,
@@ -102,8 +110,11 @@ function computeBreakdown(blocks){
   const out = { Sleep:0,Lessons:0,Revision:0,Gym:0,Activity:0 };
   for(const b of (blocks||[])){ const k=BD_MAP[b.cat]; if(k) out[k]+=Math.max(0,(b.e-b.t)); }
   for(const k in out) out[k]=Math.round(out[k]*2)/2;
+  if(out.Sleep===0) out.Sleep=8;   // auto-assume 8h sleep unless a Sleep block says otherwise
   return out;
 }
+// final breakdown = auto-from-timeline + manual ± adjustments, clamped at 0
+function withAdj(auto,adj){ const o={}; for(const k in auto) o[k]=Math.max(0,(auto[k]||0)+((adj&&adj[k])||0)); return o; }
 
 // ============ DATA BACKUP (export / import everything in localStorage) ============
 function exportBackup(){
@@ -171,7 +182,9 @@ export default function LifeOS(){
   const [day,setDay] = useState(null);
   const [loading,setLoading] = useState(true);
   const [dayTypes,setDayTypes] = useState({});
-  const [weekMap,setWeekMap] = useState(DEFAULT_WEEK);
+  const [weekMap,setWeekMap] = useState(DEFAULT_WEEK);      // Week A
+  const [weekMapB,setWeekMapB] = useState(DEFAULT_WEEK_B);  // Week B
+  const [weekAnchorA,setWeekAnchorA] = useState(todayISO());// Monday of a week designated "Week A"
   const [allDays,setAllDays] = useState({});
   const [finance,setFinance] = useState(null);
   const [toast,setToast] = useState("");
@@ -181,6 +194,8 @@ export default function LifeOS(){
   useEffect(()=>{ (async()=>{
     setDayTypes(await sGet("dayTypes:v2", SEED_DAYTYPES));
     setWeekMap(await sGet("weekMap:v2", DEFAULT_WEEK));
+    setWeekMapB(await sGet("weekMapB:v1", DEFAULT_WEEK_B));
+    setWeekAnchorA(await sGet("weekAnchorA:v1", todayISO()));
     const idx = await sGet("index:days", []);
     const map={}; for(const iso of idx) map[iso]=await sGet(`day:${iso}`, null);
     setAllDays(map);
@@ -199,17 +214,19 @@ export default function LifeOS(){
     let d = await sGet(`day:${date}`, null);
     if(!d){
       d = blankDay(date);
-      const typeId = weekMap[dayNameOf(date)] || "blank";
+      const map = weekIsB(date, weekAnchorA) ? weekMapB : weekMap;
+      const typeId = map[dayNameOf(date)] || "blank";
       d.dayTypeId = typeId;
       d.blocks = cloneBlocks((dayTypes[typeId]?.blocks)||[]);
     }
     // migrate older saved days lacking new fields
     if(!d.reps) d.reps = { target:dayOfYear(date), done:false };
     if(d.bs===undefined) d.bs = false;
-    // breakdown is now auto-derived from the timeline blocks
-    d.breakdown = computeBreakdown(d.blocks);
+    if(!d.breakdownAdj) d.breakdownAdj = { Sleep:0,Lessons:0,Revision:0,Gym:0,Activity:0 };
+    // breakdown = auto from timeline + the day's manual adjustments
+    d.breakdown = withAdj(computeBreakdown(d.blocks), d.breakdownAdj);
     setDay(d);
-  })(); },[date, loading]); // eslint-disable-line
+  })(); },[date, loading, weekAnchorA]); // eslint-disable-line
 
   const flash = (m)=>{ setToast(m); setTimeout(()=>setToast(""),1600); };
   const persistDay = async (d)=>{ setDay(d); await sSet(`day:${d.date}`, d);
@@ -219,6 +236,8 @@ export default function LifeOS(){
   const persistFinance = async (f)=>{ setFinance(f); await sSet("finance:v2", f); };
   const persistDayTypes = async (dt)=>{ setDayTypes(dt); await sSet("dayTypes:v2", dt); };
   const persistWeekMap = async (wm)=>{ setWeekMap(wm); await sSet("weekMap:v2", wm); };
+  const persistWeekMapB = async (wm)=>{ setWeekMapB(wm); await sSet("weekMapB:v1", wm); };
+  const persistWeekAnchor = async (iso)=>{ setWeekAnchorA(iso); await sSet("weekAnchorA:v1", iso); };
   const applyDayType = (typeId)=>{ const dt=dayTypes[typeId]; if(!dt) return;
     persistDay({ ...day, dayTypeId:typeId, blocks:cloneBlocks(dt.blocks) }); flash(`Applied: ${dt.name}`); };
 
@@ -260,7 +279,7 @@ export default function LifeOS(){
         {tab==="week" && <WeekView allDays={allDays} date={date} setDate={setDate} />}
         {tab==="trends" && <TrendsView allDays={allDays} />}
         {tab==="finance" && <FinanceView finance={finance} save={persistFinance} flash={flash} />}
-        {tab==="types" && <DayTypesView dayTypes={dayTypes} save={persistDayTypes} weekMap={weekMap} saveWeekMap={persistWeekMap} flash={flash} />}
+        {tab==="types" && <DayTypesView dayTypes={dayTypes} save={persistDayTypes} weekMap={weekMap} saveWeekMap={persistWeekMap} weekMapB={weekMapB} saveWeekMapB={persistWeekMapB} weekAnchorA={weekAnchorA} saveWeekAnchor={persistWeekAnchor} flash={flash} />}
       </div>
 
       {toast && <div style={{ position:"fixed", bottom:24, left:"50%", transform:"translateX(-50%)", background:C.teal, color:"#001014", padding:"10px 22px", borderRadius:30, fontWeight:600, fontSize:14, zIndex:100, boxShadow:"0 8px 30px rgba(0,0,0,.5)" }}>{toast}</div>}
@@ -298,6 +317,20 @@ const yToTime = (y)=> Math.max(DAY_START, Math.min(DAY_END, DAY_START + y/PX_PER
 const snap = (t)=> Math.round(t*4)/4;
 const nowDec = ()=>{ const d=new Date(); return d.getHours()+d.getMinutes()/60; };
 const PENS = [C.cyan, C.gold, C.pink, C.ink];
+
+// snap a freehand stroke to a clean straight line or rectangle (shape-builder)
+function _bounds(P){ let a=Infinity,b=Infinity,c=-Infinity,d=-Infinity; for(const p of P){ a=Math.min(a,p.x); b=Math.min(b,p.y); c=Math.max(c,p.x); d=Math.max(d,p.y); } return {x:a,y:b,w:c-a,h:d-b}; }
+function _perim(P){ let s=0; for(let i=1;i<P.length;i++) s+=Math.hypot(P[i].x-P[i-1].x,P[i].y-P[i-1].y); return s; }
+function _lineDist(p,a,b){ const dx=b.x-a.x, dy=b.y-a.y; const L=Math.hypot(dx,dy)||1; return Math.abs((p.x-a.x)*dy-(p.y-a.y)*dx)/L; }
+function snapStroke(pts,w,held){
+  if(pts.length<3 || !w) return pts;
+  const P=pts.map(p=>({x:p.x*w,y:p.y})); const a=P[0], b=P[P.length-1];
+  const len=Math.hypot(b.x-a.x,b.y-a.y); let maxDev=0; for(const p of P){ const dv=_lineDist(p,a,b); if(dv>maxDev)maxDev=dv; }
+  const bb=_bounds(P); const closed = Math.hypot(b.x-a.x,b.y-a.y) < 0.30*_perim(P);
+  if(len>28 && (held || maxDev<14)) return [a,b].map(q=>({x:q.x/w,y:q.y}));               // straight line
+  if(closed && bb.w>26 && bb.h>26){ const r=[[bb.x,bb.y],[bb.x+bb.w,bb.y],[bb.x+bb.w,bb.y+bb.h],[bb.x,bb.y+bb.h],[bb.x,bb.y]]; return r.map(([x,y])=>({x:x/w,y})); } // rectangle
+  return pts;
+}
 
 function Timeline({ blocks,onChange,isToday=false,isPast=false,sketch,onSketch }){
   const railRef = useRef(null);
@@ -358,11 +391,13 @@ function Timeline({ blocks,onChange,isToday=false,isPast=false,sketch,onSketch }
 
   // ----- freehand pencil layer -----
   const startStroke=(e)=>{ if(!pen) return; e.stopPropagation();
-    const rect=railRef.current.getBoundingClientRect();
-    const pt=(ev)=>{ const q=ev.touches?ev.touches[0]:ev; return { x:(q.clientX-rect.left)/rect.width, y:Math.max(0,Math.min(height,q.clientY-rect.top)) }; };
-    strokeRef.current={ color:penColor, w:2.5, pts:[pt(e)] }; rerender();
-    const move=(ev)=>{ if(ev.cancelable&&ev.touches) ev.preventDefault(); strokeRef.current.pts.push(pt(ev)); rerender(); };
-    const up=()=>{ const s=strokeRef.current; strokeRef.current=null; if(s&&s.pts.length>1) onSketch([...(sketch||[]),s]); rerender();
+    const rect=railRef.current.getBoundingClientRect(); const W=rect.width;
+    const pt=(ev)=>{ const q=ev.touches?ev.touches[0]:ev; return { x:(q.clientX-rect.left)/W, y:Math.max(0,Math.min(height,q.clientY-rect.top)) }; };
+    const p0=pt(e); strokeRef.current={ color:penColor, w:2.5, pts:[p0], lastT:performance.now(), lastP:p0 }; rerender();
+    const move=(ev)=>{ if(ev.cancelable&&ev.touches) ev.preventDefault(); const s=strokeRef.current; const np=pt(ev); s.pts.push(np);
+      if(Math.hypot((np.x-s.lastP.x)*W, np.y-s.lastP.y)>3){ s.lastT=performance.now(); s.lastP=np; } rerender(); };
+    const up=()=>{ const s=strokeRef.current; strokeRef.current=null;
+      if(s&&s.pts.length>1){ const held=(performance.now()-s.lastT)>300 && s.pts.length>4; s.pts=snapStroke(s.pts,W,held); onSketch([...(sketch||[]),s]); } rerender();
       window.removeEventListener("mousemove",move); window.removeEventListener("touchmove",move); window.removeEventListener("mouseup",up); window.removeEventListener("touchend",up); };
     window.addEventListener("mousemove",move); window.addEventListener("touchmove",move,{passive:false}); window.addEventListener("mouseup",up); window.addEventListener("touchend",up);
   };
@@ -429,7 +464,7 @@ function Timeline({ blocks,onChange,isToday=false,isPast=false,sketch,onSketch }
             );
           })}
 
-          {cr && cB-cA>0 && <div style={{ position:"absolute", top:timeToY(cA), left:6, right:6, height:Math.max(2,(cB-cA)*PX_PER_HOUR), background:`${C.teal}22`, border:`1.5px dashed ${C.teal}`, borderRadius:8, pointerEvents:"none", zIndex:6 }}/>}
+          {cr && cB-cA>0 && <div style={{ position:"absolute", top:timeToY(cA), left:6, right:6, height:Math.max(2,(cB-cA)*PX_PER_HOUR), background:`${C.teal}22`, border:`1.5px dashed ${C.teal}`, borderRadius:8, pointerEvents:"none", zIndex:6, display:"flex", alignItems:"center", justifyContent:"center" }}><span style={{ fontSize:12, fontWeight:700, color:C.teal }}>{hhmm(cA)}–{hhmm(cB)}</span></div>}
 
           {isToday && now>=DAY_START && now<=DAY_END && (
             <div style={{ position:"absolute", top:timeToY(now), left:0, right:0, borderTop:`2px solid ${C.red}`, zIndex:7, pointerEvents:"none" }}>
@@ -459,8 +494,9 @@ function TodayView({ day,date,setDate,upd,dayTypes,applyDayType }){
   const dn = dayNameOf(date);
   const isToday = date===todayISO();
   const isPast = date<todayISO();
-  const setBlocks = (updater)=>{ const next=typeof updater==="function"?updater(day.blocks):updater; upd({ blocks:next, breakdown:computeBreakdown(next) }); };
+  const setBlocks = (updater)=>{ const next=typeof updater==="function"?updater(day.blocks):updater; upd({ blocks:next, breakdown:withAdj(computeBreakdown(next), day.breakdownAdj) }); };
   const setSketch = (s)=> upd({ sketch:s });
+  const adjustBd = (k,delta)=>{ const adj={ ...(day.breakdownAdj||{}), [k]:((day.breakdownAdj&&day.breakdownAdj[k])||0)+delta }; upd({ breakdownAdj:adj, breakdown:withAdj(computeBreakdown(day.blocks), adj) }); };
   const addTask=(b)=>{ if(!newTask.trim())return; upd({ todos:{ ...day.todos,[b]:[...day.todos[b],{text:newTask.trim(),done:false}] } }); setNewTask(""); };
   const toggleTask=(b,i)=>{ const a=[...day.todos[b]]; a[i]={...a[i],done:!a[i].done}; upd({ todos:{ ...day.todos,[b]:a } }); };
   const delTask=(b,i)=> upd({ todos:{ ...day.todos,[b]:day.todos[b].filter((_,j)=>j!==i) } });
@@ -549,9 +585,20 @@ function TodayView({ day,date,setDate,upd,dayTypes,applyDayType }){
             </div>
           </Panel>
 
-          <Panel accent={C.sleep} title="Hourly Breakdown" right={<span style={{ fontSize:11, color:C.faint }}>auto from timeline</span>}>
-            {BREAKDOWN.map(k=> <div key={k} style={{ display:"flex", alignItems:"center", gap:12, marginBottom:9 }}><span style={{ width:80, fontSize:13, color:C.dim }}>{k}</span><div style={{ flex:1, height:8, background:C.panel2, borderRadius:4, overflow:"hidden" }}><div style={{ width:`${Math.min(100,(day.breakdown[k]/12)*100)}%`, height:"100%", background:C.sleep }}/></div><span style={{ width:44, textAlign:"right", fontSize:13, color:C.ink, fontVariantNumeric:"tabular-nums" }}>{day.breakdown[k]}h</span></div>)}
-            <Mini>Calculated from your timeline. Draw School / Revision / Gym / Sleep / Activity blocks and these fill in.</Mini>
+          <Panel accent={C.sleep} title="Hourly Breakdown" right={<span style={{ fontSize:11, color:C.faint }}>auto · adjust ±</span>}>
+            {BREAKDOWN.map(k=>{ const adj=(day.breakdownAdj&&day.breakdownAdj[k])||0; return (
+              <div key={k} style={{ display:"flex", alignItems:"center", gap:10, marginBottom:9 }}>
+                <span style={{ width:70, fontSize:13, color:C.dim }}>{k}</span>
+                <div style={{ flex:1, height:8, background:C.panel2, borderRadius:4, overflow:"hidden" }}><div style={{ width:`${Math.min(100,(day.breakdown[k]/12)*100)}%`, height:"100%", background:C.sleep }}/></div>
+                <span style={{ width:34, textAlign:"right", fontSize:13, color:C.ink, fontVariantNumeric:"tabular-nums" }}>{day.breakdown[k]}h</span>
+                <div style={{ display:"flex", alignItems:"center", gap:4 }}>
+                  <button onClick={()=>adjustBd(k,-1)} style={stepBtn}>–</button>
+                  <button onClick={()=>adjustBd(k,1)} style={stepBtn}>+</button>
+                </div>
+                {adj!==0 && <span style={{ fontSize:10, color:adj>0?C.green:C.red, width:24 }}>{adj>0?`+${adj}`:adj}</span>}
+              </div>
+            ); })}
+            <Mini>Auto-filled from your timeline (sleep defaults to 8h). Tap ± to tweak any day.</Mini>
           </Panel>
 
           <Panel accent={C.teal} title="Productive Hours">
@@ -785,9 +832,11 @@ function TrendsView({ allDays }){
 }
 
 // ============ DAY TYPES EDITOR ============
-function DayTypesView({ dayTypes,save,weekMap,saveWeekMap,flash }){
+function DayTypesView({ dayTypes,save,weekMap,saveWeekMap,weekMapB,saveWeekMapB,weekAnchorA,saveWeekAnchor,flash }){
   const isMobile = useIsMobile();
   const [selId,setSelId] = useState(Object.keys(dayTypes)[0]);
+  const [wkTab,setWkTab] = useState("A");
+  const currentIsB = weekIsB(todayISO(), weekAnchorA);
   const sel = dayTypes[selId];
   const updType=(patch)=> save({ ...dayTypes, [selId]:{ ...sel, ...patch } });
   const newType=()=>{ const id="type-"+Date.now(); save({ ...dayTypes, [id]:{ name:"New Day Type", color:C.teal, blocks:[] } }); setSelId(id); flash("Day type created"); };
@@ -807,9 +856,22 @@ function DayTypesView({ dayTypes,save,weekMap,saveWeekMap,flash }){
             {Object.entries(dayTypes).map(([id,t])=> <button key={id} onClick={()=>setSelId(id)} style={{ display:"flex", alignItems:"center", gap:8, width:"100%", padding:"9px 10px", borderRadius:8, marginBottom:4, cursor:"pointer", textAlign:"left", border:`1px solid ${selId===id?t.color:"transparent"}`, background:selId===id?C.panel2:"transparent", color:C.ink, fontSize:13 }}><span style={{ width:9,height:9,borderRadius:"50%",background:t.color,flexShrink:0 }}/><span style={{ flex:1 }}>{t.name}</span><span style={{ fontSize:10, color:C.faint }}>{(t.blocks||[]).length}</span></button>)}
             <button onClick={newType} style={{ ...addBtn, marginTop:8 }}>+ New day type</button>
           </Panel>
-          <Panel accent={C.gold} title="Default Week">
-            <Label>Which format auto-loads for each weekday on a fresh day</Label>
-            {DAYS.map(d=> <div key={d} style={{ display:"flex", alignItems:"center", gap:8, marginBottom:7 }}><span style={{ width:42, fontSize:12, color:C.dim }}>{d.slice(0,3)}</span><select value={weekMap[d]||"blank"} onChange={e=>saveWeekMap({ ...weekMap, [d]:e.target.value })} style={{ ...inp, flex:1, fontSize:12, cursor:"pointer" }}>{Object.entries(dayTypes).map(([id,t])=><option key={id} value={id} style={{ background:C.panel }}>{t.name}</option>)}</select></div>)}
+          <Panel accent={C.gold} title="Default Week (A / B)">
+            <Label>This week is currently</Label>
+            <div style={{ display:"flex", gap:6, marginBottom:14 }}>
+              {["A","B"].map(w=>{ const active=(w==="B")===currentIsB; return (
+                <button key={w} onClick={()=>{ const thisMon=weekKeyOf(todayISO()); saveWeekAnchor(w==="A"?thisMon:addDays(thisMon,-7)); flash(`This week set to Week ${w}`); }}
+                  style={{ flex:1, padding:"9px", borderRadius:8, cursor:"pointer", fontWeight:700, border:`1px solid ${active?C.gold:C.line}`, background:active?C.gold:"transparent", color:active?"#0b0b0b":C.dim }}>Week {w}{active?" ✓":""}</button>
+              ); })}
+            </div>
+            <div style={{ display:"flex", gap:6, marginBottom:10 }}>
+              {["A","B"].map(w=> <button key={w} onClick={()=>setWkTab(w)} style={{ flex:1, padding:"7px", cursor:"pointer", fontSize:12, fontWeight:600, border:"none", background:"transparent", color:wkTab===w?C.ink:C.faint, borderBottom:`2px solid ${wkTab===w?C.gold:C.line}` }}>Editing Week {w}</button>)}
+            </div>
+            <Label>Format that auto-loads each weekday on a fresh Week {wkTab} day</Label>
+            {DAYS.map(d=>{ const map=wkTab==="A"?weekMap:weekMapB; const saver=wkTab==="A"?saveWeekMap:saveWeekMapB;
+              return <div key={d} style={{ display:"flex", alignItems:"center", gap:8, marginBottom:7 }}><span style={{ width:42, fontSize:12, color:C.dim }}>{d.slice(0,3)}</span><select value={map[d]||"blank"} onChange={e=>saver({ ...map, [d]:e.target.value })} style={{ ...inp, flex:1, fontSize:12, cursor:"pointer" }}>{Object.entries(dayTypes).map(([id,t])=><option key={id} value={id} style={{ background:C.panel }}>{t.name}</option>)}</select></div>;
+            })}
+            <Mini>Weeks alternate A → B → A automatically. Just tell it which letter this week is.</Mini>
           </Panel>
         </div>
         <div>
