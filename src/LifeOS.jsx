@@ -129,7 +129,7 @@ const Panel = ({ accent,title,right,children,style })=>(
     {title && <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:14 }}>
       <div style={{ display:"flex", alignItems:"center", gap:8 }}>
         <div style={{ width:4,height:16,background:accent,borderRadius:2 }}/>
-        <span style={{ fontFamily:"'Caveat',cursive", fontSize:24, color:accent }}>{title}</span>
+        <span style={{ fontSize:13, fontWeight:700, letterSpacing:0.5, textTransform:"uppercase", color:accent }}>{title}</span>
       </div>{right}
     </div>}
     {children}
@@ -291,85 +291,160 @@ function BackupModal({ close,flash }){
   );
 }
 
-// ============ VERTICAL TIMELINE ============
+// ============ VERTICAL TIMELINE (draw-to-plan canvas) ============
 const DAY_START=6, DAY_END=24, PX_PER_HOUR=56;
 const timeToY = (t)=> (t-DAY_START)*PX_PER_HOUR;
 const yToTime = (y)=> Math.max(DAY_START, Math.min(DAY_END, DAY_START + y/PX_PER_HOUR));
 const snap = (t)=> Math.round(t*4)/4;
+const nowDec = ()=>{ const d=new Date(); return d.getHours()+d.getMinutes()/60; };
+const PENS = [C.cyan, C.gold, C.pink, C.ink];
 
-function Timeline({ blocks,onChange }){
+function Timeline({ blocks,onChange,isToday=false,isPast=false,sketch,onSketch }){
   const railRef = useRef(null);
-  const [drag,setDrag] = useState(null);
-  const [editing,setEditing] = useState(null);
+  const dragRef = useRef(null);      // moving / resizing / wiping an existing block
+  const createRef = useRef(null);    // drawing a new block on empty space
+  const strokeRef = useRef(null);    // current freehand stroke
+  const suppressRef = useRef(false); // swallow the click that follows a drag
   const isMobile = useIsMobile();
+  const [, force] = useState(0); const rerender = ()=> force(n=>n+1);
+  const [editing,setEditing] = useState(null);
+  const [pen,setPen] = useState(false);
+  const [penColor,setPenColor] = useState(PENS[0]);
+  const [now,setNow] = useState(nowDec());
+  const [railW,setRailW] = useState(1);
   const hours=[]; for(let h=DAY_START;h<=DAY_END;h++) hours.push(h);
   const height=(DAY_END-DAY_START)*PX_PER_HOUR;
+  const canSketch = !!onSketch;
+  const strokes = sketch||[];
 
-  const onPointerDown = (e,blk,mode)=>{ e.stopPropagation();
-    const cy=e.touches?e.touches[0].clientY:e.clientY; setDrag({ id:blk.id,mode,startY:cy,origT:blk.t,origE:blk.e }); };
+  useEffect(()=>{ if(!isToday) return; const id=setInterval(()=>setNow(nowDec()),60000); return ()=>clearInterval(id); },[isToday]);
+  useEffect(()=>{ const m=()=>setRailW(railRef.current?railRef.current.clientWidth:1); m(); window.addEventListener("resize",m); return ()=>window.removeEventListener("resize",m); },[]);
 
-  useEffect(()=>{ if(!drag) return;
-    const move=(e)=>{ const cy=e.touches?e.touches[0].clientY:e.clientY; const dt=(cy-drag.startY)/PX_PER_HOUR;
-      onChange(prev=>prev.map(b=>{ if(b.id!==drag.id) return b;
-        if(drag.mode==="move"){ const dur=drag.origE-drag.origT; let nt=snap(drag.origT+dt); nt=Math.max(DAY_START,Math.min(DAY_END-dur,nt)); return { ...b,t:nt,e:nt+dur }; }
-        let ne=snap(drag.origE+dt); ne=Math.max(b.t+0.25,Math.min(DAY_END,ne)); return { ...b,e:ne }; })); };
-    const up=()=>setDrag(null);
-    window.addEventListener("mousemove",move); window.addEventListener("touchmove",move,{passive:false});
-    window.addEventListener("mouseup",up); window.addEventListener("touchend",up);
-    return ()=>{ window.removeEventListener("mousemove",move); window.removeEventListener("touchmove",move); window.removeEventListener("mouseup",up); window.removeEventListener("touchend",up); };
-  },[drag,onChange]);
-
-  const addAt = (e)=>{ if(e.target!==railRef.current) return;
-    const rect=railRef.current.getBoundingClientRect(); const y=(e.clientY??0)-rect.top;
-    const nt=Math.min(DAY_END-1, snap(yToTime(y)));
-    onChange(prev=>[...prev,{ id:Date.now(),t:nt,e:nt+1,label:"New block",cat:"Other",done:false }]); };
   const updBlock=(id,patch)=> onChange(prev=>prev.map(b=>b.id===id?{...b,...patch}:b));
   const delBlock=(id)=>{ onChange(prev=>prev.filter(b=>b.id!==id)); setEditing(null); };
+  const elapsed=(b)=> isPast || (isToday && b.e<=now);
+  const effState=(b)=> b.status==="missed" ? "missed" : (elapsed(b) ? "done" : "plan");
+  const pathD=(pts)=> pts.map((p,i)=> (i?"L":"M")+(p.x*railW).toFixed(1)+" "+p.y.toFixed(1)).join(" ");
+
+  // ----- drag an existing block: vertical = move, bottom edge = resize, horizontal = wipe/skip -----
+  const startBlock=(e,blk,mode)=>{ e.stopPropagation(); if(pen) return;
+    const p=e.touches?e.touches[0]:e;
+    const d={ id:blk.id,mode,axis:mode==="resize"?"v":null,sx:p.clientX,sy:p.clientY,oT:blk.t,oE:blk.e,oStatus:blk.status,dx:0,moved:false };
+    dragRef.current=d;
+    const move=(ev)=>{ const q=ev.touches?ev.touches[0]:ev; const dx=q.clientX-d.sx, dy=q.clientY-d.sy;
+      if(!d.axis && Math.hypot(dx,dy)>7) d.axis=Math.abs(dx)>Math.abs(dy)?"h":"v";
+      if(!d.axis) return; d.moved=true; if(ev.cancelable&&ev.touches) ev.preventDefault();
+      if(d.mode==="resize"){ let ne=snap(d.oE+dy/PX_PER_HOUR); ne=Math.max(d.oT+0.25,Math.min(DAY_END,ne)); updBlock(d.id,{e:ne}); }
+      else if(d.axis==="h"){ d.dx=dx; rerender(); }
+      else { const dur=d.oE-d.oT; let nt=snap(d.oT+dy/PX_PER_HOUR); nt=Math.max(DAY_START,Math.min(DAY_END-dur,nt)); updBlock(d.id,{t:nt,e:nt+dur}); } };
+    const up=()=>{ if(d.axis==="h" && Math.abs(d.dx)>70) updBlock(d.id,{status: d.oStatus==="missed"?undefined:"missed"});
+      if(d.moved) suppressRef.current=true; dragRef.current=null; rerender();
+      window.removeEventListener("mousemove",move); window.removeEventListener("touchmove",move); window.removeEventListener("mouseup",up); window.removeEventListener("touchend",up); };
+    window.addEventListener("mousemove",move); window.addEventListener("touchmove",move,{passive:false}); window.addEventListener("mouseup",up); window.addEventListener("touchend",up);
+  };
+
+  // ----- draw a new block on empty space -----
+  const startCreate=(e)=>{ if(pen) return; if(e.target!==railRef.current) return;
+    const rect=railRef.current.getBoundingClientRect(); const p=e.touches?e.touches[0]:e;
+    const c={ t0:snap(yToTime(p.clientY-rect.top)), t1:snap(yToTime(p.clientY-rect.top)) }; createRef.current=c; rerender();
+    const move=(ev)=>{ const q=ev.touches?ev.touches[0]:ev; if(ev.cancelable&&ev.touches) ev.preventDefault();
+      c.t1=snap(yToTime(q.clientY-rect.top)); rerender(); };
+    const up=()=>{ const a=Math.min(c.t0,c.t1), b=Math.max(c.t0,c.t1); createRef.current=null;
+      const dur=b-a>=0.25?b-a:1; const t=Math.min(DAY_END-dur,a); const id=Date.now();
+      onChange(prev=>[...prev,{ id,t,e:t+dur,label:"New",cat:"Other" }]); setEditing(id); rerender();
+      window.removeEventListener("mousemove",move); window.removeEventListener("touchmove",move); window.removeEventListener("mouseup",up); window.removeEventListener("touchend",up); };
+    window.addEventListener("mousemove",move); window.addEventListener("touchmove",move,{passive:false}); window.addEventListener("mouseup",up); window.addEventListener("touchend",up);
+  };
+
+  // ----- freehand pencil layer -----
+  const startStroke=(e)=>{ if(!pen) return; e.stopPropagation();
+    const rect=railRef.current.getBoundingClientRect();
+    const pt=(ev)=>{ const q=ev.touches?ev.touches[0]:ev; return { x:(q.clientX-rect.left)/rect.width, y:Math.max(0,Math.min(height,q.clientY-rect.top)) }; };
+    strokeRef.current={ color:penColor, w:2.5, pts:[pt(e)] }; rerender();
+    const move=(ev)=>{ if(ev.cancelable&&ev.touches) ev.preventDefault(); strokeRef.current.pts.push(pt(ev)); rerender(); };
+    const up=()=>{ const s=strokeRef.current; strokeRef.current=null; if(s&&s.pts.length>1) onSketch([...(sketch||[]),s]); rerender();
+      window.removeEventListener("mousemove",move); window.removeEventListener("touchmove",move); window.removeEventListener("mouseup",up); window.removeEventListener("touchend",up); };
+    window.addEventListener("mousemove",move); window.addEventListener("touchmove",move,{passive:false}); window.addEventListener("mouseup",up); window.addEventListener("touchend",up);
+  };
+
+  const cr=createRef.current, cA=cr&&Math.min(cr.t0,cr.t1), cB=cr&&Math.max(cr.t0,cr.t1);
 
   return (
-    <div style={{ display:"flex", position:"relative" }}>
-      <div style={{ width:46, position:"relative", height }}>
-        {hours.map(h=> <div key={h} style={{ position:"absolute", top:timeToY(h)-7, right:8, fontSize:10, color:C.faint, fontVariantNumeric:"tabular-nums" }}>{hhmm(h)}</div>)}
-      </div>
-      <div ref={railRef} onDoubleClick={addAt} style={{ flex:1, position:"relative", height, borderLeft:`1px solid ${C.line}`, cursor:"copy" }}>
-        {hours.map(h=> <div key={h} style={{ position:"absolute", top:timeToY(h), left:0, right:0, height:1, background:C.line, opacity:0.5, pointerEvents:"none" }}/>)}
-        {blocks.map(b=>{ const top=timeToY(b.t); const h=Math.max(20,(b.e-b.t)*PX_PER_HOUR); const col=CATS[b.cat]||C.dim;
-          return (
-            <div key={b.id} onMouseDown={(e)=>onPointerDown(e,b,"move")} onTouchStart={(e)=>onPointerDown(e,b,"move")}
-              onClick={(e)=>{ e.stopPropagation(); setEditing(editing===b.id?null:b.id); }}
-              style={{ position:"absolute", top, left:6, right:6, height:h, background:`${col}22`, border:`1px solid ${col}`,
-                borderLeft:`3px solid ${col}`, borderRadius:8, padding:"5px 9px", cursor:"grab", overflow:"hidden", opacity:b.done?0.45:1, userSelect:"none" }}>
-              <div style={{ display:"flex", alignItems:"center", gap:6 }}>
-                <Check on={b.done} color={col} size={14} onClick={(e)=>{ if(e&&e.stopPropagation)e.stopPropagation(); updBlock(b.id,{done:!b.done}); }}/>
-                <span style={{ fontSize:12.5, fontWeight:600, color:C.ink, textDecoration:b.done?"line-through":"none", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{b.label}</span>
-              </div>
-              {h>34 && <div style={{ fontSize:10, color:C.dim, marginTop:2 }}>{hhmm(b.t)}–{hhmm(b.e)} · {b.cat}</div>}
-              <div onMouseDown={(e)=>onPointerDown(e,b,"resize")} onTouchStart={(e)=>onPointerDown(e,b,"resize")} onClick={(e)=>e.stopPropagation()}
-                style={{ position:"absolute", bottom:0, left:0, right:0, height:8, cursor:"ns-resize" }}/>
-              {editing===b.id && isMobile && <div onMouseDown={e=>{e.stopPropagation();setEditing(null);}} onClick={e=>{e.stopPropagation();setEditing(null);}} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,.55)", zIndex:190 }}/>}
-              {editing===b.id && (
-                <div onMouseDown={e=>e.stopPropagation()} onClick={e=>e.stopPropagation()} style={ isMobile
-                  ? { position:"fixed", left:"50%", top:"50%", transform:"translate(-50%,-50%)", width:"min(300px,90vw)", background:C.panel2, border:`1px solid ${C.line}`, borderRadius:10, padding:14, zIndex:200, boxShadow:"0 8px 30px rgba(0,0,0,.6)" }
-                  : { position:"absolute", top:0, left:"calc(100% + 8px)", width:210, background:C.panel2, border:`1px solid ${C.line}`, borderRadius:10, padding:12, zIndex:20, boxShadow:"0 8px 30px rgba(0,0,0,.6)" } }>
-                  <input value={b.label} onChange={e=>updBlock(b.id,{label:e.target.value})} style={{ ...inp, width:"100%", marginBottom:8 }} placeholder="Label"/>
-                  <div style={{ display:"flex", gap:6, marginBottom:8 }}>
-                    <div style={{ flex:1 }}><Label>Start</Label><input type="time" value={hhmm(b.t)} onChange={e=>{ const [H,M]=e.target.value.split(":").map(Number); updBlock(b.id,{t:H+M/60}); }} style={{ ...inp, width:"100%" }}/></div>
-                    <div style={{ flex:1 }}><Label>End</Label><input type="time" value={hhmm(b.e)} onChange={e=>{ const [H,M]=e.target.value.split(":").map(Number); updBlock(b.id,{e:H+M/60}); }} style={{ ...inp, width:"100%" }}/></div>
-                  </div>
-                  <Label>Category</Label>
-                  <div style={{ display:"flex", flexWrap:"wrap", gap:4, marginBottom:10 }}>
-                    {CAT_KEYS.map(c=> <button key={c} onClick={()=>updBlock(b.id,{cat:c})} style={{ fontSize:10, padding:"4px 7px", borderRadius:12, cursor:"pointer", border:`1px solid ${b.cat===c?CATS[c]:C.line}`, background:b.cat===c?CATS[c]:"transparent", color:b.cat===c?"#0b0b0b":C.dim }}>{c}</button>)}
-                  </div>
-                  <div style={{ display:"flex", gap:6 }}>
-                    <button onClick={()=>delBlock(b.id)} style={{ ...delBtn, flex:1, width:"auto" }}>Delete</button>
-                    <button onClick={()=>setEditing(null)} style={{ ...addBtn, flex:1 }}>Done</button>
-                  </div>
+    <div>
+      {canSketch && (
+        <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:12, flexWrap:"wrap" }}>
+          <button onClick={()=>setPen(p=>!p)} style={{ ...addBtn, width:"auto", padding:"6px 12px", borderColor:pen?C.cyan:C.line, color:pen?C.cyan:C.dim }}>{pen?"✏️ Sketching — tap to stop":"✏️ Sketch"}</button>
+          {pen && PENS.map(c=> <button key={c} onClick={()=>setPenColor(c)} style={{ width:24,height:24,borderRadius:"50%",background:c,border:penColor===c?"2px solid #fff":`2px solid ${C.line}`,cursor:"pointer",padding:0 }}/>)}
+          {pen && <button onClick={()=>onSketch(strokes.slice(0,-1))} style={{ ...addBtn, width:"auto", padding:"6px 10px" }}>Undo</button>}
+          {pen && <button onClick={()=>onSketch([])} style={{ ...addBtn, width:"auto", padding:"6px 10px", borderColor:C.red, color:C.red }}>Clear</button>}
+        </div>
+      )}
+      <div style={{ display:"flex", position:"relative" }}>
+        <div style={{ width:46, position:"relative", height, flexShrink:0 }}>
+          {hours.map(h=> <div key={h} style={{ position:"absolute", top:timeToY(h)-7, right:8, fontSize:10, color:C.faint, fontVariantNumeric:"tabular-nums" }}>{hhmm(h)}</div>)}
+        </div>
+        <div ref={railRef} onMouseDown={startCreate} onTouchStart={startCreate}
+          style={{ flex:1, position:"relative", height, borderLeft:`1px solid ${C.line}`, cursor:pen?"crosshair":"copy", touchAction:pen?"none":"auto" }}>
+          {hours.map(h=> <div key={h} style={{ position:"absolute", top:timeToY(h), left:0, right:0, height:1, background:C.line, opacity:0.5, pointerEvents:"none" }}/>)}
+
+          {blocks.map(b=>{ const top=timeToY(b.t); const h=Math.max(20,(b.e-b.t)*PX_PER_HOUR); const col=CATS[b.cat]||C.dim;
+            const st=effState(b); const dd=dragRef.current; const dx=(dd&&dd.id===b.id&&dd.axis==="h")?dd.dx:0;
+            const missed=st==="missed", plan=st==="plan";
+            return (
+              <div key={b.id} onMouseDown={(e)=>startBlock(e,b,"move")} onTouchStart={(e)=>startBlock(e,b,"move")}
+                onClick={(e)=>{ e.stopPropagation(); if(suppressRef.current){ suppressRef.current=false; return; } setEditing(editing===b.id?null:b.id); }}
+                style={{ position:"absolute", top, left:6, right:6, height:h, transform:`translateX(${dx}px)`,
+                  background: plan? "transparent" : `${col}22`, border:`${plan?"1.5px dashed":"1px solid"} ${col}`, borderLeft:`3px solid ${col}`,
+                  borderRadius:8, padding:"5px 9px", cursor:"grab", overflow:"hidden", touchAction:"none", userSelect:"none",
+                  opacity: missed? 0.32 : (1 - Math.min(0.65, Math.abs(dx)/170)), transition: dx?"none":"opacity .15s", zIndex:5 }}>
+                <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                  <span style={{ width:7,height:7,borderRadius:"50%",background:col,flexShrink:0,opacity:plan?0.5:1 }}/>
+                  <span style={{ fontSize:12.5, fontWeight:600, color:missed?C.faint:C.ink, textDecoration:missed?"line-through":"none", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{b.label}</span>
                 </div>
-              )}
+                {h>34 && <div style={{ fontSize:10, color:C.dim, marginTop:2 }}>{hhmm(b.t)}–{hhmm(b.e)} · {b.cat}{missed?" · skipped":""}</div>}
+                <div onMouseDown={(e)=>startBlock(e,b,"resize")} onTouchStart={(e)=>startBlock(e,b,"resize")} onClick={(e)=>e.stopPropagation()}
+                  style={{ position:"absolute", bottom:0, left:0, right:0, height:10, cursor:"ns-resize" }}/>
+                {editing===b.id && isMobile && <div onMouseDown={e=>{e.stopPropagation();setEditing(null);}} onClick={e=>{e.stopPropagation();setEditing(null);}} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,.55)", zIndex:190 }}/>}
+                {editing===b.id && (
+                  <div onMouseDown={e=>e.stopPropagation()} onClick={e=>e.stopPropagation()} style={ isMobile
+                    ? { position:"fixed", left:"50%", top:"50%", transform:"translate(-50%,-50%)", width:"min(300px,90vw)", background:C.panel2, border:`1px solid ${C.line}`, borderRadius:10, padding:14, zIndex:200, boxShadow:"0 8px 30px rgba(0,0,0,.6)" }
+                    : { position:"absolute", top:0, left:"calc(100% + 8px)", width:210, background:C.panel2, border:`1px solid ${C.line}`, borderRadius:10, padding:12, zIndex:20, boxShadow:"0 8px 30px rgba(0,0,0,.6)" } }>
+                    <input autoFocus value={b.label} onChange={e=>updBlock(b.id,{label:e.target.value})} style={{ ...inp, width:"100%", marginBottom:8 }} placeholder="What is it?"/>
+                    {elapsed(b) && <button onClick={()=>updBlock(b.id,{status:b.status==="missed"?undefined:"missed"})} style={{ ...addBtn, marginBottom:8, borderColor:b.status==="missed"?C.red:C.green, color:b.status==="missed"?C.red:C.green }}>{b.status==="missed"?"✗ Didn't happen (tap to undo)":"✓ Did it — tap if you didn't"}</button>}
+                    <div style={{ display:"flex", gap:6, marginBottom:8 }}>
+                      <div style={{ flex:1 }}><Label>Start</Label><input type="time" value={hhmm(b.t)} onChange={e=>{ const [H,M]=e.target.value.split(":").map(Number); updBlock(b.id,{t:H+M/60}); }} style={{ ...inp, width:"100%" }}/></div>
+                      <div style={{ flex:1 }}><Label>End</Label><input type="time" value={hhmm(b.e)} onChange={e=>{ const [H,M]=e.target.value.split(":").map(Number); updBlock(b.id,{e:H+M/60}); }} style={{ ...inp, width:"100%" }}/></div>
+                    </div>
+                    <Label>Category</Label>
+                    <div style={{ display:"flex", flexWrap:"wrap", gap:4, marginBottom:10 }}>
+                      {CAT_KEYS.map(c=> <button key={c} onClick={()=>updBlock(b.id,{cat:c})} style={{ fontSize:10, padding:"4px 7px", borderRadius:12, cursor:"pointer", border:`1px solid ${b.cat===c?CATS[c]:C.line}`, background:b.cat===c?CATS[c]:"transparent", color:b.cat===c?"#0b0b0b":C.dim }}>{c}</button>)}
+                    </div>
+                    <div style={{ display:"flex", gap:6 }}>
+                      <button onClick={()=>delBlock(b.id)} style={{ ...delBtn, flex:1, width:"auto" }}>Delete</button>
+                      <button onClick={()=>setEditing(null)} style={{ ...addBtn, flex:1 }}>Done</button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+
+          {cr && cB-cA>0 && <div style={{ position:"absolute", top:timeToY(cA), left:6, right:6, height:Math.max(2,(cB-cA)*PX_PER_HOUR), background:`${C.teal}22`, border:`1.5px dashed ${C.teal}`, borderRadius:8, pointerEvents:"none", zIndex:6 }}/>}
+
+          {isToday && now>=DAY_START && now<=DAY_END && (
+            <div style={{ position:"absolute", top:timeToY(now), left:0, right:0, borderTop:`2px solid ${C.red}`, zIndex:7, pointerEvents:"none" }}>
+              <div style={{ position:"absolute", left:-4, top:-4, width:8, height:8, borderRadius:"50%", background:C.red }}/>
             </div>
-          );
-        })}
-        {blocks.length===0 && <div style={{ position:"absolute", top:40, left:0, right:0, textAlign:"center", color:C.faint, fontSize:12 }}>Double-click anywhere to add a block</div>}
+          )}
+
+          <svg onMouseDown={startStroke} onTouchStart={startStroke}
+            style={{ position:"absolute", inset:0, width:"100%", height, zIndex: pen?12:3, pointerEvents:pen?"auto":"none", touchAction:"none" }}>
+            {strokes.map((s,i)=> <path key={i} d={pathD(s.pts)} stroke={s.color} strokeWidth={s.w||2.5} fill="none" strokeLinecap="round" strokeLinejoin="round"/>)}
+            {strokeRef.current && <path d={pathD(strokeRef.current.pts)} stroke={strokeRef.current.color} strokeWidth={2.5} fill="none" strokeLinecap="round" strokeLinejoin="round"/>}
+          </svg>
+
+          {blocks.length===0 && !pen && <div style={{ position:"absolute", top:40, left:0, right:0, textAlign:"center", color:C.faint, fontSize:12, pointerEvents:"none" }}>Tap or drag down the grid to draw a block</div>}
+        </div>
       </div>
     </div>
   );
@@ -380,29 +455,41 @@ function TodayView({ day,date,setDate,upd,dayTypes,applyDayType }){
   const [newTask,setNewTask] = useState("");
   const [showApply,setShowApply] = useState(false);
   const isMobile = useIsMobile();
+  const [showLog,setShowLog] = useState(typeof window!=="undefined" && window.innerWidth>760);
   const dn = dayNameOf(date);
+  const isToday = date===todayISO();
+  const isPast = date<todayISO();
   const setBlocks = (updater)=>{ const next=typeof updater==="function"?updater(day.blocks):updater; upd({ blocks:next, breakdown:computeBreakdown(next) }); };
+  const setSketch = (s)=> upd({ sketch:s });
   const addTask=(b)=>{ if(!newTask.trim())return; upd({ todos:{ ...day.todos,[b]:[...day.todos[b],{text:newTask.trim(),done:false}] } }); setNewTask(""); };
   const toggleTask=(b,i)=>{ const a=[...day.todos[b]]; a[i]={...a[i],done:!a[i].done}; upd({ todos:{ ...day.todos,[b]:a } }); };
   const delTask=(b,i)=> upd({ todos:{ ...day.todos,[b]:day.todos[b].filter((_,j)=>j!==i) } });
   const toggleHabit=(k)=> upd({ habits:{ ...day.habits,[k]:!day.habits[k] } });
   const currentType = day.dayTypeId && dayTypes[day.dayTypeId];
 
+  const adh = (()=>{ if(!day.blocks.length) return null;
+    const el=day.blocks.filter(b=> isPast || (isToday && b.e<=nowDec())); if(!el.length) return null;
+    const done=el.filter(b=>b.status!=="missed").length; return { done, total:el.length, pct:Math.round(done/el.length*100) }; })();
+
+  const sw=useRef(null);
+  const onTS=(e)=>{ const t=e.touches[0]; sw.current={ x:t.clientX, y:t.clientY, tl:!!(e.target.closest && e.target.closest("[data-timeline]")) }; };
+  const onTE=(e)=>{ const s=sw.current; if(!s||s.tl) return; const t=e.changedTouches[0]; const dx=t.clientX-s.x, dy=t.clientY-s.y;
+    if(Math.abs(dx)>70 && Math.abs(dx)>Math.abs(dy)*1.6) setDate(addDays(date, dx<0?1:-1)); sw.current=null; };
+
   return (
-    <div>
+    <div onTouchStart={onTS} onTouchEnd={onTE}>
       <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:18, marginBottom:10 }}>
         <Nav onClick={()=>setDate(addDays(date,-1))}>‹</Nav>
         <div style={{ textAlign:"center", minWidth:200 }}>
           <div style={{ fontFamily:"'Caveat',cursive", fontSize:44, color:C.teal, lineHeight:0.9 }}>{dn}</div>
-          <div style={{ fontSize:12, color:C.dim }}>{fmt(date)} {date===todayISO() && <span style={{color:C.green}}>• today</span>}</div>
+          <div style={{ fontSize:12, color:C.dim }}>{fmt(date)} {isToday && <span style={{color:C.green}}>• today</span>}</div>
         </div>
         <Nav onClick={()=>setDate(addDays(date,1))}>›</Nav>
       </div>
 
-      <div style={{ display:"flex", justifyContent:"center", alignItems:"center", gap:10, marginBottom:18, position:"relative", flexWrap:"wrap" }}>
+      <div style={{ display:"flex", justifyContent:"center", alignItems:"center", gap:10, marginBottom:16, position:"relative", flexWrap:"wrap" }}>
         <span style={{ fontSize:12, color:C.faint }}>Format:</span>
         <button onClick={()=>setShowApply(s=>!s)} style={{ padding:"6px 14px", borderRadius:20, cursor:"pointer", fontSize:13, fontWeight:600, border:`1px solid ${currentType?currentType.color:C.line}`, background:"transparent", color:currentType?currentType.color:C.dim }}>{currentType?currentType.name:"Blank"} ▾</button>
-        {/* BS quick button */}
         <button onClick={()=>upd({ bs:!day.bs })} style={{ padding:"6px 14px", borderRadius:20, cursor:"pointer", fontSize:13, fontWeight:700, border:`1px solid ${day.bs?C.red:C.line}`, background:day.bs?C.red:"transparent", color:day.bs?"#fff":C.dim }}>
           {day.bs?"✓ BS day":"Mark BS"}
         </button>
@@ -414,15 +501,24 @@ function TodayView({ day,date,setDate,upd,dayTypes,applyDayType }){
         )}
       </div>
 
-      <div style={{ display:"grid", gridTemplateColumns:isMobile?"1fr":"1.05fr 1fr", gap:18 }}>
-        <div style={{ display:"flex", flexDirection:"column", gap:18 }}>
-          <Panel accent={C.pink} title="Day Timeline" right={<span style={{ fontSize:11, color:C.faint }}>{isMobile?"tap block · dbl-tap to add":"drag · resize · dbl-click to add"}</span>}>
-            <Timeline blocks={day.blocks} onChange={setBlocks} />
-          </Panel>
-        </div>
+      <div style={{ display:"flex", gap:10, justifyContent:"center", marginBottom:16, flexWrap:"wrap" }}>
+        {[
+          { l:"Plan adherence", v: adh?`${adh.pct}%`:"—", c: adh?(adh.pct>=70?C.green:adh.pct>=40?C.gold:C.red):C.faint, on:()=>setShowLog(true) },
+          { l:"Daily reps", v: day.reps.done?"✓":"○", c: day.reps.done?C.green:C.faint, on:()=>upd({ reps:{ ...day.reps, done:!day.reps.done } }) },
+          { l:"Day score", v: day.rating?`${day.rating}/10`:"—", c:C.red, on:()=>setShowLog(true) },
+        ].map(s=> <button key={s.l} onClick={s.on} style={{ background:C.panel, border:`1px solid ${C.line}`, borderRadius:12, padding:"8px 16px", cursor:"pointer", textAlign:"center", minWidth:96 }}><div style={{ fontSize:18, fontWeight:700, color:s.c }}>{s.v}</div><div style={{ fontSize:10, color:C.dim, marginTop:3 }}>{s.l}</div></button>)}
+      </div>
 
-        <div style={{ display:"flex", flexDirection:"column", gap:18 }}>
-          {/* DAILY REPS */}
+      <Panel accent={C.pink} title="Day" right={<span style={{ fontSize:11, color:C.faint }}>draw · swipe a block to skip</span>}>
+        <div data-timeline>
+          <Timeline blocks={day.blocks} onChange={setBlocks} isToday={isToday} isPast={isPast} sketch={day.sketch} onSketch={setSketch} />
+        </div>
+      </Panel>
+
+      <button onClick={()=>setShowLog(s=>!s)} style={{ ...addBtn, marginTop:16 }}>{showLog?"Hide day log ▴":"Open day log (reps · habits · to-dos · review) ▾"}</button>
+
+      {showLog && (
+        <div style={{ display:"grid", gridTemplateColumns:isMobile?"1fr":"1fr 1fr", gap:18, marginTop:16 }}>
           <Panel accent={C.green} title="Daily Reps">
             <div style={{ display:"flex", alignItems:"center", gap:14 }}>
               <Check on={day.reps.done} color={C.green} onClick={()=>upd({ reps:{ ...day.reps, done:!day.reps.done } })} size={28}/>
@@ -430,11 +526,9 @@ function TodayView({ day,date,setDate,upd,dayTypes,applyDayType }){
                 <div style={{ fontSize:13, color:C.ink }}>Push-ups + pull-ups</div>
                 <div style={{ fontSize:11, color:C.faint }}>Target scales with day of year</div>
               </div>
-              <div style={{ textAlign:"right" }}>
-                <div style={{ display:"flex", alignItems:"center", gap:6 }}>
-                  <input type="number" value={day.reps.target} onChange={e=>upd({ reps:{ ...day.reps, target:+e.target.value } })} style={{ ...inp, width:64, textAlign:"center", fontSize:18, fontWeight:700, color:C.green }}/>
-                  <span style={{ fontSize:12, color:C.faint }}>reps</span>
-                </div>
+              <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                <input type="number" value={day.reps.target} onChange={e=>upd({ reps:{ ...day.reps, target:+e.target.value } })} style={{ ...inp, width:64, textAlign:"center", fontSize:18, fontWeight:700, color:C.green }}/>
+                <span style={{ fontSize:12, color:C.faint }}>reps</span>
               </div>
             </div>
           </Panel>
@@ -445,7 +539,7 @@ function TodayView({ day,date,setDate,upd,dayTypes,applyDayType }){
             </div>
           </Panel>
 
-          <Panel accent={C.green} title="To Do">
+          <Panel accent={C.green} title="To Do" style={{ gridColumn:isMobile?"auto":"1 / -1" }}>
             <input value={newTask} onChange={e=>setNewTask(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addTask("shortImp")} placeholder="Add task + Enter (→ Short/Important)…" style={{ ...inp, width:"100%", marginBottom:14 }}/>
             <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14 }}>
               <TodoBucket label="Short · Important" color={C.gold} items={day.todos.shortImp} bucket="shortImp" toggle={toggleTask} del={delTask}/>
@@ -457,7 +551,7 @@ function TodayView({ day,date,setDate,upd,dayTypes,applyDayType }){
 
           <Panel accent={C.sleep} title="Hourly Breakdown" right={<span style={{ fontSize:11, color:C.faint }}>auto from timeline</span>}>
             {BREAKDOWN.map(k=> <div key={k} style={{ display:"flex", alignItems:"center", gap:12, marginBottom:9 }}><span style={{ width:80, fontSize:13, color:C.dim }}>{k}</span><div style={{ flex:1, height:8, background:C.panel2, borderRadius:4, overflow:"hidden" }}><div style={{ width:`${Math.min(100,(day.breakdown[k]/12)*100)}%`, height:"100%", background:C.sleep }}/></div><span style={{ width:44, textAlign:"right", fontSize:13, color:C.ink, fontVariantNumeric:"tabular-nums" }}>{day.breakdown[k]}h</span></div>)}
-            <Mini>Calculated from your Day Timeline blocks. Add School / Revision / Gym / Sleep / Activity blocks and these fill in.</Mini>
+            <Mini>Calculated from your timeline. Draw School / Revision / Gym / Sleep / Activity blocks and these fill in.</Mini>
           </Panel>
 
           <Panel accent={C.teal} title="Productive Hours">
@@ -467,7 +561,7 @@ function TodayView({ day,date,setDate,upd,dayTypes,applyDayType }){
             </div>
           </Panel>
 
-          <Panel accent={C.red} title="Day Assessment">
+          <Panel accent={C.red} title="Day Assessment" style={{ gridColumn:isMobile?"auto":"1 / -1" }}>
             <div style={{ display:"flex", gap:6, marginBottom:14, flexWrap:"wrap" }}>
               {[1,2,3,4,5,6,7,8,9,10].map(n=> <button key={n} onClick={()=>upd({rating:n})} style={{ width:32,height:36,borderRadius:7,cursor:"pointer",fontWeight:700,fontSize:14, border:`1px solid ${day.rating>=n?C.red:C.line}`, background:day.rating>=n?`rgba(224,82,74,${0.25+0.05*n})`:"transparent", color:day.rating>=n?"#fff":C.faint }}>{n}</button>)}
               <div style={{ display:"flex", alignItems:"center", fontFamily:"'Caveat',cursive", fontSize:26, color:C.red, marginLeft:4 }}>/10</div>
@@ -475,7 +569,7 @@ function TodayView({ day,date,setDate,upd,dayTypes,applyDayType }){
             <textarea value={day.feedback} onChange={e=>upd({feedback:e.target.value})} placeholder="Feedback: how did today actually go?" style={{ ...inp, minHeight:70, resize:"vertical", width:"100%" }}/>
           </Panel>
         </div>
-      </div>
+      )}
     </div>
   );
 }
@@ -572,6 +666,9 @@ function WeekView({ allDays,date,setDate }){
   const totalUnprod = filled.reduce((s,d)=>s+(+d.unprodHours||0),0);
   const bsCount = filled.filter(d=>d.bs).length;
   const repsHit = filled.filter(d=>d.reps?.done).length;
+  const adhDays = filled.map(d=>({ total:(d.blocks||[]).length, done:(d.blocks||[]).filter(b=>b.status!=="missed").length })).filter(x=>x.total>0);
+  const adhT = adhDays.reduce((s,x)=>s+x.total,0), adhD = adhDays.reduce((s,x)=>s+x.done,0);
+  const adhPct = adhT ? Math.round(adhD/adhT*100) : "—";
   const bdTotals = BREAKDOWN.map(k=>({ k, hrs:filled.reduce((s,d)=>s+(d.breakdown[k]||0),0) }));
   const maxBd = Math.max(1, ...bdTotals.map(b=>b.hrs));
 
@@ -591,10 +688,11 @@ function WeekView({ allDays,date,setDate }){
       </div>
       <div style={{ display:"grid", gridTemplateColumns:isMobile?"1fr":"1fr 1fr", gap:18 }}>
         <Panel accent={C.teal} title="At a Glance" style={{ gridColumn:"1 / -1" }}>
-          <div style={{ display:"grid", gridTemplateColumns:isMobile?"repeat(2,1fr)":"repeat(5,1fr)", gap:14 }}>
+          <div style={{ display:"grid", gridTemplateColumns:isMobile?"repeat(2,1fr)":"repeat(3,1fr)", gap:14 }}>
+            <Stat label="Plan adherence" value={adhPct} sub={adhPct==="—"?"":"%"} color={C.teal}/>
             <Stat label="Avg day score" value={avgRating} sub="/10" color={C.red}/>
-            <Stat label="BS days" value={bsCount} sub="/7" color={C.red}/>
             <Stat label="Reps hit" value={repsHit} sub={`/${filled.length||7}`} color={C.green}/>
+            <Stat label="BS days" value={bsCount} sub="/7" color={C.red}/>
             <Stat label="Productive hrs" value={totalProd} color={C.green}/>
             <Stat label="Unproductive hrs" value={totalUnprod} color={C.red}/>
           </div>
@@ -637,6 +735,10 @@ function TrendsView({ allDays }){
   const bsTotal = sorted.filter(d=>d.bs).length;
   const bsRate = Math.round(bsTotal/sorted.length*100);
   const repsRate = Math.round(sorted.filter(d=>d.reps?.done).length/sorted.length*100);
+  const allAdh = sorted.map(d=>({ total:(d.blocks||[]).length, done:(d.blocks||[]).filter(b=>b.status!=="missed").length })).filter(x=>x.total>0);
+  const adhT = allAdh.reduce((s,x)=>s+x.total,0), adhD = allAdh.reduce((s,x)=>s+x.done,0);
+  const adhPct = adhT ? Math.round(adhD/adhT*100) : 0;
+  const adhDaysCount = allAdh.length;
   // BS-free streak (consecutive recent days without BS)
   let bsFreeStreak=0; for(let i=sorted.length-1;i>=0;i--){ if(!sorted[i].bs) bsFreeStreak++; else break; }
 
@@ -646,6 +748,14 @@ function TrendsView({ allDays }){
         <div style={{ fontFamily:"'Caveat',cursive", fontSize:40, color:C.teal }}>Trends</div>
         <div style={{ fontSize:12, color:C.dim }}>{sorted.length} days logged · the long game</div>
       </div>
+
+      <Panel accent={C.teal} title="Plan Adherence" style={{ marginBottom:18 }} right={<span style={{ fontSize:11, color:C.faint }}>of what you drew, how much you did — drive this up</span>}>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:14 }}>
+          <Stat label="Adherence" value={adhPct} sub="%" color={adhPct>=70?C.green:adhPct>=40?C.gold:C.red}/>
+          <Stat label="Blocks kept" value={adhD} sub={`/${adhT}`} color={C.teal}/>
+          <Stat label="Days planned" value={adhDaysCount} color={C.dim}/>
+        </div>
+      </Panel>
 
       <Panel accent={C.red} title="The BS Metric" style={{ marginBottom:18 }} right={<span style={{ fontSize:11, color:C.faint }}>wasted mornings — drive this down</span>}>
         <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:14 }}>
