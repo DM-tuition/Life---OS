@@ -88,7 +88,7 @@ async function sSet(key,v){ try{ localStorage.setItem("lifeos:"+key, JSON.string
 
 const blankDay = (iso)=>({
   date:iso, dayTypeId:null, blocks:[], bs:false, frozen:false,
-  reps:{ target:dayOfYear(iso), done:false, actual:0 },
+  reps:{ target:dayOfYear(iso), done:false },
   breakdown:{ Sleep:0,Lessons:0,Revision:0,Gym:0,Activity:0 },
   breakdownAdj:{ Sleep:0,Lessons:0,Revision:0,Gym:0,Activity:0 },
   habits:{ sleep8:false,eatwell:false,exercise:false,screen:false,icebath:false },
@@ -268,7 +268,6 @@ export default function LifeOS(){
     }
     // migrate older saved days lacking new fields
     if(!d.reps) d.reps = { target:dayOfYear(date), done:false };
-    if(d.reps.actual===undefined) d.reps.actual = 0;
     if(d.bs===undefined) d.bs = false;
     if(d.frozen===undefined) d.frozen = false;
     if(!d.breakdownAdj) d.breakdownAdj = { Sleep:0,Lessons:0,Revision:0,Gym:0,Activity:0 };
@@ -370,6 +369,8 @@ const yToTime = (y)=> Math.max(DAY_START, Math.min(DAY_END, DAY_START + y/PX_PER
 const snap = (t)=> Math.round(t*4)/4;
 const nowDec = ()=>{ const d=new Date(); return d.getHours()+d.getMinutes()/60; };
 const PENS = [C.cyan, C.gold, C.pink, C.ink];
+// quick-pick labels — realistically a block is only ever a few things, drawn from your schedule
+const QUICK_LABELS = Array.from(new Set(Object.values(SEED_DAYTYPES).flatMap(t=>(t.blocks||[]).map(b=>b.label))));
 
 // snap a freehand stroke to a clean straight line or rectangle (shape-builder)
 function _bounds(P){ let a=Infinity,b=Infinity,c=-Infinity,d=-Infinity; for(const p of P){ a=Math.min(a,p.x); b=Math.min(b,p.y); c=Math.max(c,p.x); d=Math.max(d,p.y); } return {x:a,y:b,w:c-a,h:d-b}; }
@@ -387,6 +388,7 @@ function snapStroke(pts,w,held){
 
 function Timeline({ blocks,onChange,isToday=false,isPast=false,sketch,onSketch }){
   const railRef = useRef(null);
+  const scrollRef = useRef(null);
   const dragRef = useRef(null);      // moving / resizing / wiping an existing block
   const createRef = useRef(null);    // drawing a new block on empty space
   const strokeRef = useRef(null);    // current freehand stroke
@@ -405,6 +407,7 @@ function Timeline({ blocks,onChange,isToday=false,isPast=false,sketch,onSketch }
 
   useEffect(()=>{ if(!isToday) return; const id=setInterval(()=>setNow(nowDec()),60000); return ()=>clearInterval(id); },[isToday]);
   useEffect(()=>{ const m=()=>setRailW(railRef.current?railRef.current.clientWidth:1); m(); window.addEventListener("resize",m); return ()=>window.removeEventListener("resize",m); },[]);
+  useEffect(()=>{ if(scrollRef.current){ scrollRef.current.scrollTop = timeToY(isToday ? Math.max(DAY_START, nowDec()-1.5) : 7.5); } },[]); // open near the relevant time
 
   const updBlock=(id,patch)=> onChange(prev=>prev.map(b=>b.id===id?{...b,...patch}:b));
   const delBlock=(id)=>{ onChange(prev=>prev.filter(b=>b.id!==id)); setEditing(null); };
@@ -429,17 +432,16 @@ function Timeline({ blocks,onChange,isToday=false,isPast=false,sketch,onSketch }
     window.addEventListener("mousemove",move); window.addEventListener("touchmove",move,{passive:false}); window.addEventListener("mouseup",up); window.addEventListener("touchend",up);
   };
 
-  // ----- draw a new block on empty space -----
+  // ----- tap empty space to add a block (no drag, so the page never scrolls out from under you) -----
   const startCreate=(e)=>{ if(pen) return; if(e.target!==railRef.current) return;
     const rect=railRef.current.getBoundingClientRect(); const p=e.touches?e.touches[0]:e;
-    const c={ t0:snap(yToTime(p.clientY-rect.top)), t1:snap(yToTime(p.clientY-rect.top)) }; createRef.current=c; rerender();
-    const move=(ev)=>{ const q=ev.touches?ev.touches[0]:ev; if(ev.cancelable&&ev.touches) ev.preventDefault();
-      c.t1=snap(yToTime(q.clientY-rect.top)); rerender(); };
-    const up=()=>{ const a=Math.min(c.t0,c.t1), b=Math.max(c.t0,c.t1); createRef.current=null;
-      const dur=b-a>=0.25?b-a:1; const t=Math.min(DAY_END-dur,a); const id=Date.now();
-      onChange(prev=>[...prev,{ id,t,e:t+dur,label:"New",cat:"Other" }]); setEditing(id); rerender();
-      window.removeEventListener("mousemove",move); window.removeEventListener("touchmove",move); window.removeEventListener("mouseup",up); window.removeEventListener("touchend",up); };
-    window.addEventListener("mousemove",move); window.addEventListener("touchmove",move,{passive:false}); window.addEventListener("mouseup",up); window.addEventListener("touchend",up);
+    const sx=p.clientX, sy=p.clientY; let moved=false;
+    const move=(ev)=>{ const q=ev.touches?ev.touches[0]:ev; if(Math.hypot(q.clientX-sx,q.clientY-sy)>8) moved=true; };
+    const up=()=>{ window.removeEventListener("mousemove",move); window.removeEventListener("touchmove",move); window.removeEventListener("mouseup",up); window.removeEventListener("touchend",up);
+      if(moved) return;                              // it was a scroll, not a tap — leave it alone
+      let t=snap(yToTime(sy-rect.top)); const dur=1; t=Math.min(DAY_END-dur,t); const id=Date.now();
+      onChange(prev=>[...prev,{ id,t,e:t+dur,label:"",cat:"Other" }]); setEditing(id); rerender(); };
+    window.addEventListener("mousemove",move); window.addEventListener("touchmove",move); window.addEventListener("mouseup",up); window.addEventListener("touchend",up);
   };
 
   // ----- freehand pencil layer -----
@@ -455,8 +457,6 @@ function Timeline({ blocks,onChange,isToday=false,isPast=false,sketch,onSketch }
     window.addEventListener("mousemove",move); window.addEventListener("touchmove",move,{passive:false}); window.addEventListener("mouseup",up); window.addEventListener("touchend",up);
   };
 
-  const cr=createRef.current, cA=cr&&Math.min(cr.t0,cr.t1), cB=cr&&Math.max(cr.t0,cr.t1);
-
   return (
     <div>
       {canSketch && (
@@ -467,12 +467,13 @@ function Timeline({ blocks,onChange,isToday=false,isPast=false,sketch,onSketch }
           {pen && <button onClick={()=>onSketch([])} style={{ ...addBtn, width:"auto", padding:"6px 10px", borderColor:C.red, color:C.red }}>Clear</button>}
         </div>
       )}
+      <div ref={scrollRef} style={{ position:"relative", ...(isMobile?{ maxHeight:"68vh", overflowY:"auto", overflowX:"hidden", overscrollBehavior:"contain" }:{}) }}>
       <div style={{ display:"flex", position:"relative" }}>
         <div style={{ width:46, position:"relative", height, flexShrink:0 }}>
           {hours.map(h=> <div key={h} style={{ position:"absolute", top:timeToY(h)-7, right:8, fontSize:10, color:C.faint, fontVariantNumeric:"tabular-nums" }}>{hhmm(h)}</div>)}
         </div>
         <div ref={railRef} onMouseDown={startCreate} onTouchStart={startCreate}
-          style={{ flex:1, position:"relative", height, borderLeft:`1px solid ${C.line}`, cursor:pen?"crosshair":"copy", touchAction:pen?"none":"auto" }}>
+          style={{ flex:1, position:"relative", height, borderLeft:`1px solid ${C.line}`, cursor:pen?"crosshair":"copy", touchAction:pen?"none":"pan-y" }}>
           {hours.map(h=> <div key={h} style={{ position:"absolute", top:timeToY(h), left:0, right:0, height:1, background:C.line, opacity:0.5, pointerEvents:"none" }}/>)}
 
           {blocks.map(b=>{ const top=timeToY(b.t); const h=Math.max(20,(b.e-b.t)*PX_PER_HOUR); const col=CATS[b.cat]||C.dim;
@@ -495,29 +496,31 @@ function Timeline({ blocks,onChange,isToday=false,isPast=false,sketch,onSketch }
                 {editing===b.id && isMobile && <div onMouseDown={e=>{e.stopPropagation();setEditing(null);}} onClick={e=>{e.stopPropagation();setEditing(null);}} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,.55)", zIndex:190 }}/>}
                 {editing===b.id && (
                   <div onMouseDown={e=>e.stopPropagation()} onClick={e=>e.stopPropagation()} style={ isMobile
-                    ? { position:"fixed", left:"50%", top:"50%", transform:"translate(-50%,-50%)", width:"min(300px,90vw)", background:C.panel2, border:`1px solid ${C.line}`, borderRadius:10, padding:14, zIndex:200, boxShadow:"0 8px 30px rgba(0,0,0,.6)" }
-                    : { position:"absolute", top:0, left:"calc(100% + 8px)", width:210, background:C.panel2, border:`1px solid ${C.line}`, borderRadius:10, padding:12, zIndex:20, boxShadow:"0 8px 30px rgba(0,0,0,.6)" } }>
-                    <input autoFocus value={b.label} onChange={e=>updBlock(b.id,{label:e.target.value})} style={{ ...inp, width:"100%", marginBottom:8 }} placeholder="What is it?"/>
-                    {elapsed(b) && <button onClick={()=>updBlock(b.id,{status:b.status==="missed"?undefined:"missed"})} style={{ ...addBtn, marginBottom:8, borderColor:b.status==="missed"?C.red:C.green, color:b.status==="missed"?C.red:C.green }}>{b.status==="missed"?"✗ Didn't happen (tap to undo)":"✓ Did it — tap if you didn't"}</button>}
-                    <div style={{ display:"flex", gap:6, marginBottom:8 }}>
+                    ? { position:"fixed", left:"50%", top:"50%", transform:"translate(-50%,-50%)", width:"min(340px,92vw)", maxHeight:"86vh", overflowY:"auto", background:C.panel2, border:`1px solid ${C.line}`, borderRadius:14, padding:16, zIndex:200, boxShadow:"0 8px 30px rgba(0,0,0,.6)" }
+                    : { position:"absolute", top:0, left:"calc(100% + 8px)", width:260, maxHeight:520, overflowY:"auto", background:C.panel2, border:`1px solid ${C.line}`, borderRadius:12, padding:14, zIndex:20, boxShadow:"0 8px 30px rgba(0,0,0,.6)" } }>
+                    {elapsed(b) && <button onClick={()=>updBlock(b.id,{status:b.status==="missed"?undefined:"missed"})} style={{ ...addBtn, marginBottom:12, borderColor:b.status==="missed"?C.red:C.green, color:b.status==="missed"?C.red:C.green }}>{b.status==="missed"?"✗ Didn't happen (tap to undo)":"✓ Did it — tap if you didn't"}</button>}
+                    <Label>Pick a label</Label>
+                    <div style={{ display:"flex", flexWrap:"wrap", gap:5, marginBottom:8 }}>
+                      {QUICK_LABELS.map(l=> <button key={l} onClick={()=>updBlock(b.id,{label:l})} style={{ fontSize:12, padding:"6px 10px", borderRadius:14, cursor:"pointer", border:`1px solid ${b.label===l?C.teal:C.line}`, background:b.label===l?C.teal:"transparent", color:b.label===l?"#001014":C.dim, fontWeight:b.label===l?700:400 }}>{l}</button>)}
+                    </div>
+                    <input value={b.label} onChange={e=>updBlock(b.id,{label:e.target.value})} style={{ ...inp, width:"100%", marginBottom:12 }} placeholder="…or type a custom label"/>
+                    <Label>Category</Label>
+                    <div style={{ display:"flex", flexWrap:"wrap", gap:5, marginBottom:12 }}>
+                      {CAT_KEYS.map(c=> <button key={c} onClick={()=>updBlock(b.id,{cat:c})} style={{ fontSize:12, padding:"6px 10px", borderRadius:14, cursor:"pointer", border:`1px solid ${b.cat===c?CATS[c]:C.line}`, background:b.cat===c?CATS[c]:"transparent", color:b.cat===c?"#0b0b0b":C.dim, fontWeight:b.cat===c?700:400 }}>{c}</button>)}
+                    </div>
+                    <div style={{ display:"flex", gap:8, marginBottom:12 }}>
                       <div style={{ flex:1 }}><Label>Start</Label><input type="time" value={hhmm(b.t)} onChange={e=>{ const [H,M]=e.target.value.split(":").map(Number); updBlock(b.id,{t:H+M/60}); }} style={{ ...inp, width:"100%" }}/></div>
                       <div style={{ flex:1 }}><Label>End</Label><input type="time" value={hhmm(b.e)} onChange={e=>{ const [H,M]=e.target.value.split(":").map(Number); updBlock(b.id,{e:H+M/60}); }} style={{ ...inp, width:"100%" }}/></div>
                     </div>
-                    <Label>Category</Label>
-                    <div style={{ display:"flex", flexWrap:"wrap", gap:4, marginBottom:10 }}>
-                      {CAT_KEYS.map(c=> <button key={c} onClick={()=>updBlock(b.id,{cat:c})} style={{ fontSize:10, padding:"4px 7px", borderRadius:12, cursor:"pointer", border:`1px solid ${b.cat===c?CATS[c]:C.line}`, background:b.cat===c?CATS[c]:"transparent", color:b.cat===c?"#0b0b0b":C.dim }}>{c}</button>)}
-                    </div>
-                    <div style={{ display:"flex", gap:6 }}>
+                    <div style={{ display:"flex", gap:8 }}>
                       <button onClick={()=>delBlock(b.id)} style={{ ...delBtn, flex:1, width:"auto" }}>Delete</button>
-                      <button onClick={()=>setEditing(null)} style={{ ...addBtn, flex:1 }}>Done</button>
+                      <button onClick={()=>setEditing(null)} style={{ ...addBtn, flex:2, borderColor:C.teal, color:C.teal }}>Done</button>
                     </div>
                   </div>
                 )}
               </div>
             );
           })}
-
-          {cr && cB-cA>0 && <div style={{ position:"absolute", top:timeToY(cA), left:6, right:6, height:Math.max(2,(cB-cA)*PX_PER_HOUR), background:`${C.teal}22`, border:`1.5px dashed ${C.teal}`, borderRadius:8, pointerEvents:"none", zIndex:6, display:"flex", alignItems:"center", justifyContent:"center" }}><span style={{ fontSize:12, fontWeight:700, color:C.teal }}>{hhmm(cA)}–{hhmm(cB)}</span></div>}
 
           {isToday && now>=DAY_START && now<=DAY_END && (
             <div style={{ position:"absolute", top:timeToY(now), left:0, right:0, borderTop:`2px solid ${C.red}`, zIndex:7, pointerEvents:"none" }}>
@@ -531,8 +534,9 @@ function Timeline({ blocks,onChange,isToday=false,isPast=false,sketch,onSketch }
             {strokeRef.current && <path d={pathD(strokeRef.current.pts)} stroke={strokeRef.current.color} strokeWidth={2.5} fill="none" strokeLinecap="round" strokeLinejoin="round"/>}
           </svg>
 
-          {blocks.length===0 && !pen && <div style={{ position:"absolute", top:40, left:0, right:0, textAlign:"center", color:C.faint, fontSize:12, pointerEvents:"none" }}>Tap or drag down the grid to draw a block</div>}
+          {blocks.length===0 && !pen && <div style={{ position:"absolute", top:40, left:0, right:0, textAlign:"center", color:C.faint, fontSize:12, pointerEvents:"none" }}>Tap the grid to add a block · drag to move · drag the bottom edge to resize</div>}
         </div>
+      </div>
       </div>
     </div>
   );
@@ -597,7 +601,7 @@ function TodayView({ day,date,setDate,upd,dayTypes,applyDayType,links }){
       <div style={{ display:"flex", gap:10, justifyContent:"center", marginBottom:16, flexWrap:"wrap" }}>
         {[
           { l:"Plan adherence", v: adh?`${adh.pct}%`:"—", c: adh?(adh.pct>=70?C.green:adh.pct>=40?C.gold:C.red):C.faint, on:()=>setShowLog(true) },
-          { l:"Daily reps", v: day.reps.actual>0?`${day.reps.actual}/${day.reps.target}`:(day.reps.done?"✓":"○"), c: day.reps.done?C.green:C.faint, on:()=>setShowLog(true) },
+          { l:"Daily reps", v: day.reps.done?"✓":"○", c: day.reps.done?C.green:C.faint, on:()=>upd({ reps:{ ...day.reps, done:!day.reps.done } }) },
           { l:"Day score", v: day.rating?`${day.rating}/10`:"—", c:C.red, on:()=>setShowLog(true) },
         ].map(s=> <button key={s.l} onClick={s.on} style={{ background:C.panel, border:`1px solid ${C.line}`, borderRadius:12, padding:"8px 16px", cursor:"pointer", textAlign:"center", minWidth:96 }}><div style={{ fontSize:18, fontWeight:700, color:s.c }}>{s.v}</div><div style={{ fontSize:10, color:C.dim, marginTop:3 }}>{s.l}</div></button>)}
       </div>
@@ -620,9 +624,8 @@ function TodayView({ day,date,setDate,upd,dayTypes,applyDayType,links }){
                 <div style={{ fontSize:11, color:C.faint }}>Target scales with day of year</div>
               </div>
               <div style={{ display:"flex", alignItems:"center", gap:6 }}>
-                <input type="number" placeholder="0" value={day.reps.actual||""} onChange={e=>{ const a=+e.target.value||0; upd({ reps:{ ...day.reps, actual:a, done: a>=day.reps.target ? true : day.reps.done } }); }} style={{ ...inp, width:60, textAlign:"center", fontSize:18, fontWeight:700, color:day.reps.actual>=day.reps.target?C.green:C.ink }}/>
-                <span style={{ fontSize:13, color:C.faint }}>/</span>
-                <input type="number" value={day.reps.target} onChange={e=>upd({ reps:{ ...day.reps, target:+e.target.value } })} style={{ ...inp, width:56, textAlign:"center", fontSize:14, color:C.dim }}/>
+                <input type="number" value={day.reps.target} onChange={e=>upd({ reps:{ ...day.reps, target:+e.target.value } })} style={{ ...inp, width:64, textAlign:"center", fontSize:18, fontWeight:700, color:C.green }}/>
+                <span style={{ fontSize:12, color:C.faint }}>reps</span>
               </div>
             </div>
           </Panel>
@@ -837,9 +840,6 @@ function TrendsView({ allDays,links,cfg }){
   const maxProd=Math.max(8,...prod), maxSleep=Math.max(10,...sleepH);
   const streaks = HABITS.map(h=>{ const s=habitStatsFor(sorted,h.key,links,(cfg||{})[h.key]); return {...h,streak:s.cur,unit:s.mode==="weekly"?"wk":""}; });
   const habitRate = HABITS.map(h=>({ ...h, rate:habitStatsFor(sorted,h.key,links,(cfg||{})[h.key]).rate }));
-  const totalReps = sorted.reduce((s,d)=>s+(+(d.reps&&d.reps.actual)||0),0);
-  const repsLast30 = last30.map(d=>+(d.reps&&d.reps.actual)||0);
-  const maxReps = Math.max(50,...repsLast30);
   const bsTotal = sorted.filter(d=>d.bs).length;
   const bsRate = Math.round(bsTotal/sorted.length*100);
   const repsRate = Math.round(sorted.filter(d=>d.reps?.done).length/sorted.length*100);
@@ -883,7 +883,6 @@ function TrendsView({ allDays,links,cfg }){
         <Panel accent={C.red} title="Day Score (last 30)"><Bars data={ratings} color={C.red} max={10}/><Mini>Avg {(ratings.reduce((a,b)=>a+b,0)/ratings.length).toFixed(1)}/10</Mini></Panel>
         <Panel accent={C.green} title="Productive Hours (last 30)"><Bars data={prod} color={C.green} max={maxProd}/><Mini>Total {prod.reduce((a,b)=>a+b,0)}h · avg {(prod.reduce((a,b)=>a+b,0)/prod.length).toFixed(1)}h/day</Mini></Panel>
         <Panel accent={C.sleep} title="Sleep Hours (last 30)"><Bars data={sleepH} color={C.sleep} max={maxSleep}/><Mini>Avg {(sleepH.reduce((a,b)=>a+b,0)/sleepH.length).toFixed(1)}h — target 8h+</Mini></Panel>
-        <Panel accent={C.green} title="Reps Logged (last 30)"><Bars data={repsLast30} color={C.green} max={maxReps}/><Mini>Lifetime total: <b style={{color:C.green}}>{totalReps.toLocaleString()}</b> reps — keep stacking</Mini></Panel>
         <Panel accent={C.purple} title="Consistency (all time)">
           {habitRate.map(h=> <div key={h.key} style={{ marginBottom:9 }}><div style={{ display:"flex", justifyContent:"space-between", fontSize:12, marginBottom:4 }}><span style={{ color:C.dim }}>{h.label}</span><span style={{ color:h.color }}>{h.rate}%</span></div><div style={{ height:7, background:C.panel2, borderRadius:4, overflow:"hidden" }}><div style={{ width:`${h.rate}%`, height:"100%", background:h.color }}/></div></div>)}
           <div style={{ marginBottom:2 }}><div style={{ display:"flex", justifyContent:"space-between", fontSize:12, marginBottom:4 }}><span style={{ color:C.dim }}>Daily reps</span><span style={{ color:C.green }}>{repsRate}%</span></div><div style={{ height:7, background:C.panel2, borderRadius:4, overflow:"hidden" }}><div style={{ width:`${repsRate}%`, height:"100%", background:C.green }}/></div></div>
