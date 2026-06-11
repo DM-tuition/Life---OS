@@ -87,8 +87,8 @@ async function sGet(key,fb){ try{ const r=localStorage.getItem("lifeos:"+key); r
 async function sSet(key,v){ try{ localStorage.setItem("lifeos:"+key, JSON.stringify(v)); }catch(e){ console.error(e); } }
 
 const blankDay = (iso)=>({
-  date:iso, dayTypeId:null, blocks:[], bs:false,
-  reps:{ target:dayOfYear(iso), done:false },
+  date:iso, dayTypeId:null, blocks:[], bs:false, frozen:false,
+  reps:{ target:dayOfYear(iso), done:false, actual:0 },
   breakdown:{ Sleep:0,Lessons:0,Revision:0,Gym:0,Activity:0 },
   breakdownAdj:{ Sleep:0,Lessons:0,Revision:0,Gym:0,Activity:0 },
   habits:{ sleep8:false,eatwell:false,exercise:false,screen:false,icebath:false },
@@ -117,6 +117,34 @@ function computeBreakdown(blocks){
 function withAdj(auto,adj){ const o={}; for(const k in auto) o[k]=Math.max(0,(auto[k]||0)+((adj&&adj[k])||0)); return o; }
 // a habit counts as done if ticked manually OR auto-satisfied by a kept timeline block of its linked category
 const habitDone = (day,key,links)=> !!(day && ((day.habits&&day.habits[key]) || (links && links[key] && (day.blocks||[]).some(b=>b.cat===links[key] && b.status!=="missed"))));
+
+// ============ HABIT ENGINE (quotas · freezes · strength) ============
+const DEFAULT_HCFG = { per:7, type:"build" }; // per: 7 = daily, 1-6 = times per week
+function habitStatsFor(sorted,key,links,cfg){
+  const c={ ...DEFAULT_HCFG, ...(cfg||{}) };
+  const active=sorted.filter(d=>!d.frozen); // frozen days neither count nor break anything
+  if(c.per>=7){
+    let cur=0; for(let i=sorted.length-1;i>=0;i--){ const d=sorted[i]; if(d.frozen) continue; if(habitDone(d,key,links)) cur++; else break; }
+    let lng=0,run=0; for(const d of sorted){ if(d.frozen) continue; if(habitDone(d,key,links)){ run++; lng=Math.max(lng,run); } else run=0; }
+    const done=active.filter(d=>habitDone(d,key,links)).length;
+    return { mode:"daily", cur, lng, rate:active.length?Math.round(done/active.length*100):0 };
+  }
+  const byWk={}; for(const d of sorted){ const wk=weekKeyOf(d.date); (byWk[wk]=byWk[wk]||[]).push(d); }
+  const wks=Object.keys(byWk).sort(); const thisWk=weekKeyOf(todayISO());
+  const countWk=(wk)=> byWk[wk].filter(d=>habitDone(d,key,links)).length;
+  let cur=0; for(let i=wks.length-1;i>=0;i--){ const wk=wks[i];
+    if(wk===thisWk){ if(countWk(wk)>=c.per) cur++; continue; } // current week counts if hit, never breaks
+    if(countWk(wk)>=c.per) cur++; else break; }
+  let lng=0,run=0; for(const wk of wks){ if(wk===thisWk) continue; if(countWk(wk)>=c.per){ run++; lng=Math.max(lng,run); } else run=0; }
+  const past=wks.filter(wk=>wk!==thisWk);
+  return { mode:"weekly", cur, lng, rate:past.length?Math.round(past.filter(wk=>countWk(wk)>=c.per).length/past.length*100):0, now:countWk(thisWk), per:c.per };
+}
+// Loop-style habit strength: exponential moving average — decays gently on a miss, rebuilds with consistency
+function habitStrength(sorted,key,links){
+  let s=0; const a=0.05;
+  for(const d of sorted){ if(d.frozen) continue; s=s*(1-a)+(habitDone(d,key,links)?1:0)*a; }
+  return Math.round(s*100);
+}
 
 // ============ DATA BACKUP (export / import everything in localStorage) ============
 function exportBackup(){
@@ -201,6 +229,7 @@ export default function LifeOS(){
   const [weekMapB,setWeekMapB] = useState(DEFAULT_WEEK_B);  // Week B
   const [weekAnchorA,setWeekAnchorA] = useState(todayISO());// Monday of a week designated "Week A"
   const [habitLinks,setHabitLinks] = useState({});         // habit key -> block category (auto-complete)
+  const [habitCfg,setHabitCfg] = useState({});             // habit key -> { per, type }
   const [allDays,setAllDays] = useState({});
   const [finance,setFinance] = useState(null);
   const [toast,setToast] = useState("");
@@ -213,6 +242,7 @@ export default function LifeOS(){
     setWeekMapB(await sGet("weekMapB:v1", DEFAULT_WEEK_B));
     setWeekAnchorA(await sGet("weekAnchorA:v1", todayISO()));
     setHabitLinks(await sGet("habitLinks:v1", {}));
+    setHabitCfg(await sGet("habitCfg:v1", {}));
     const idx = await sGet("index:days", []);
     const map={}; for(const iso of idx) map[iso]=await sGet(`day:${iso}`, null);
     setAllDays(map);
@@ -238,7 +268,9 @@ export default function LifeOS(){
     }
     // migrate older saved days lacking new fields
     if(!d.reps) d.reps = { target:dayOfYear(date), done:false };
+    if(d.reps.actual===undefined) d.reps.actual = 0;
     if(d.bs===undefined) d.bs = false;
+    if(d.frozen===undefined) d.frozen = false;
     if(!d.breakdownAdj) d.breakdownAdj = { Sleep:0,Lessons:0,Revision:0,Gym:0,Activity:0 };
     // breakdown = auto from timeline + the day's manual adjustments
     d.breakdown = withAdj(computeBreakdown(d.blocks), d.breakdownAdj);
@@ -256,6 +288,7 @@ export default function LifeOS(){
   const persistWeekMapB = async (wm)=>{ setWeekMapB(wm); await sSet("weekMapB:v1", wm); };
   const persistWeekAnchor = async (iso)=>{ setWeekAnchorA(iso); await sSet("weekAnchorA:v1", iso); };
   const persistHabitLinks = async (l)=>{ setHabitLinks(l); await sSet("habitLinks:v1", l); };
+  const persistHabitCfg = async (c)=>{ setHabitCfg(c); await sSet("habitCfg:v1", c); };
   const applyDayType = (typeId)=>{ const dt=dayTypes[typeId]; if(!dt) return;
     persistDay({ ...day, dayTypeId:typeId, blocks:cloneBlocks(dt.blocks) }); flash(`Applied: ${dt.name}`); };
 
@@ -294,9 +327,9 @@ export default function LifeOS(){
       <div style={{ maxWidth:1180, margin:"0 auto", padding:isMobile?"16px 12px":"24px" }}>
         {tab==="today" && <TodayView day={day} date={date} setDate={setDate} upd={upd} dayTypes={dayTypes} applyDayType={applyDayType} links={habitLinks} />}
         {tab==="month" && <MonthView date={date} setDate={setDate} setTab={setTab} allDays={allDays} dayTypes={dayTypes} flash={flash} />}
-        {tab==="habits" && <HabitsView allDays={allDays} links={habitLinks} saveLinks={persistHabitLinks} />}
+        {tab==="habits" && <HabitsView allDays={allDays} links={habitLinks} saveLinks={persistHabitLinks} cfg={habitCfg} saveCfg={persistHabitCfg} />}
         {tab==="week" && <WeekView allDays={allDays} date={date} setDate={setDate} links={habitLinks} />}
-        {tab==="trends" && <TrendsView allDays={allDays} links={habitLinks} />}
+        {tab==="trends" && <TrendsView allDays={allDays} links={habitLinks} cfg={habitCfg} />}
         {tab==="journal" && <JournalView allDays={allDays} setDate={setDate} setTab={setTab} />}
         {tab==="finance" && <FinanceView finance={finance} save={persistFinance} flash={flash} />}
         {tab==="types" && <DayTypesView dayTypes={dayTypes} save={persistDayTypes} weekMap={weekMap} saveWeekMap={persistWeekMap} weekMapB={weekMapB} saveWeekMapB={persistWeekMapB} weekAnchorA={weekAnchorA} saveWeekAnchor={persistWeekAnchor} flash={flash} />}
@@ -549,6 +582,10 @@ function TodayView({ day,date,setDate,upd,dayTypes,applyDayType,links }){
         <button onClick={()=>upd({ bs:!day.bs })} style={{ padding:"6px 14px", borderRadius:20, cursor:"pointer", fontSize:13, fontWeight:700, border:`1px solid ${day.bs?C.red:C.line}`, background:day.bs?C.red:"transparent", color:day.bs?"#fff":C.dim }}>
           {day.bs?"✓ BS day":"Mark BS"}
         </button>
+        {/* streak freeze: ill / away — this day neither counts nor breaks any streak */}
+        <button onClick={()=>upd({ frozen:!day.frozen })} style={{ padding:"6px 14px", borderRadius:20, cursor:"pointer", fontSize:13, fontWeight:700, border:`1px solid ${day.frozen?C.blue:C.line}`, background:day.frozen?C.blue:"transparent", color:day.frozen?"#fff":C.dim }}>
+          {day.frozen?"❄ Frozen":"Freeze"}
+        </button>
         {showApply && (
           <div style={{ position:"absolute", top:"100%", marginTop:8, background:C.panel2, border:`1px solid ${C.line}`, borderRadius:12, padding:8, zIndex:30, width:240, maxHeight:300, overflowY:"auto", boxShadow:"0 8px 30px rgba(0,0,0,.6)", left:"50%", transform:"translateX(-50%)" }}>
             <div style={{ fontSize:10, color:C.faint, padding:"4px 8px 8px" }}>Apply a format to this day (replaces blocks)</div>
@@ -560,7 +597,7 @@ function TodayView({ day,date,setDate,upd,dayTypes,applyDayType,links }){
       <div style={{ display:"flex", gap:10, justifyContent:"center", marginBottom:16, flexWrap:"wrap" }}>
         {[
           { l:"Plan adherence", v: adh?`${adh.pct}%`:"—", c: adh?(adh.pct>=70?C.green:adh.pct>=40?C.gold:C.red):C.faint, on:()=>setShowLog(true) },
-          { l:"Daily reps", v: day.reps.done?"✓":"○", c: day.reps.done?C.green:C.faint, on:()=>upd({ reps:{ ...day.reps, done:!day.reps.done } }) },
+          { l:"Daily reps", v: day.reps.actual>0?`${day.reps.actual}/${day.reps.target}`:(day.reps.done?"✓":"○"), c: day.reps.done?C.green:C.faint, on:()=>setShowLog(true) },
           { l:"Day score", v: day.rating?`${day.rating}/10`:"—", c:C.red, on:()=>setShowLog(true) },
         ].map(s=> <button key={s.l} onClick={s.on} style={{ background:C.panel, border:`1px solid ${C.line}`, borderRadius:12, padding:"8px 16px", cursor:"pointer", textAlign:"center", minWidth:96 }}><div style={{ fontSize:18, fontWeight:700, color:s.c }}>{s.v}</div><div style={{ fontSize:10, color:C.dim, marginTop:3 }}>{s.l}</div></button>)}
       </div>
@@ -583,8 +620,9 @@ function TodayView({ day,date,setDate,upd,dayTypes,applyDayType,links }){
                 <div style={{ fontSize:11, color:C.faint }}>Target scales with day of year</div>
               </div>
               <div style={{ display:"flex", alignItems:"center", gap:6 }}>
-                <input type="number" value={day.reps.target} onChange={e=>upd({ reps:{ ...day.reps, target:+e.target.value } })} style={{ ...inp, width:64, textAlign:"center", fontSize:18, fontWeight:700, color:C.green }}/>
-                <span style={{ fontSize:12, color:C.faint }}>reps</span>
+                <input type="number" placeholder="0" value={day.reps.actual||""} onChange={e=>{ const a=+e.target.value||0; upd({ reps:{ ...day.reps, actual:a, done: a>=day.reps.target ? true : day.reps.done } }); }} style={{ ...inp, width:60, textAlign:"center", fontSize:18, fontWeight:700, color:day.reps.actual>=day.reps.target?C.green:C.ink }}/>
+                <span style={{ fontSize:13, color:C.faint }}>/</span>
+                <input type="number" value={day.reps.target} onChange={e=>upd({ reps:{ ...day.reps, target:+e.target.value } })} style={{ ...inp, width:56, textAlign:"center", fontSize:14, color:C.dim }}/>
               </div>
             </div>
           </Panel>
@@ -789,7 +827,7 @@ function WeekView({ allDays,date,setDate,links }){
 }
 
 // ============ TRENDS ============
-function TrendsView({ allDays,links }){
+function TrendsView({ allDays,links,cfg }){
   const isMobile = useIsMobile();
   const sorted = useMemo(()=>Object.values(allDays).filter(Boolean).sort((a,b)=>a.date.localeCompare(b.date)),[allDays]);
   if(sorted.length<2) return <Empty big>Log at least 2 days to see trends. Your behaviour patterns accumulate here over weeks and months — including your BS-day count, the metric to actually beat.</Empty>;
@@ -797,8 +835,11 @@ function TrendsView({ allDays,links }){
   const Bars = ({ data,color,max })=> <div style={{ display:"flex", alignItems:"flex-end", gap:2, height:90, marginTop:8 }}>{data.map((v,i)=> <div key={i} style={{ flex:1, minWidth:3, height:`${(v/max*100)||2}%`, background:color, borderRadius:2, opacity:0.85 }}/>)}</div>;
   const ratings=last30.map(d=>d.rating||0), prod=last30.map(d=>+d.prodHours||0), sleepH=last30.map(d=>d.breakdown.Sleep||0);
   const maxProd=Math.max(8,...prod), maxSleep=Math.max(10,...sleepH);
-  const streaks = HABITS.map(h=>{ let s=0; for(let i=sorted.length-1;i>=0;i--){ if(habitDone(sorted[i],h.key,links)) s++; else break; } return {...h,streak:s}; });
-  const habitRate = HABITS.map(h=>({ ...h, rate:Math.round(sorted.filter(d=>habitDone(d,h.key,links)).length/sorted.length*100) }));
+  const streaks = HABITS.map(h=>{ const s=habitStatsFor(sorted,h.key,links,(cfg||{})[h.key]); return {...h,streak:s.cur,unit:s.mode==="weekly"?"wk":""}; });
+  const habitRate = HABITS.map(h=>({ ...h, rate:habitStatsFor(sorted,h.key,links,(cfg||{})[h.key]).rate }));
+  const totalReps = sorted.reduce((s,d)=>s+(+(d.reps&&d.reps.actual)||0),0);
+  const repsLast30 = last30.map(d=>+(d.reps&&d.reps.actual)||0);
+  const maxReps = Math.max(50,...repsLast30);
   const bsTotal = sorted.filter(d=>d.bs).length;
   const bsRate = Math.round(bsTotal/sorted.length*100);
   const repsRate = Math.round(sorted.filter(d=>d.reps?.done).length/sorted.length*100);
@@ -834,7 +875,7 @@ function TrendsView({ allDays,links }){
 
       <Panel accent={C.gold} title="Current Streaks" style={{ marginBottom:18 }}>
         <div style={{ display:"grid", gridTemplateColumns:isMobile?"repeat(3,1fr)":"repeat(5,1fr)", gap:12 }}>
-          {streaks.map(s=> <div key={s.key} style={{ background:C.panel2, borderRadius:10, padding:"14px 10px", textAlign:"center" }}><div style={{ fontSize:30, fontWeight:700, color:s.streak>0?s.color:C.faint, lineHeight:1 }}>{s.streak}</div><div style={{ fontSize:11, color:C.dim, marginTop:6 }}>{s.label}</div></div>)}
+          {streaks.map(s=> <div key={s.key} style={{ background:C.panel2, borderRadius:10, padding:"14px 10px", textAlign:"center" }}><div style={{ fontSize:30, fontWeight:700, color:s.streak>0?s.color:C.faint, lineHeight:1 }}>{s.streak}<span style={{ fontSize:12, color:C.faint }}>{s.unit}</span></div><div style={{ fontSize:11, color:C.dim, marginTop:6 }}>{s.label}</div></div>)}
         </div>
       </Panel>
 
@@ -842,6 +883,7 @@ function TrendsView({ allDays,links }){
         <Panel accent={C.red} title="Day Score (last 30)"><Bars data={ratings} color={C.red} max={10}/><Mini>Avg {(ratings.reduce((a,b)=>a+b,0)/ratings.length).toFixed(1)}/10</Mini></Panel>
         <Panel accent={C.green} title="Productive Hours (last 30)"><Bars data={prod} color={C.green} max={maxProd}/><Mini>Total {prod.reduce((a,b)=>a+b,0)}h · avg {(prod.reduce((a,b)=>a+b,0)/prod.length).toFixed(1)}h/day</Mini></Panel>
         <Panel accent={C.sleep} title="Sleep Hours (last 30)"><Bars data={sleepH} color={C.sleep} max={maxSleep}/><Mini>Avg {(sleepH.reduce((a,b)=>a+b,0)/sleepH.length).toFixed(1)}h — target 8h+</Mini></Panel>
+        <Panel accent={C.green} title="Reps Logged (last 30)"><Bars data={repsLast30} color={C.green} max={maxReps}/><Mini>Lifetime total: <b style={{color:C.green}}>{totalReps.toLocaleString()}</b> reps — keep stacking</Mini></Panel>
         <Panel accent={C.purple} title="Consistency (all time)">
           {habitRate.map(h=> <div key={h.key} style={{ marginBottom:9 }}><div style={{ display:"flex", justifyContent:"space-between", fontSize:12, marginBottom:4 }}><span style={{ color:C.dim }}>{h.label}</span><span style={{ color:h.color }}>{h.rate}%</span></div><div style={{ height:7, background:C.panel2, borderRadius:4, overflow:"hidden" }}><div style={{ width:`${h.rate}%`, height:"100%", background:h.color }}/></div></div>)}
           <div style={{ marginBottom:2 }}><div style={{ display:"flex", justifyContent:"space-between", fontSize:12, marginBottom:4 }}><span style={{ color:C.dim }}>Daily reps</span><span style={{ color:C.green }}>{repsRate}%</span></div><div style={{ height:7, background:C.panel2, borderRadius:4, overflow:"hidden" }}><div style={{ width:`${repsRate}%`, height:"100%", background:C.green }}/></div></div>
@@ -914,49 +956,66 @@ function DayTypesView({ dayTypes,save,weekMap,saveWeekMap,weekMapB,saveWeekMapB,
 
 // ============ HABITS (contribution grid + streak rings + block linking) ============
 const GRID_WEEKS = 18;
-function HabitsView({ allDays, links, saveLinks }){
+function HabitsView({ allDays, links, saveLinks, cfg, saveCfg }){
   const today = todayISO();
   const start = addDays(weekKeyOf(today), -(GRID_WEEKS-1)*7);
   const weeks = useMemo(()=>{ const arr=[]; for(let w=0;w<GRID_WEEKS;w++){ const col=[]; for(let d=0;d<7;d++) col.push(addDays(start, w*7+d)); arr.push(col); } return arr; },[start]);
   const sorted = useMemo(()=> Object.values(allDays).filter(Boolean).sort((a,b)=>a.date.localeCompare(b.date)),[allDays]);
-  const stats = (key)=>{ let cur=0; for(let i=sorted.length-1;i>=0;i--){ if(habitDone(sorted[i],key,links)) cur++; else break; }
-    let lng=0,run=0; for(const d of sorted){ if(habitDone(d,key,links)){ run++; lng=Math.max(lng,run); } else run=0; }
-    const done=sorted.filter(d=>habitDone(d,key,links)).length; const rate=sorted.length?Math.round(done/sorted.length*100):0;
-    return { cur,lng,rate }; };
+  const updCfg = (key,patch)=> saveCfg({ ...cfg, [key]:{ ...DEFAULT_HCFG, ...(cfg[key]||{}), ...patch } });
 
   return (
     <div>
       <div style={{ textAlign:"center", marginBottom:20 }}>
         <div style={{ fontFamily:"'Caveat',cursive", fontSize:40, color:C.teal }}>Habits</div>
-        <div style={{ fontSize:12, color:C.dim }}>Don't break the chain · last {GRID_WEEKS} weeks</div>
+        <div style={{ fontSize:12, color:C.dim }}>Don't break the chain · last {GRID_WEEKS} weeks · ❄ freeze a day from the Today tab</div>
       </div>
       <div style={{ display:"flex", flexDirection:"column", gap:18 }}>
-        {HABITS.map(h=>{ const s=stats(h.key);
+        {HABITS.map(h=>{
+          const c={ ...DEFAULT_HCFG, ...(cfg[h.key]||{}) };
+          const s=habitStatsFor(sorted,h.key,links,c);
+          const str=habitStrength(sorted,h.key,links);
+          const quit=c.type==="quit";
+          const unit=s.mode==="weekly"?"wk":"d";
+          const streakWord=quit?"clean":"streak";
           return (
-            <Panel key={h.key} accent={h.color} title={h.label} right={
+            <Panel key={h.key} accent={h.color} title={quit?`${h.label} · QUIT`:h.label} right={
               <select value={links[h.key]||""} onChange={e=>saveLinks({ ...links, [h.key]: e.target.value })} style={{ ...inp, fontSize:11, padding:"5px 7px", cursor:"pointer" }}>
                 <option value="">Manual tick</option>
-                {CAT_KEYS.map(c=> <option key={c} value={c} style={{ background:C.panel }}>Auto: {c} block</option>)}
+                {CAT_KEYS.map(cat=> <option key={cat} value={cat} style={{ background:C.panel }}>Auto: {cat} block</option>)}
               </select>}>
-              <div style={{ display:"flex", gap:18, alignItems:"center", flexWrap:"wrap", marginBottom:14 }}>
-                <Ring pct={s.cur/30} color={h.color} value={s.cur} label="streak"/>
+              <div style={{ display:"flex", gap:18, alignItems:"center", flexWrap:"wrap", marginBottom:12 }}>
+                {s.mode==="weekly"
+                  ? <Ring pct={s.now/s.per} color={h.color} value={`${s.now}/${s.per}`} label="this wk"/>
+                  : <Ring pct={s.cur/30} color={h.color} value={s.cur} label={streakWord}/>}
                 <div style={{ display:"flex", gap:12, flexWrap:"wrap" }}>
-                  <Stat label="Current" value={s.cur} sub="d" color={h.color}/>
-                  <Stat label="Longest" value={s.lng} sub="d" color={C.gold}/>
+                  <Stat label={quit?"Days clean":"Current"} value={s.cur} sub={unit} color={h.color}/>
+                  <Stat label={quit?"Longest clean":"Longest"} value={s.lng} sub={unit} color={C.gold}/>
                   <Stat label="All-time" value={s.rate} sub="%" color={C.dim}/>
                 </div>
               </div>
-              <div style={{ display:"flex", gap:3, overflowX:"auto", paddingBottom:4 }}>
+              {/* habit strength — decays gently on a miss instead of resetting to zero */}
+              <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:12 }}>
+                <span style={{ fontSize:11, color:C.faint, width:56 }}>Strength</span>
+                <div style={{ flex:1, height:7, background:C.panel2, borderRadius:4, overflow:"hidden" }}><div style={{ width:`${str}%`, height:"100%", background:h.color, opacity:0.8 }}/></div>
+                <span style={{ fontSize:12, color:str>=70?C.green:str>=35?C.gold:C.dim, fontWeight:600, width:34, textAlign:"right" }}>{str}%</span>
+              </div>
+              <div style={{ display:"flex", gap:3, overflowX:"auto", paddingBottom:4, marginBottom:12 }}>
                 {weeks.map((col,wi)=> <div key={wi} style={{ display:"flex", flexDirection:"column", gap:3, flexShrink:0 }}>
                   {col.map(iso=>{ const d=allDays[iso]; const future=iso>today; const done=habitDone(d,h.key,links);
-                    return <div key={iso} title={iso} style={{ width:12, height:12, borderRadius:3, background: future?"transparent" : done? h.color : d? `${h.color}22` : C.panel2 }}/>; })}
+                    return <div key={iso} title={iso} style={{ width:12, height:12, borderRadius:3, border:d&&d.frozen?`1px solid ${C.blue}`:"none", background: future?"transparent" : d&&d.frozen?"transparent" : done? h.color : d? `${h.color}22` : C.panel2 }}/>; })}
                 </div>)}
+              </div>
+              <div style={{ display:"flex", gap:8, flexWrap:"wrap", alignItems:"center" }}>
+                <span style={{ fontSize:11, color:C.faint }}>Goal:</span>
+                {[[7,"Daily"],[5,"5×/wk"],[4,"4×/wk"],[3,"3×/wk"],[2,"2×/wk"],[1,"1×/wk"]].map(([n,l])=>
+                  <button key={n} onClick={()=>updCfg(h.key,{per:n})} style={{ fontSize:11, padding:"4px 9px", borderRadius:12, cursor:"pointer", border:`1px solid ${c.per===n?h.color:C.line}`, background:c.per===n?h.color:"transparent", color:c.per===n?"#0b0b0b":C.dim }}>{l}</button>)}
+                <button onClick={()=>updCfg(h.key,{type:quit?"build":"quit"})} style={{ fontSize:11, padding:"4px 9px", borderRadius:12, cursor:"pointer", marginLeft:"auto", border:`1px solid ${quit?C.red:C.line}`, background:quit?C.red:"transparent", color:quit?"#fff":C.dim }}>{quit?"Quit habit ✓":"Make it a quit habit"}</button>
               </div>
             </Panel>
           );
         })}
       </div>
-      <Mini>Link a habit to a timeline category (top-right of each card) and it auto-completes whenever you keep a block of that type.</Mini>
+      <Mini>Quota habits (e.g. 3×/wk) streak by weeks hit, and this week can't break until it's over. Frozen days show as ❄ outlines — they never break a chain. Strength is the honest score: one miss dents it, consistency rebuilds it.</Mini>
     </div>
   );
 }
