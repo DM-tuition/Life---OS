@@ -1062,9 +1062,14 @@ function JournalView({ allDays, setDate, setTab }){
 }
 
 // ============ FINANCE ============
+const FIN_OUT_CATS = ["Food","Transport","Fun","Shopping","Subscriptions","Business","Other"];
+const FIN_IN_CATS = ["Tuition","Gift","Pocket","Other"];
+const FIN_CAT_COLOR = { Food:C.gold, Transport:C.blue, Fun:C.pink, Shopping:C.purple, Subscriptions:C.cyan, Business:C.teal, Other:C.dim, Tuition:C.green, Gift:C.green, Pocket:C.green };
+const NW_MILESTONES = [100,500,1000,2500,5000,10000,25000,50000,100000];
 function FinanceView({ finance,save,flash }){
   const isMobile = useIsMobile();
   const [sub,setSub] = useState("networth");
+  const [form,setForm] = useState({ dir:"out", amount:"", cat:"Food", label:"", recurring:false });
   const totalNW = finance.accounts.reduce((s,a)=>s+(+a.balance||0),0);
   const addAccount=()=> save({ ...finance, accounts:[...finance.accounts,{ id:Date.now(),name:"New account",balance:0 }] });
   const updAccount=(id,p)=> save({ ...finance, accounts:finance.accounts.map(a=>a.id===id?{...a,...p}:a) });
@@ -1082,11 +1087,34 @@ function FinanceView({ finance,save,flash }){
   const fv=(L.amount*Math.pow(1+(+L.expectedReturn/100),+L.years)).toFixed(0);
   const isaAmount = L.allocations.filter(a=>/isa|index|invest/i.test(a.name)).reduce((s,a)=>s+L.amount*a.pct/100,0);
 
+  // ----- money in/out + goals -----
+  const tx = finance.transactions||[];
+  const goals = finance.goals||[];
+  const thisMonth = todayISO().slice(0,7);
+  const monthTx = tx.filter(t=>String(t.date).slice(0,7)===thisMonth);
+  const inSum = monthTx.filter(t=>t.dir==="in").reduce((s,t)=>s+(+t.amount||0),0);
+  const outSum = monthTx.filter(t=>t.dir==="out").reduce((s,t)=>s+(+t.amount||0),0);
+  const net = inSum-outSum;
+  const byCat = {}; monthTx.filter(t=>t.dir==="out").forEach(t=>{ byCat[t.cat]=(byCat[t.cat]||0)+(+t.amount||0); });
+  const catRows = Object.entries(byCat).sort((a,b)=>b[1]-a[1]);
+  const maxCat = Math.max(1,...catRows.map(r=>r[1]));
+  const recurring = tx.filter(t=>t.recurring);
+  const recurringOut = recurring.filter(t=>t.dir==="out").reduce((s,t)=>s+(+t.amount||0),0);
+  const addTx=(t)=> save({ ...finance, transactions:[...tx, { id:Date.now(), ...t }] });
+  const delTx=(id)=> save({ ...finance, transactions:tx.filter(t=>t.id!==id) });
+  const submitTx=()=>{ const amt=+form.amount; if(!amt){ flash("Enter an amount"); return; } addTx({ date:todayISO(), dir:form.dir, amount:amt, cat:form.cat, label:form.label.trim(), recurring:form.recurring }); setForm({ ...form, amount:"", label:"", recurring:false }); flash("Logged"); };
+  const addGoal=()=> save({ ...finance, goals:[...goals, { id:Date.now(), name:"New goal", target:200, saved:0, color:C.gold }] });
+  const updGoal=(id,p)=> save({ ...finance, goals:goals.map(g=>g.id===id?{...g,...p}:g) });
+  const delGoal=(id)=> save({ ...finance, goals:goals.filter(g=>g.id!==id) });
+  const nextMile = NW_MILESTONES.find(m=>m>totalNW) || (Math.ceil(totalNW/50000)*50000+50000);
+  const prevMile = [...NW_MILESTONES].reverse().find(m=>m<=totalNW) || 0;
+  const milePct = (totalNW-prevMile)/(nextMile-prevMile);
+
   return (
     <div>
       <div style={{ textAlign:"center", marginBottom:18 }}><div style={{ fontFamily:"'Caveat',cursive", fontSize:40, color:C.teal }}>Finance</div></div>
       <div style={{ display:"flex", gap:6, justifyContent:"center", marginBottom:20, flexWrap:"wrap" }}>
-        {[["networth","Net Worth"],["business","Tuition Business"],["lump","£10k Plan"]].map(([k,l])=> <button key={k} onClick={()=>setSub(k)} style={{ padding:"8px 16px", borderRadius:20, cursor:"pointer", fontSize:13, fontWeight:600, border:`1px solid ${sub===k?C.teal:C.line}`, background:sub===k?C.teal:"transparent", color:sub===k?"#001014":C.dim }}>{l}</button>)}
+        {[["networth","Net Worth"],["cashflow","Money In/Out"],["goals","Goals"],["business","Tuition"],["lump","£10k Plan"]].map(([k,l])=> <button key={k} onClick={()=>setSub(k)} style={{ padding:"8px 16px", borderRadius:20, cursor:"pointer", fontSize:13, fontWeight:600, border:`1px solid ${sub===k?C.teal:C.line}`, background:sub===k?C.teal:"transparent", color:sub===k?"#001014":C.dim }}>{l}</button>)}
       </div>
 
       {sub==="networth" && (
@@ -1100,6 +1128,87 @@ function FinanceView({ finance,save,flash }){
           <Panel accent={C.teal} title="Net Worth Over Time">
             {finance.netWorthLog.length<2 ? <Empty>Save snapshots over time to track growth. The £10k at 18 will show here.</Empty> : <div style={{ display:"flex", alignItems:"flex-end", gap:6, height:160, marginTop:10 }}>{finance.netWorthLog.map((p,i)=>{ const max=Math.max(...finance.netWorthLog.map(x=>x.value)); return <div key={i} style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:4 }}><div style={{ fontSize:9, color:C.dim }}>£{(p.value/1000).toFixed(1)}k</div><div style={{ width:"100%", height:`${p.value/max*120}px`, background:C.teal, borderRadius:"4px 4px 0 0" }}/><div style={{ fontSize:9, color:C.faint }}>{p.date.slice(5)}</div></div>; })}</div>}
           </Panel>
+          <Panel accent={C.gold} title="Next Milestone" style={{ gridColumn:isMobile?"auto":"1 / -1" }}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"baseline", marginBottom:8 }}>
+              <span style={{ fontSize:13, color:C.dim }}>£{totalNW.toLocaleString()} → next: <b style={{ color:C.gold }}>£{nextMile.toLocaleString()}</b></span>
+              <span style={{ fontSize:12, color:C.faint }}>£{Math.max(0,nextMile-totalNW).toLocaleString()} to go</span>
+            </div>
+            <div style={{ height:12, background:C.panel2, borderRadius:6, overflow:"hidden" }}><div style={{ width:`${Math.min(100,Math.max(0,milePct*100))}%`, height:"100%", background:C.gold }}/></div>
+            <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginTop:12 }}>
+              {NW_MILESTONES.map(m=> <span key={m} style={{ fontSize:11, padding:"3px 8px", borderRadius:10, background:totalNW>=m?C.gold:C.panel2, color:totalNW>=m?"#0b0b0b":C.faint, fontWeight:totalNW>=m?700:400 }}>{totalNW>=m?"✓ ":""}£{m>=1000?`${m/1000}k`:m}</span>)}
+            </div>
+          </Panel>
+        </div>
+      )}
+
+      {sub==="cashflow" && (
+        <div style={{ display:"grid", gridTemplateColumns:isMobile?"1fr":"1fr 1fr", gap:18 }}>
+          <Panel accent={C.green} title="Log money in / out">
+            <div style={{ display:"flex", gap:6, marginBottom:12 }}>
+              {[["out","Spent",C.red],["in","Received",C.green]].map(([d,l,col])=> <button key={d} onClick={()=>setForm({ ...form, dir:d, cat: d==="out"?"Food":"Tuition" })} style={{ flex:1, padding:"9px", borderRadius:8, cursor:"pointer", fontWeight:700, fontSize:13, border:`1px solid ${form.dir===d?col:C.line}`, background:form.dir===d?col:"transparent", color:form.dir===d?"#fff":C.dim }}>{l}</button>)}
+            </div>
+            <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:12 }}>
+              <span style={{ fontSize:20, color:C.dim }}>£</span>
+              <input type="number" inputMode="decimal" value={form.amount} onChange={e=>setForm({ ...form, amount:e.target.value })} placeholder="0" style={{ ...inp, flex:1, fontSize:22, fontWeight:700 }}/>
+            </div>
+            <Label>Category</Label>
+            <div style={{ display:"flex", flexWrap:"wrap", gap:5, marginBottom:12 }}>
+              {(form.dir==="out"?FIN_OUT_CATS:FIN_IN_CATS).map(c=> <button key={c} onClick={()=>setForm({ ...form, cat:c })} style={{ fontSize:12, padding:"6px 10px", borderRadius:14, cursor:"pointer", border:`1px solid ${form.cat===c?(FIN_CAT_COLOR[c]||C.teal):C.line}`, background:form.cat===c?(FIN_CAT_COLOR[c]||C.teal):"transparent", color:form.cat===c?"#0b0b0b":C.dim, fontWeight:form.cat===c?700:400 }}>{c}</button>)}
+            </div>
+            <input value={form.label} onChange={e=>setForm({ ...form, label:e.target.value })} placeholder="Note (optional) e.g. Spotify, lesson w/ Sam" style={{ ...inp, width:"100%", marginBottom:12 }}/>
+            <label style={{ display:"flex", alignItems:"center", gap:8, fontSize:12, color:C.dim, marginBottom:12, cursor:"pointer" }}><Check on={form.recurring} color={C.cyan} onClick={()=>setForm({ ...form, recurring:!form.recurring })} size={18}/> Repeats every month (subscription / regular)</label>
+            <button onClick={submitTx} style={{ ...addBtn, borderColor:C.green, color:C.green }}>+ Add to log</button>
+          </Panel>
+
+          <Panel accent={C.teal} title={`This month · ${MONTHS[new Date().getMonth()].slice(0,3)}`}>
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10, marginBottom:16 }}>
+              <Stat label="In" value={`£${inSum}`} color={C.green}/>
+              <Stat label="Out" value={`£${outSum}`} color={C.red}/>
+              <Stat label="Net" value={`${net<0?"-":""}£${Math.abs(net)}`} color={net>=0?C.green:C.red}/>
+            </div>
+            <Label>Where it went</Label>
+            {catRows.length===0 ? <Empty>No spending logged this month yet.</Empty> : catRows.map(([c,v])=> <div key={c} style={{ display:"flex", alignItems:"center", gap:10, marginBottom:8 }}><span style={{ width:84, fontSize:12, color:C.dim }}>{c}</span><div style={{ flex:1, height:9, background:C.panel2, borderRadius:5, overflow:"hidden" }}><div style={{ width:`${(v/maxCat)*100}%`, height:"100%", background:FIN_CAT_COLOR[c]||C.dim }}/></div><span style={{ width:48, textAlign:"right", fontSize:12, color:C.ink }}>£{v}</span></div>)}
+          </Panel>
+
+          <Panel accent={C.cyan} title="Monthly commitments" right={<span style={{ fontSize:13, fontWeight:700, color:C.cyan }}>£{recurringOut}/mo</span>}>
+            {recurring.length===0 ? <Empty>Mark a payment as "repeats every month" to track subscriptions and regular costs here.</Empty> : recurring.map(t=> <div key={t.id} style={{ display:"flex", alignItems:"center", gap:8, marginBottom:8 }}><span style={{ width:8,height:8,borderRadius:"50%",background:FIN_CAT_COLOR[t.cat]||C.dim }}/><span style={{ flex:1, fontSize:13, color:C.ink }}>{t.label||t.cat}</span><span style={{ fontSize:13, color:t.dir==="out"?C.red:C.green }}>{t.dir==="out"?"-":"+"}£{t.amount}</span><button onClick={()=>delTx(t.id)} style={{ background:"none", border:"none", color:C.faint, cursor:"pointer", fontSize:16 }}>×</button></div>)}
+          </Panel>
+
+          <Panel accent={C.gold} title="Recent" style={{ gridColumn:isMobile?"auto":"1 / -1" }}>
+            {tx.length===0 ? <Empty big>Log your tuition income and your spending above. Seeing the flow — not just the balance — is how every money app starts.</Empty> :
+              [...tx].sort((a,b)=>String(b.date).localeCompare(String(a.date))||b.id-a.id).slice(0,40).map(t=> <div key={t.id} style={{ display:"flex", alignItems:"center", gap:10, padding:"8px 0", borderBottom:`1px solid ${C.line}` }}><span style={{ width:8,height:8,borderRadius:"50%",background:FIN_CAT_COLOR[t.cat]||C.dim,flexShrink:0 }}/><div style={{ flex:1, minWidth:0 }}><div style={{ fontSize:13, color:C.ink, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{t.label||t.cat}{t.recurring?" ↻":""}</div><div style={{ fontSize:10, color:C.faint }}>{t.cat} · {fmt(t.date)}</div></div><span style={{ fontSize:14, fontWeight:600, color:t.dir==="out"?C.red:C.green }}>{t.dir==="out"?"-":"+"}£{t.amount}</span><button onClick={()=>delTx(t.id)} style={{ background:"none", border:"none", color:C.faint, cursor:"pointer", fontSize:16 }}>×</button></div>)}
+          </Panel>
+        </div>
+      )}
+
+      {sub==="goals" && (
+        <div style={{ display:"grid", gridTemplateColumns:isMobile?"1fr":"1fr 1fr", gap:18 }}>
+          {goals.length===0 && <Panel accent={C.gold} title="Savings goals" style={{ gridColumn:"1 / -1" }}><Empty big>Set goals like "First car", "Uni fund" or "New laptop" with a target — then watch the bar fill as your tuition income stacks up.</Empty></Panel>}
+          {goals.map(g=>{ const pct=g.target>0?Math.min(100,(g.saved/g.target)*100):0; const eta = net>0 && g.saved<g.target ? Math.ceil((g.target-g.saved)/net) : null;
+            return (
+              <Panel key={g.id} accent={g.color} title={null}>
+                <div style={{ display:"flex", gap:8, marginBottom:10, alignItems:"center" }}>
+                  <input value={g.name} onChange={e=>updGoal(g.id,{name:e.target.value})} style={{ ...inp, flex:1, fontSize:15, fontWeight:600 }}/>
+                  <div style={{ display:"flex", gap:4 }}>{[C.gold,C.green,C.blue,C.pink,C.purple,C.teal].map(col=> <button key={col} onClick={()=>updGoal(g.id,{color:col})} style={{ width:18,height:18,borderRadius:"50%",background:col,cursor:"pointer",border:g.color===col?"2px solid #fff":"2px solid transparent",padding:0 }}/>)}</div>
+                  <button onClick={()=>delGoal(g.id)} style={delBtn}>×</button>
+                </div>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"baseline", marginBottom:6 }}>
+                  <span style={{ fontSize:22, fontWeight:700, color:g.color }}>£{(+g.saved||0).toLocaleString()}</span>
+                  <span style={{ fontSize:13, color:C.faint }}>of £{(+g.target||0).toLocaleString()} · {Math.round(pct)}%</span>
+                </div>
+                <div style={{ height:12, background:C.panel2, borderRadius:6, overflow:"hidden", marginBottom:12 }}><div style={{ width:`${pct}%`, height:"100%", background:g.color }}/></div>
+                <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
+                  <span style={{ fontSize:11, color:C.faint }}>Saved £</span>
+                  <input type="number" value={g.saved} onChange={e=>updGoal(g.id,{saved:+e.target.value})} style={{ ...inp, width:80 }}/>
+                  <span style={{ fontSize:11, color:C.faint }}>Target £</span>
+                  <input type="number" value={g.target} onChange={e=>updGoal(g.id,{target:+e.target.value})} style={{ ...inp, width:80 }}/>
+                  {[10,25,50].map(n=> <button key={n} onClick={()=>updGoal(g.id,{saved:(+g.saved||0)+n})} style={{ ...stepBtn, width:"auto", padding:"0 8px", fontSize:12 }}>+{n}</button>)}
+                </div>
+                {pct>=100 ? <div style={{ marginTop:10, fontSize:12, color:C.green, fontWeight:600 }}>🎉 Goal reached!</div> : eta!==null && <div style={{ marginTop:10, fontSize:11, color:C.faint }}>At this month's saving rate (£{net}/mo): ~{eta} month{eta!==1?"s":""} to go</div>}
+              </Panel>
+            );
+          })}
+          <button onClick={addGoal} style={{ ...addBtn, gridColumn:"1 / -1" }}>+ New savings goal</button>
         </div>
       )}
 
