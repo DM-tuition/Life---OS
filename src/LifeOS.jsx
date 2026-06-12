@@ -112,6 +112,10 @@ async function syncBootstrap(){ // called before the app reads localStorage
   if(!initSupabase()) return;
   try{ const { data:{ session } }=await SB.auth.getSession(); if(session){ SBuser=session.user; await pullState(); } }catch{} }
 
+// subtle haptic tick on key actions (no-op where unsupported)
+const buzz = (ms=8)=>{ try{ if(navigator.vibrate) navigator.vibrate(ms); }catch{} };
+const confirmDel = (what)=>{ try{ return window.confirm(`Delete ${what}? This can't be undone.`); }catch{ return true; } };
+
 const blankDay = (iso)=>({
   date:iso, dayTypeId:null, blocks:[], bs:false, frozen:false,
   reps:{ target:dayOfYear(iso), done:false },
@@ -203,7 +207,7 @@ const Panel = ({ accent,title,right,children,style })=>(
   </div>
 );
 const Check = ({ on,color,onClick,size=22 })=>(
-  <button onClick={onClick} style={{ width:size,height:size,borderRadius:6,cursor:"pointer",flexShrink:0,
+  <button onClick={(e)=>{ buzz(); onClick&&onClick(e); }} style={{ width:size,height:size,borderRadius:6,cursor:"pointer",flexShrink:0,
     border:`2px solid ${on?color:C.faint}`, background:on?color:"transparent", display:"flex",
     alignItems:"center", justifyContent:"center", color:"#fff", fontSize:size*0.6, fontWeight:700, padding:0 }}>{on?"✓":""}</button>
 );
@@ -246,7 +250,8 @@ function Stepper({ v,set,big }){
 
 // ============ APP ============
 export default function LifeOS(){
-  const [tab,setTab] = useState("today");
+  const [tab,setTabRaw] = useState(()=>{ try{ return localStorage.getItem("lifeos:lastTab")||"today"; }catch{ return "today"; } });
+  const setTab = (t)=>{ setTabRaw(t); try{ localStorage.setItem("lifeos:lastTab", t); }catch{} };
   const [date,setDate] = useState(todayISO());
   const [day,setDay] = useState(null);
   const [loading,setLoading] = useState(true);
@@ -304,7 +309,7 @@ export default function LifeOS(){
     setDay(d);
   })(); },[date, loading, weekAnchorA]); // eslint-disable-line
 
-  const flash = (m)=>{ setToast(m); setTimeout(()=>setToast(""),1600); };
+  const flash = (m)=>{ buzz(); setToast(m); setTimeout(()=>setToast(""),1600); };
   const persistDay = async (d)=>{ setDay(d); await sSet(`day:${d.date}`, d);
     const idx=await sGet("index:days",[]); if(!idx.includes(d.date)){ idx.push(d.date); await sSet("index:days",idx); }
     setAllDays(prev=>({ ...prev, [d.date]:d })); };
@@ -327,8 +332,13 @@ export default function LifeOS(){
     <div style={{ background:C.bg, minHeight:"100vh", fontFamily:"'Inter',system-ui,sans-serif", color:C.ink }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Caveat:wght@500;700&family=Inter:wght@400;500;600;700&display=swap');
-        *{box-sizing:border-box;} input,textarea,select{font-family:inherit;}
+        *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;} input,textarea,select{font-family:inherit;}
         ::-webkit-scrollbar{width:8px;height:8px;} ::-webkit-scrollbar-thumb{background:${C.line};border-radius:4px;}
+        button{ transition: background .15s ease, border-color .15s ease, color .15s ease, transform .06s ease; }
+        button:active{ transform: scale(0.96); }
+        .lo-scroll{ -webkit-overflow-scrolling:touch; }
+        .lo-tabs{ scrollbar-width:none; -webkit-overflow-scrolling:touch; } .lo-tabs::-webkit-scrollbar{ display:none; }
+        @keyframes lo-pop{ from{ opacity:0; transform:translateX(-50%) translateY(8px) scale(.96);} to{ opacity:1; transform:translateX(-50%) translateY(0) scale(1);} }
       `}</style>
 
       <div style={{ borderBottom:`1px solid ${C.line}`, padding:isMobile?"14px 16px":"18px 24px", display:"flex", alignItems:"center", justifyContent:"space-between", position:"sticky", top:0, background:C.bg, zIndex:50, gap:10 }}>
@@ -346,7 +356,7 @@ export default function LifeOS(){
       {showBackup && <BackupModal close={()=>setShowBackup(false)} flash={flash} />}
       {showSync && <CloudSyncModal close={()=>setShowSync(false)} flash={flash} />}
 
-      <div style={{ display:"flex", gap:4, padding:"12px 24px 0", borderBottom:`1px solid ${C.line}`, overflowX:"auto" }}>
+      <div className="lo-tabs" style={{ display:"flex", gap:4, padding:"12px 24px 0", borderBottom:`1px solid ${C.line}`, overflowX:"auto" }}>
         {[["today","Today"],["month","Month"],["habits","Habits"],["week","Weekly Review"],["trends","Reports"],["journal","Journal"],["finance","Finance"],["types","Day Types"]].map(([k,l])=>(
           <button key={k} onClick={()=>setTab(k)} style={{ padding:"10px 18px", cursor:"pointer", border:"none", background:"transparent",
             color:tab===k?C.ink:C.faint, fontWeight:600, fontSize:14, borderBottom:`2px solid ${tab===k?C.teal:"transparent"}`, marginBottom:-1, whiteSpace:"nowrap" }}>{l}</button>
@@ -354,7 +364,7 @@ export default function LifeOS(){
       </div>
 
       <div style={{ maxWidth:1180, margin:"0 auto", padding:isMobile?"16px 12px":"24px" }}>
-        {tab==="today" && <TodayView day={day} date={date} setDate={setDate} upd={upd} dayTypes={dayTypes} applyDayType={applyDayType} links={habitLinks} />}
+        {tab==="today" && <TodayView day={day} date={date} setDate={setDate} upd={upd} dayTypes={dayTypes} applyDayType={applyDayType} links={habitLinks} allDays={allDays} flash={flash} />}
         {tab==="month" && <MonthView date={date} setDate={setDate} setTab={setTab} allDays={allDays} dayTypes={dayTypes} flash={flash} />}
         {tab==="habits" && <HabitsView allDays={allDays} links={habitLinks} saveLinks={persistHabitLinks} cfg={habitCfg} saveCfg={persistHabitCfg} />}
         {tab==="week" && <WeekView allDays={allDays} date={date} setDate={setDate} links={habitLinks} />}
@@ -364,7 +374,7 @@ export default function LifeOS(){
         {tab==="types" && <DayTypesView dayTypes={dayTypes} save={persistDayTypes} weekMap={weekMap} saveWeekMap={persistWeekMap} weekMapB={weekMapB} saveWeekMapB={persistWeekMapB} weekAnchorA={weekAnchorA} saveWeekAnchor={persistWeekAnchor} flash={flash} />}
       </div>
 
-      {toast && <div style={{ position:"fixed", bottom:24, left:"50%", transform:"translateX(-50%)", background:C.teal, color:"#001014", padding:"10px 22px", borderRadius:30, fontWeight:600, fontSize:14, zIndex:100, boxShadow:"0 8px 30px rgba(0,0,0,.5)" }}>{toast}</div>}
+      {toast && <div style={{ position:"fixed", bottom:24, left:"50%", transform:"translateX(-50%)", background:C.teal, color:"#001014", padding:"10px 22px", borderRadius:30, fontWeight:600, fontSize:14, zIndex:100, boxShadow:"0 8px 30px rgba(0,0,0,.5)", animation:"lo-pop .18s ease" }}>{toast}</div>}
     </div>
   );
 }
@@ -568,7 +578,7 @@ function Timeline({ blocks,onChange,isToday=false,isPast=false,sketch,onSketch }
           {pen && <button onClick={()=>onSketch([])} style={{ ...addBtn, width:"auto", padding:"6px 10px", borderColor:C.red, color:C.red }}>Clear</button>}
         </div>
       )}
-      <div ref={scrollRef} style={{ position:"relative", ...(isMobile?{ maxHeight:"68vh", overflowY:"auto", overflowX:"hidden", overscrollBehavior:"contain" }:{}) }}>
+      <div ref={scrollRef} className="lo-scroll" style={{ position:"relative", ...(isMobile?{ maxHeight:"68vh", overflowY:"auto", overflowX:"hidden", overscrollBehavior:"contain" }:{}) }}>
       <div style={{ display:"flex", position:"relative" }}>
         <div style={{ width:46, position:"relative", height, flexShrink:0 }}>
           {hours.map(h=> <div key={h} style={{ position:"absolute", top:timeToY(h)-7, right:8, fontSize:10, color:C.faint, fontVariantNumeric:"tabular-nums" }}>{hhmm(h)}</div>)}
@@ -644,10 +654,11 @@ function Timeline({ blocks,onChange,isToday=false,isPast=false,sketch,onSketch }
 }
 
 // ============ TODAY ============
-function TodayView({ day,date,setDate,upd,dayTypes,applyDayType,links }){
+function TodayView({ day,date,setDate,upd,dayTypes,applyDayType,links,allDays,flash }){
   const [newTask,setNewTask] = useState("");
   const [showApply,setShowApply] = useState(false);
   const isMobile = useIsMobile();
+  const dateRef = useRef(null);
   const [showLog,setShowLog] = useState(typeof window!=="undefined" && window.innerWidth>760);
   const dn = dayNameOf(date);
   const isToday = date===todayISO();
@@ -660,6 +671,16 @@ function TodayView({ day,date,setDate,upd,dayTypes,applyDayType,links }){
   const delTask=(b,i)=> upd({ todos:{ ...day.todos,[b]:day.todos[b].filter((_,j)=>j!==i) } });
   const toggleHabit=(k)=> upd({ habits:{ ...day.habits,[k]:!day.habits[k] } });
   const currentType = day.dayTypeId && dayTypes[day.dayTypeId];
+
+  const copyYesterday=()=>{ const y=(allDays||{})[addDays(date,-1)];
+    if(!y||!(y.blocks&&y.blocks.length)){ flash&&flash("Nothing to copy from yesterday"); return; }
+    if(day.blocks.length && !window.confirm("Replace today's timeline with yesterday's?")) return;
+    setBlocks(cloneBlocks(y.blocks.map(({t,e,label,cat})=>({t,e,label,cat})))); flash&&flash("Copied yesterday"); };
+  const pullTodos=()=>{ const y=(allDays||{})[addDays(date,-1)]; if(!y||!y.todos){ flash&&flash("Nothing to carry over"); return; }
+    const nt={ ...day.todos }; let n=0;
+    for(const b of ["shortImp","longImp","shortUnimp","longUnimp"]){ const have=new Set((nt[b]||[]).map(t=>t.text));
+      for(const t of (y.todos[b]||[])){ if(!t.done && !have.has(t.text)){ nt[b]=[...(nt[b]||[]),{ text:t.text, done:false }]; n++; } } }
+    if(n){ upd({ todos:nt }); flash&&flash(`Carried over ${n} task${n>1?"s":""}`); } else flash&&flash("Nothing unfinished to carry"); };
 
   const adh = (()=>{ if(!day.blocks.length) return null;
     const el=day.blocks.filter(b=> isPast || (isToday && b.e<=nowDec())); if(!el.length) return null;
@@ -674,9 +695,10 @@ function TodayView({ day,date,setDate,upd,dayTypes,applyDayType,links }){
     <div onTouchStart={onTS} onTouchEnd={onTE}>
       <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:18, marginBottom:10 }}>
         <Nav onClick={()=>setDate(addDays(date,-1))}>‹</Nav>
-        <div style={{ textAlign:"center", minWidth:200 }}>
+        <div style={{ textAlign:"center", minWidth:200, position:"relative" }}>
           <div style={{ fontFamily:"'Caveat',cursive", fontSize:44, color:C.teal, lineHeight:0.9 }}>{dn}</div>
-          <div style={{ fontSize:12, color:C.dim }}>{fmt(date)} {isToday && <span style={{color:C.green}}>• today</span>}</div>
+          <button onClick={()=>{ const el=dateRef.current; if(!el) return; try{ el.showPicker(); }catch{ el.focus(); el.click(); } }} style={{ background:"none", border:"none", cursor:"pointer", fontSize:12, color:C.dim, padding:0 }}>{fmt(date)} {isToday && <span style={{color:C.green}}>• today</span>} <span style={{ color:C.faint }}>▾</span></button>
+          <input ref={dateRef} type="date" value={date} onChange={e=>e.target.value&&setDate(e.target.value)} style={{ position:"absolute", left:"50%", bottom:0, width:1, height:1, opacity:0, pointerEvents:"none" }}/>
         </div>
         <Nav onClick={()=>setDate(addDays(date,1))}>›</Nav>
       </div>
@@ -691,6 +713,7 @@ function TodayView({ day,date,setDate,upd,dayTypes,applyDayType,links }){
         <button onClick={()=>upd({ frozen:!day.frozen })} style={{ padding:"6px 14px", borderRadius:20, cursor:"pointer", fontSize:13, fontWeight:700, border:`1px solid ${day.frozen?C.blue:C.line}`, background:day.frozen?C.blue:"transparent", color:day.frozen?"#fff":C.dim }}>
           {day.frozen?"❄ Frozen":"Freeze"}
         </button>
+        <button onClick={copyYesterday} style={{ padding:"6px 14px", borderRadius:20, cursor:"pointer", fontSize:13, fontWeight:600, border:`1px solid ${C.line}`, background:"transparent", color:C.dim }}>⧉ Copy yesterday</button>
         {showApply && (
           <div style={{ position:"absolute", top:"100%", marginTop:8, background:C.panel2, border:`1px solid ${C.line}`, borderRadius:12, padding:8, zIndex:30, width:240, maxHeight:300, overflowY:"auto", boxShadow:"0 8px 30px rgba(0,0,0,.6)", left:"50%", transform:"translateX(-50%)" }}>
             <div style={{ fontSize:10, color:C.faint, padding:"4px 8px 8px" }}>Apply a format to this day (replaces blocks)</div>
@@ -737,7 +760,7 @@ function TodayView({ day,date,setDate,upd,dayTypes,applyDayType,links }){
             </div>
           </Panel>
 
-          <Panel accent={C.green} title="To Do" style={{ gridColumn:isMobile?"auto":"1 / -1" }}>
+          <Panel accent={C.green} title="To Do" style={{ gridColumn:isMobile?"auto":"1 / -1" }} right={<button onClick={pullTodos} style={{ background:"none", border:"none", color:C.dim, cursor:"pointer", fontSize:11 }}>↓ carry over unfinished</button>}>
             <input value={newTask} onChange={e=>setNewTask(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addTask("shortImp")} placeholder="Add task + Enter (→ Short/Important)…" style={{ ...inp, width:"100%", marginBottom:14 }}/>
             <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14 }}>
               <TodoBucket label="Short · Important" color={C.gold} items={day.todos.shortImp} bucket="shortImp" toggle={toggleTask} del={delTask}/>
@@ -1002,7 +1025,7 @@ function DayTypesView({ dayTypes,save,weekMap,saveWeekMap,weekMapB,saveWeekMapB,
   const sel = dayTypes[selId];
   const updType=(patch)=> save({ ...dayTypes, [selId]:{ ...sel, ...patch } });
   const newType=()=>{ const id="type-"+Date.now(); save({ ...dayTypes, [id]:{ name:"New Day Type", color:C.teal, blocks:[] } }); setSelId(id); flash("Day type created"); };
-  const delType=()=>{ if(Object.keys(dayTypes).length<=1) return; const copy={...dayTypes}; delete copy[selId]; save(copy); setSelId(Object.keys(copy)[0]); };
+  const delType=()=>{ if(Object.keys(dayTypes).length<=1) return; if(!confirmDel(`the "${sel?.name||"day type"}" format`)) return; const copy={...dayTypes}; delete copy[selId]; save(copy); setSelId(Object.keys(copy)[0]); };
   const blocksWithIds = useMemo(()=> (sel?.blocks||[]).map((b,i)=>({ id:b.id||1000+i, done:false, ...b })),[sel]);
   const saveTimelineBlocks=(updater)=>{ const cur=blocksWithIds; const next=typeof updater==="function"?updater(cur):updater; updType({ blocks: next.map(({id,done,...rest})=>rest) }); };
 
@@ -1174,11 +1197,11 @@ function FinanceView({ finance,save,flash }){
   const totalNW = finance.accounts.reduce((s,a)=>s+(+a.balance||0),0);
   const addAccount=()=> save({ ...finance, accounts:[...finance.accounts,{ id:Date.now(),name:"New account",balance:0 }] });
   const updAccount=(id,p)=> save({ ...finance, accounts:finance.accounts.map(a=>a.id===id?{...a,...p}:a) });
-  const delAccount=(id)=> save({ ...finance, accounts:finance.accounts.filter(a=>a.id!==id) });
+  const delAccount=(id)=>{ if(!confirmDel("this account")) return; save({ ...finance, accounts:finance.accounts.filter(a=>a.id!==id) }); };
   const snapshot=()=>{ save({ ...finance, netWorthLog:[...finance.netWorthLog,{ date:todayISO(),value:totalNW }] }); flash("Snapshot saved"); };
   const addClient=()=> save({ ...finance, clients:[...finance.clients,{ id:Date.now(),name:"New client",rate:25,lessonsThisMonth:0,status:"Active" }] });
   const updClient=(id,p)=> save({ ...finance, clients:finance.clients.map(c=>c.id===id?{...c,...p}:c) });
-  const delClient=(id)=> save({ ...finance, clients:finance.clients.filter(c=>c.id!==id) });
+  const delClient=(id)=>{ if(!confirmDel("this client")) return; save({ ...finance, clients:finance.clients.filter(c=>c.id!==id) }); };
   const monthlyRevenue = finance.clients.reduce((s,c)=>s+(+c.rate||0)*(+c.lessonsThisMonth||0),0);
   const logMonth=()=>{ save({ ...finance, lessonLog:[...finance.lessonLog,{ month:new Date().toLocaleDateString("en-GB",{month:"short",year:"2-digit"}),revenue:monthlyRevenue }] }); flash("Month logged"); };
   const L=finance.lump;
@@ -1206,7 +1229,7 @@ function FinanceView({ finance,save,flash }){
   const submitTx=()=>{ const amt=+form.amount; if(!amt){ flash("Enter an amount"); return; } addTx({ date:todayISO(), dir:form.dir, amount:amt, cat:form.cat, label:form.label.trim(), recurring:form.recurring }); setForm({ ...form, amount:"", label:"", recurring:false }); flash("Logged"); };
   const addGoal=()=> save({ ...finance, goals:[...goals, { id:Date.now(), name:"New goal", target:200, saved:0, color:C.gold }] });
   const updGoal=(id,p)=> save({ ...finance, goals:goals.map(g=>g.id===id?{...g,...p}:g) });
-  const delGoal=(id)=> save({ ...finance, goals:goals.filter(g=>g.id!==id) });
+  const delGoal=(id)=>{ if(!confirmDel("this goal")) return; save({ ...finance, goals:goals.filter(g=>g.id!==id) }); };
   const nextMile = NW_MILESTONES.find(m=>m>totalNW) || (Math.ceil(totalNW/50000)*50000+50000);
   const prevMile = [...NW_MILESTONES].reverse().find(m=>m<=totalNW) || 0;
   const milePct = (totalNW-prevMile)/(nextMile-prevMile);
