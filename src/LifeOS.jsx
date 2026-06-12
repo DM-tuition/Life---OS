@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from "react";
+import { createClient } from "@supabase/supabase-js";
 
 // ============ DESIGN TOKENS ============
 const C = {
@@ -84,7 +85,32 @@ const weekIsB = (iso,anchorA)=> ((((weeksBetween(weekKeyOf(anchorA), weekKeyOf(i
 
 // localStorage-backed (works on any host; persists on the device)
 async function sGet(key,fb){ try{ const r=localStorage.getItem("lifeos:"+key); return r!==null?JSON.parse(r):fb; }catch{ return fb; } }
-async function sSet(key,v){ try{ localStorage.setItem("lifeos:"+key, JSON.stringify(v)); }catch(e){ console.error(e); } }
+async function sSet(key,v){ try{ localStorage.setItem("lifeos:"+key, JSON.stringify(v)); }catch(e){ console.error(e); } schedulePush(); }
+
+// ============ CLOUD SYNC (optional Supabase backup + cross-device sync) ============
+// The whole local state is stored as one JSON blob per user. Last-write-wins by updated_at.
+let SB=null, SBuser=null, pushTimer=null;
+const SYNC_KEYS_SKIP = new Set(["lifeos:syncCfg","lifeos:lastSync"]);
+function syncCfg(){ try{ return JSON.parse(localStorage.getItem("lifeos:syncCfg")||"null"); }catch{ return null; } }
+function setSyncCfg(c){ localStorage.setItem("lifeos:syncCfg", JSON.stringify(c)); }
+function initSupabase(){ const c=syncCfg(); if(c&&c.url&&c.key){ try{ SB=createClient(c.url,c.key,{auth:{persistSession:true,autoRefreshToken:true}}); }catch{ SB=null; } } else SB=null; return SB; }
+function collectState(){ const data={}; for(let i=0;i<localStorage.length;i++){ const k=localStorage.key(i); if(k&&k.startsWith("lifeos:")&&!SYNC_KEYS_SKIP.has(k)) data[k]=localStorage.getItem(k); } return data; }
+function applyState(data){ for(const k in data){ if(k.startsWith("lifeos:")&&!SYNC_KEYS_SKIP.has(k)) localStorage.setItem(k, data[k]); } }
+async function pushState(){ if(!SB||!SBuser) return; try{ const updated_at=new Date().toISOString();
+  const { error }=await SB.from("lifeos_state").upsert({ user_id:SBuser.id, data:collectState(), updated_at });
+  if(!error) localStorage.setItem("lifeos:lastSync", updated_at); }catch(e){ console.error(e); } }
+function schedulePush(){ if(!SB||!SBuser) return; clearTimeout(pushTimer); pushTimer=setTimeout(()=>{ pushState(); }, 1500); }
+async function pullState(){ if(!SB||!SBuser) return "no";
+  try{ const { data, error }=await SB.from("lifeos_state").select("data,updated_at").eq("user_id",SBuser.id).maybeSingle();
+    if(error) return "err";
+    if(!data){ await pushState(); return "seeded"; }
+    const local=localStorage.getItem("lifeos:lastSync")||"";
+    if((data.updated_at||"")>local){ applyState(data.data||{}); localStorage.setItem("lifeos:lastSync", data.updated_at); return "pulled"; }
+    await pushState(); return "pushed";
+  }catch{ return "err"; } }
+async function syncBootstrap(){ // called before the app reads localStorage
+  if(!initSupabase()) return;
+  try{ const { data:{ session } }=await SB.auth.getSession(); if(session){ SBuser=session.user; await pullState(); } }catch{} }
 
 const blankDay = (iso)=>({
   date:iso, dayTypeId:null, blocks:[], bs:false, frozen:false,
@@ -234,9 +260,11 @@ export default function LifeOS(){
   const [finance,setFinance] = useState(null);
   const [toast,setToast] = useState("");
   const [showBackup,setShowBackup] = useState(false);
+  const [showSync,setShowSync] = useState(false);
   const isMobile = useIsMobile();
 
   useEffect(()=>{ (async()=>{
+    await syncBootstrap();   // pull newest cloud state before reading local (no-op if sync isn't set up)
     setDayTypes(await sGet("dayTypes:v2", SEED_DAYTYPES));
     setWeekMap(await sGet("weekMap:v2", DEFAULT_WEEK));
     setWeekMapB(await sGet("weekMapB:v1", DEFAULT_WEEK_B));
@@ -309,12 +337,14 @@ export default function LifeOS(){
           {!isMobile && <span style={{ fontSize:11, color:C.faint, letterSpacing:2, textTransform:"uppercase" }}>Plan · Track · Compound</span>}
         </div>
         <div style={{ display:"flex", gap:8, flexShrink:0 }}>
+          <button onClick={()=>setShowSync(true)} style={{ ...addBtn, width:"auto", padding:"7px 12px", fontSize:12 }}>☁ Sync</button>
           <button onClick={()=>setShowBackup(true)} style={{ ...addBtn, width:"auto", padding:"7px 12px", fontSize:12 }}>Backup</button>
           <button onClick={()=>{ setDate(todayISO()); setTab("today"); }} style={{ ...addBtn, width:"auto", padding:"7px 14px", fontSize:12 }}>{isMobile?"Today":"Jump to Today"}</button>
         </div>
       </div>
 
       {showBackup && <BackupModal close={()=>setShowBackup(false)} flash={flash} />}
+      {showSync && <CloudSyncModal close={()=>setShowSync(false)} flash={flash} />}
 
       <div style={{ display:"flex", gap:4, padding:"12px 24px 0", borderBottom:`1px solid ${C.line}`, overflowX:"auto" }}>
         {[["today","Today"],["month","Month"],["habits","Habits"],["week","Weekly Review"],["trends","Reports"],["journal","Journal"],["finance","Finance"],["types","Day Types"]].map(([k,l])=>(
@@ -356,6 +386,77 @@ function BackupModal({ close,flash }){
         <button onClick={()=>fileRef.current&&fileRef.current.click()} style={{ ...addBtn, borderColor:C.blue, color:C.blue }}>⬆  Restore from a backup file</button>
         <input ref={fileRef} type="file" accept="application/json,.json" onChange={onFile} style={{ display:"none" }}/>
         <div style={{ fontSize:11, color:C.faint, marginTop:14, lineHeight:1.5 }}>Restoring merges the backup into this device and reloads the app.</div>
+        <button onClick={close} style={{ ...addBtn, marginTop:16 }}>Close</button>
+      </div>
+    </div>
+  );
+}
+
+// ============ CLOUD SYNC MODAL ============
+function CloudSyncModal({ close,flash }){
+  const cfg=syncCfg();
+  const [url,setUrl]=useState(cfg?cfg.url:"");
+  const [key,setKey]=useState(cfg?cfg.key:"");
+  const [email,setEmail]=useState("");
+  const [pass,setPass]=useState("");
+  const [session,setSession]=useState(null);
+  const [busy,setBusy]=useState(false);
+  const [msg,setMsg]=useState("");
+  const connected=!!(cfg&&cfg.url&&cfg.key);
+
+  useEffect(()=>{ (async()=>{ if(initSupabase()){ try{ const { data:{ session } }=await SB.auth.getSession(); setSession(session); }catch{} } })(); },[]);
+
+  const connect=()=>{ if(!url.trim()||!key.trim()){ setMsg("Paste both the URL and the anon key."); return; }
+    setSyncCfg({ url:url.trim(), key:key.trim() }); initSupabase(); setMsg("Connected ✓ — now sign in or create an account below."); flash("Project connected"); };
+  const auth=async(mode)=>{ if(!initSupabase()){ setMsg("Connect your project first."); return; }
+    setBusy(true); setMsg("");
+    try{ const fn = mode==="up" ? SB.auth.signUp({ email:email.trim(), password:pass }) : SB.auth.signInWithPassword({ email:email.trim(), password:pass });
+      const { data, error }=await fn;
+      if(error){ setMsg(error.message); setBusy(false); return; }
+      if(!data.session){ setMsg("Check your email to confirm, then sign in. (Or disable email confirmation in Supabase → Authentication → Sign In/Providers.)"); setBusy(false); return; }
+      SBuser=data.session.user; setSession(data.session);
+      const r=await pullState(); flash(r==="pulled"?"Synced from cloud":"Backed up to cloud");
+      setTimeout(()=>location.reload(),700);
+    }catch(e){ setMsg(String(e&&e.message||e)); setBusy(false); } };
+  const signOut=async()=>{ try{ await SB.auth.signOut(); }catch{} SBuser=null; setSession(null); flash("Signed out"); };
+  const syncNow=async()=>{ setBusy(true); SBuser=session.user; const r=await pullState(); await pushState(); setBusy(false); flash(r==="pulled"?"Pulled latest + synced":"Synced ✓"); setTimeout(()=>location.reload(),500); };
+
+  return (
+    <div onClick={close} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,.6)", zIndex:200, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
+      <div onClick={e=>e.stopPropagation()} style={{ background:C.panel, border:`1px solid ${C.line}`, borderRadius:14, padding:22, width:"100%", maxWidth:420, maxHeight:"88vh", overflowY:"auto" }}>
+        <div style={{ fontFamily:"'Caveat',cursive", fontSize:28, color:C.teal, marginBottom:6 }}>Cloud Sync</div>
+        <div style={{ fontSize:12, color:C.dim, lineHeight:1.6, marginBottom:16 }}>
+          Free auto-backup + sync across your phone and laptop, powered by Supabase. Set it up once (~10 min) — I gave you a step-by-step guide. Until you do, the app keeps working offline on this device.
+        </div>
+
+        {session ? (
+          <>
+            <div style={{ padding:14, background:C.panel2, borderRadius:10, marginBottom:14 }}>
+              <div style={{ fontSize:12, color:C.green, fontWeight:600 }}>● Synced &amp; backing up automatically</div>
+              <div style={{ fontSize:12, color:C.dim, marginTop:4 }}>Signed in as {session.user.email}</div>
+              <div style={{ fontSize:11, color:C.faint, marginTop:2 }}>Last sync: {localStorage.getItem("lifeos:lastSync")?fmt(localStorage.getItem("lifeos:lastSync").slice(0,10)):"—"}</div>
+            </div>
+            <button onClick={syncNow} disabled={busy} style={{ ...addBtn, borderColor:C.teal, color:C.teal, marginBottom:10 }}>{busy?"Syncing…":"↻ Sync now"}</button>
+            <button onClick={signOut} style={{ ...addBtn, marginBottom:10 }}>Sign out</button>
+          </>
+        ) : (
+          <>
+            <Label>1 · Supabase Project URL</Label>
+            <input value={url} onChange={e=>setUrl(e.target.value)} placeholder="https://xxxx.supabase.co" style={{ ...inp, width:"100%", marginBottom:10 }}/>
+            <Label>2 · Anon public key</Label>
+            <input value={key} onChange={e=>setKey(e.target.value)} placeholder="eyJhbGci…" style={{ ...inp, width:"100%", marginBottom:10 }}/>
+            <button onClick={connect} style={{ ...addBtn, borderColor:C.blue, color:C.blue, marginBottom:16 }}>{connected?"Update connection":"Connect project"}</button>
+
+            <Label>3 · Your account</Label>
+            <input value={email} onChange={e=>setEmail(e.target.value)} placeholder="email" autoComplete="email" style={{ ...inp, width:"100%", marginBottom:8 }}/>
+            <input value={pass} onChange={e=>setPass(e.target.value)} placeholder="password" type="password" autoComplete="current-password" style={{ ...inp, width:"100%", marginBottom:10 }}/>
+            <div style={{ display:"flex", gap:8 }}>
+              <button onClick={()=>auth("up")} disabled={busy} style={{ ...addBtn, flex:1, borderColor:C.green, color:C.green }}>Create account</button>
+              <button onClick={()=>auth("in")} disabled={busy} style={{ ...addBtn, flex:1, borderColor:C.teal, color:C.teal }}>Sign in</button>
+            </div>
+          </>
+        )}
+        {msg && <div style={{ fontSize:11, color:C.gold, marginTop:12, lineHeight:1.5 }}>{msg}</div>}
         <button onClick={close} style={{ ...addBtn, marginTop:16 }}>Close</button>
       </div>
     </div>
