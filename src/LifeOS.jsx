@@ -916,6 +916,12 @@ function MonthView({ date,setDate,setTab,allDays,dayTypes,flash }){
 
   const cellISO = (dd)=> `${viewY}-${String(viewM+1).padStart(2,"0")}-${String(dd).padStart(2,"0")}`;
   const [editCell,setEditCell] = useState(null);
+  const [newEv,setNewEv] = useState("");
+  const evList=(v)=> Array.isArray(v)?v:(v?[v]:[]);
+  const addEvent=(iso,text)=>{ const t=text.trim(); if(!t) return; saveEvents({ ...events, [iso]:[...evList(events[iso]), t] }); };
+  const editEvent=(iso,idx,text)=>{ const cur=[...evList(events[iso])]; cur[idx]=text; saveEvents({ ...events, [iso]:cur }); };
+  const removeEvent=(iso,idx)=>{ const cur=evList(events[iso]).filter((_,j)=>j!==idx); const c={ ...events }; if(cur.length) c[iso]=cur; else delete c[iso]; saveEvents(c); };
+  const maxShow = isMobile?1:2;
 
   return (
     <div>
@@ -930,7 +936,7 @@ function MonthView({ date,setDate,setTab,allDays,dayTypes,flash }){
         {cells.map((dd,i)=>{
           if(dd===null) return <div key={"e"+i}/>;
           const iso=cellISO(dd); const isToday=iso===todayISO();
-          const logged=allDays[iso]; const ev=events[iso];
+          const logged=allDays[iso]; const evArr=evList(events[iso]);
           const rating=logged?.rating; const bs=logged?.bs;
           return (
             <div key={dd} onClick={()=>{ setDate(iso); setTab("today"); }}
@@ -942,24 +948,37 @@ function MonthView({ date,setDate,setTab,allDays,dayTypes,flash }){
                   {rating>0 && <span style={{ fontSize:9, color:C.faint }}>{rating}/10</span>}
                 </div>
               </div>
-              {ev && <div style={{ fontSize:11, color:C.pink, fontWeight:600, lineHeight:1.2 }}>{ev}</div>}
-              {logged?.blocks?.length>0 && !ev && <div style={{ fontSize:9, color:C.faint }}>{logged.blocks.length} blocks</div>}
-              <button onClick={(e)=>{ e.stopPropagation(); setEditCell(editCell===iso?null:iso); }} style={{ position:"absolute", bottom:4, right:4, width:18, height:18, borderRadius:5, border:`1px solid ${C.line}`, background:C.panel2, color:C.faint, fontSize:11, cursor:"pointer", lineHeight:1, padding:0 }}>+</button>
-              {editCell===iso && (
-                <div onClick={e=>e.stopPropagation()} style={{ position:"absolute", top:"100%", left:0, marginTop:4, width:180, background:C.panel2, border:`1px solid ${C.line}`, borderRadius:10, padding:10, zIndex:40, boxShadow:"0 8px 30px rgba(0,0,0,.6)" }}>
-                  <Label>Event label for {dd} {MONTHS[viewM].slice(0,3)}</Label>
-                  <input autoFocus value={ev||""} onChange={e=>saveEvents({ ...events, [iso]:e.target.value })} placeholder="e.g. Uni open day" style={{ ...inp, width:"100%", marginBottom:8 }}/>
-                  <div style={{ display:"flex", gap:6 }}>
-                    <button onClick={()=>{ const c={...events}; delete c[iso]; saveEvents(c); setEditCell(null); }} style={{ ...delBtn, flex:1, width:"auto" }}>Clear</button>
-                    <button onClick={()=>setEditCell(null)} style={{ ...addBtn, flex:1 }}>Done</button>
-                  </div>
-                </div>
-              )}
+              {evArr.slice(0,maxShow).map((e,j)=> <div key={j} style={{ fontSize:11, color:C.pink, fontWeight:600, lineHeight:1.15, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{e}</div>)}
+              {evArr.length>maxShow && <div style={{ fontSize:9, color:C.faint }}>+{evArr.length-maxShow} more</div>}
+              {logged?.blocks?.length>0 && evArr.length===0 && <div style={{ fontSize:9, color:C.faint }}>{logged.blocks.length} blocks</div>}
+              <button onClick={(e)=>{ e.stopPropagation(); setNewEv(""); setEditCell(iso); }} style={{ position:"absolute", bottom:4, right:4, width:18, height:18, borderRadius:5, border:`1px solid ${C.line}`, background:C.panel2, color:C.faint, fontSize:11, cursor:"pointer", lineHeight:1, padding:0 }}>+</button>
             </div>
           );
         })}
       </div>
-      <Mini>Tap a day to open & plan it · use + to add an event label · BS and day-score show once logged</Mini>
+
+      {editCell && (()=>{ const iso=editCell; const evArr=evList(events[iso]); return (
+        <div onClick={()=>{ setEditCell(null); setNewEv(""); }} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,.6)", zIndex:200, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
+          <div onClick={e=>e.stopPropagation()} style={{ background:C.panel, border:`1px solid ${C.line}`, borderRadius:14, padding:18, width:"100%", maxWidth:360, maxHeight:"82vh", overflowY:"auto" }}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
+              <div style={{ fontFamily:"'Caveat',cursive", fontSize:24, color:C.teal }}>{fmt(iso)}</div>
+              <button onClick={()=>{ setDate(iso); setTab("today"); }} style={{ ...addBtn, width:"auto", padding:"5px 12px", fontSize:12 }}>Open day →</button>
+            </div>
+            {evArr.length===0 && <div style={{ fontSize:12, color:C.faint, marginBottom:10 }}>No events yet — add as many as you like.</div>}
+            {evArr.map((e,j)=> <div key={j} style={{ display:"flex", gap:6, marginBottom:7, alignItems:"center" }}>
+              <span style={{ width:7,height:7,borderRadius:"50%",background:C.pink,flexShrink:0 }}/>
+              <input value={e} onChange={ev=>editEvent(iso,j,ev.target.value)} style={{ ...inp, flex:1, fontSize:13 }}/>
+              <button onClick={()=>removeEvent(iso,j)} style={delBtn}>×</button>
+            </div>)}
+            <div style={{ display:"flex", gap:6, marginTop:8, marginBottom:14 }}>
+              <input autoFocus value={newEv} onChange={e=>setNewEv(e.target.value)} onKeyDown={e=>{ if(e.key==="Enter"){ addEvent(iso,newEv); setNewEv(""); } }} placeholder="Add an event + Enter…" style={{ ...inp, flex:1 }}/>
+              <button onClick={()=>{ addEvent(iso,newEv); setNewEv(""); }} style={{ ...addBtn, width:"auto", padding:"0 16px", borderColor:C.green, color:C.green }}>Add</button>
+            </div>
+            <button onClick={()=>{ setEditCell(null); setNewEv(""); }} style={addBtn}>Done</button>
+          </div>
+        </div>
+      ); })()}
+      <Mini>Tap a day to open & plan it · tap + to add one or more events · BS and day-score show once logged</Mini>
     </div>
   );
 }
