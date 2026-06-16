@@ -294,6 +294,8 @@ export default function LifeOS(){
   const [showMore,setShowMore] = useState(false);
   const [canUndo,setCanUndo] = useState(false);
   const undoStack = useRef([]);
+  const moreRef = useRef(null);
+  const MORE = [["week","Weekly Review"],["trends","Reports"],["journal","Journal"],["types","Day Types"]];
   const isMobile = useIsMobile();
 
   useEffect(()=>{ (async()=>{
@@ -391,19 +393,22 @@ export default function LifeOS(){
       {showBackup && <BackupModal close={()=>setShowBackup(false)} flash={flash} />}
       {showSync && <CloudSyncModal close={()=>setShowSync(false)} flash={flash} />}
 
-      <div className="lo-tabs" style={{ display:"flex", gap:4, padding:"12px 24px 0", borderBottom:`1px solid ${C.line}`, overflowX:"auto", position:"relative" }}>
+      <div className="lo-tabs" style={{ display:"flex", gap:4, padding:"12px 24px 0", borderBottom:`1px solid ${C.line}`, overflowX:"auto" }}>
         {[["today","Today"],["month","Month"],["habits","Habits"],["finance","Finance"]].map(([k,l])=>(
           <button key={k} onClick={()=>setTab(k)} style={{ padding:"10px 18px", cursor:"pointer", border:"none", background:"transparent",
             color:tab===k?C.ink:C.faint, fontWeight:600, fontSize:14, borderBottom:`2px solid ${tab===k?C.teal:"transparent"}`, marginBottom:-1, whiteSpace:"nowrap" }}>{l}</button>
         ))}
-        {(()=>{ const MORE=[["week","Weekly Review"],["trends","Reports"],["journal","Journal"],["types","Day Types"]]; const onMore=MORE.some(m=>m[0]===tab); const cur=MORE.find(m=>m[0]===tab);
-          return <div style={{ position:"relative" }}>
-            <button onClick={()=>setShowMore(s=>!s)} style={{ padding:"10px 18px", cursor:"pointer", border:"none", background:"transparent", color:onMore?C.ink:C.faint, fontWeight:600, fontSize:14, borderBottom:`2px solid ${onMore?C.teal:"transparent"}`, marginBottom:-1, whiteSpace:"nowrap" }}>{onMore?cur[1]:"More"} ▾</button>
-            {showMore && <div style={{ position:"absolute", top:"100%", right:0, marginTop:4, background:C.panel2, border:`1px solid ${C.line}`, borderRadius:10, padding:6, zIndex:60, minWidth:160, boxShadow:"0 8px 30px rgba(0,0,0,.6)" }}>
-              {MORE.map(([k,l])=> <button key={k} onClick={()=>{ setTab(k); setShowMore(false); }} style={{ display:"block", width:"100%", textAlign:"left", padding:"9px 12px", borderRadius:8, border:"none", background:tab===k?C.panel:"transparent", color:tab===k?C.ink:C.dim, cursor:"pointer", fontSize:13 }}>{l}</button>)}
-            </div>}
-          </div>; })()}
+        {(()=>{ const onMore=MORE.some(m=>m[0]===tab); const cur=MORE.find(m=>m[0]===tab);
+          return <button ref={moreRef} onClick={()=>setShowMore(s=>!s)} style={{ padding:"10px 18px", cursor:"pointer", border:"none", background:"transparent", color:onMore?C.ink:C.faint, fontWeight:600, fontSize:14, borderBottom:`2px solid ${onMore?C.teal:"transparent"}`, marginBottom:-1, whiteSpace:"nowrap" }}>{onMore?cur[1]:"More"} ▾</button>; })()}
       </div>
+      {showMore && (
+        <>
+          <div onClick={()=>setShowMore(false)} style={{ position:"fixed", inset:0, zIndex:120 }}/>
+          <div style={{ position:"fixed", top:(moreRef.current?moreRef.current.getBoundingClientRect().bottom+4:120), right:14, background:C.panel2, border:`1px solid ${C.line}`, borderRadius:10, padding:6, zIndex:121, minWidth:180, boxShadow:"0 8px 30px rgba(0,0,0,.6)" }}>
+            {MORE.map(([k,l])=> <button key={k} onClick={()=>{ setTab(k); setShowMore(false); }} style={{ display:"block", width:"100%", textAlign:"left", padding:"11px 12px", borderRadius:8, border:"none", background:tab===k?C.panel:"transparent", color:tab===k?C.ink:C.dim, cursor:"pointer", fontSize:14 }}>{l}</button>)}
+          </div>
+        </>
+      )}
 
       <div style={{ maxWidth:1180, margin:"0 auto", padding:isMobile?"16px 12px":"24px" }}>
         {tab==="today" && <TodayView day={day} date={date} setDate={setDate} upd={upd} dayTypes={dayTypes} applyDayType={applyDayType} links={habitLinks} allDays={allDays} flash={flash} />}
@@ -640,11 +645,14 @@ function Timeline({ blocks,onChange,isToday=false,isPast=false,sketch,onSketch,o
                   background: plan? "transparent" : `${col}22`, border:`${plan?"1.5px dashed":"1px solid"} ${col}`, borderLeft:`3px solid ${col}`,
                   borderRadius:8, padding:"5px 9px", cursor:"grab", overflow:"hidden", touchAction:"none", userSelect:"none",
                   opacity: missed? 0.32 : (1 - Math.min(0.65, Math.abs(dx)/170)), transition: dx?"none":"opacity .15s", zIndex:5 }}>
-                <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                <div style={{ display:"flex", alignItems:"center", gap:6, paddingRight:24 }}>
                   <span style={{ width:7,height:7,borderRadius:"50%",background:col,flexShrink:0,opacity:plan?0.5:1 }}/>
                   <span style={{ fontSize:12.5, fontWeight:600, color:missed?C.faint:C.ink, textDecoration:missed?"line-through":"none", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{b.label}</span>
                 </div>
                 {h>34 && <div style={{ fontSize:10, color:C.dim, marginTop:2 }}>{hhmm(b.t)}–{hhmm(b.e)} · {b.cat}{missed?" · skipped":""}</div>}
+                {/* one-tap delete → bin */}
+                <button onMouseDown={(e)=>e.stopPropagation()} onTouchStart={(e)=>e.stopPropagation()} onClick={(e)=>{ e.stopPropagation(); buzz(); delBlock(b.id); }}
+                  style={{ position:"absolute", top:3, right:3, width:22, height:22, borderRadius:6, border:"none", background:"rgba(0,0,0,.4)", color:"#fff", fontSize:12, cursor:"pointer", lineHeight:1, padding:0, display:"flex", alignItems:"center", justifyContent:"center", zIndex:8 }}>🗑</button>
                 <div onMouseDown={(e)=>startBlock(e,b,"resize")} onTouchStart={(e)=>startBlock(e,b,"resize")} onClick={(e)=>e.stopPropagation()}
                   style={{ position:"absolute", bottom:0, left:0, right:0, height:10, cursor:"ns-resize" }}/>
                 {editing===b.id && isMobile && <div onMouseDown={e=>{e.stopPropagation();setEditing(null);}} onClick={e=>{e.stopPropagation();setEditing(null);}} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,.55)", zIndex:190 }}/>}
@@ -652,12 +660,12 @@ function Timeline({ blocks,onChange,isToday=false,isPast=false,sketch,onSketch,o
                   <div onMouseDown={e=>e.stopPropagation()} onClick={e=>e.stopPropagation()} style={ isMobile
                     ? { position:"fixed", left:"50%", top:"50%", transform:"translate(-50%,-50%)", width:"min(340px,92vw)", maxHeight:"86vh", overflowY:"auto", background:C.panel2, border:`1px solid ${C.line}`, borderRadius:14, padding:16, zIndex:200, boxShadow:"0 8px 30px rgba(0,0,0,.6)" }
                     : { position:"absolute", top:0, left:"calc(100% + 8px)", width:260, maxHeight:520, overflowY:"auto", background:C.panel2, border:`1px solid ${C.line}`, borderRadius:12, padding:14, zIndex:20, boxShadow:"0 8px 30px rgba(0,0,0,.6)" } }>
-                    {elapsed(b) && <button onClick={()=>updBlock(b.id,{status:b.status==="missed"?undefined:"missed"})} style={{ ...addBtn, marginBottom:12, borderColor:b.status==="missed"?C.red:C.green, color:b.status==="missed"?C.red:C.green }}>{b.status==="missed"?"✗ Didn't happen (tap to undo)":"✓ Did it — tap if you didn't"}</button>}
-                    <Label>Pick a label</Label>
-                    <div style={{ display:"flex", flexWrap:"wrap", gap:5, marginBottom:8 }}>
-                      {QUICK_LABELS.map(l=> <button key={l} onClick={()=>updBlock(b.id,{label:l})} style={{ fontSize:12, padding:"6px 10px", borderRadius:14, cursor:"pointer", border:`1px solid ${b.label===l?C.teal:C.line}`, background:b.label===l?C.teal:"transparent", color:b.label===l?"#001014":C.dim, fontWeight:b.label===l?700:400 }}>{l}</button>)}
+                    <Label>What is it?</Label>
+                    <input autoFocus value={b.label} onChange={e=>updBlock(b.id,{label:e.target.value})} onKeyDown={e=>{ if(e.key==="Enter") setEditing(null); }} placeholder="Type it here…" style={{ ...inp, width:"100%", marginBottom:10, fontSize:17, fontWeight:600, padding:"12px 12px" }}/>
+                    <div style={{ display:"flex", flexWrap:"wrap", gap:5, marginBottom:12 }}>
+                      {QUICK_LABELS.map(l=> <button key={l} onClick={()=>updBlock(b.id,{label:l})} style={{ fontSize:11, padding:"5px 9px", borderRadius:14, cursor:"pointer", border:`1px solid ${b.label===l?C.teal:C.line}`, background:b.label===l?C.teal:"transparent", color:b.label===l?"#001014":C.dim, fontWeight:b.label===l?700:400 }}>{l}</button>)}
                     </div>
-                    <input value={b.label} onChange={e=>updBlock(b.id,{label:e.target.value})} style={{ ...inp, width:"100%", marginBottom:12 }} placeholder="…or type a custom label"/>
+                    {elapsed(b) && <button onClick={()=>updBlock(b.id,{status:b.status==="missed"?undefined:"missed"})} style={{ ...addBtn, marginBottom:12, borderColor:b.status==="missed"?C.red:C.green, color:b.status==="missed"?C.red:C.green }}>{b.status==="missed"?"✗ Didn't happen (tap to undo)":"✓ Did it — tap if you didn't"}</button>}
                     <Label>Category</Label>
                     <div style={{ display:"flex", flexWrap:"wrap", gap:5, marginBottom:12 }}>
                       {CAT_KEYS.map(c=> <button key={c} onClick={()=>updBlock(b.id,{cat:c})} style={{ fontSize:12, padding:"6px 10px", borderRadius:14, cursor:"pointer", border:`1px solid ${b.cat===c?CATS[c]:C.line}`, background:b.cat===c?CATS[c]:"transparent", color:b.cat===c?"#0b0b0b":C.dim, fontWeight:b.cat===c?700:400 }}>{c}</button>)}
