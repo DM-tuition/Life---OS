@@ -15,32 +15,36 @@ const CATS = {
 const CAT_KEYS = Object.keys(CATS);
 
 // ============ DAY TYPE TEMPLATES — Daniel's real 12GH A-level timetable (Week A/B) ============
-// Period times (adjust to your exact bell times): P1 8:30-9:30, P2 9:30-10:30, P3 11:00-12:00, P4 12:00-13:00, P5 14:00-15:00
-const P1=[8.5,9.5], P2=[9.5,10.5], P3=[11,12], P4=[12,13], P5=[14,15];
+// Normal day (Mon/Tue/Wed/Fri): Form 8:40, P1 9:00, P2 10:00, break, P3 11:20, lunch 12:20-13:20, P4 13:20, P5 14:20-15:20
+// Thursday (no form): starts 9:20, 55-min lessons, 20-min break, lunch 12:30-13:30
+const FORM=[8+40/60, 9];
+const NP=[null,[9,10],[10,11],[11+20/60,12+20/60],[13+20/60,14+20/60],[14+20/60,15+20/60]];
+const TP=[null,[9+20/60,10+15/60],[10+15/60,11+10/60],[11.5,12+25/60],[13.5,14+25/60],[14+25/60,15+20/60]];
+const form=()=>({ t:FORM[0], e:FORM[1], label:"Form · S14", cat:"School" });
 const lesson=(p,label)=>({ t:p[0], e:p[1], label, cat:"School" });
 const study=(p)=>({ t:p[0], e:p[1], label:"Private Study", cat:"Revision" });
 const games=(p)=>({ t:p[0], e:p[1], label:"Games · Field", cat:"Sport" });
 const SEED_DAYTYPES = {
   "school-a-mon": { name:"Week A · Mon", color:C.pink, blocks:[
-    lesson(P1,"F. Maths · S15"), lesson(P2,"Physics · PC1"), lesson(P3,"F. Maths · S14"), study(P4), lesson(P5,"F. Maths · M6") ]},
+    form(), lesson(NP[1],"F. Maths · S15"), lesson(NP[2],"Physics · PC1"), lesson(NP[3],"F. Maths · S14"), study(NP[4]), lesson(NP[5],"F. Maths · M6") ]},
   "school-a-tue": { name:"Week A · Tue", color:C.pink, blocks:[
-    lesson(P1,"Economics · S18"), study(P2), lesson(P3,"Economics · S18"), lesson(P4,"Physics · PC3"), lesson(P5,"F. Maths · S15") ]},
+    form(), lesson(NP[1],"Economics · S18"), study(NP[2]), lesson(NP[3],"Economics · S18"), lesson(NP[4],"Physics · PC3"), lesson(NP[5],"F. Maths · S15") ]},
   "school-a-wed": { name:"Week A · Wed", color:C.pink, blocks:[
-    lesson(P1,"Economics · S20"), lesson(P2,"Physics · PC3"), study(P3), lesson(P4,"Economics · S20"), games(P5) ]},
+    form(), lesson(NP[1],"Economics · S20"), lesson(NP[2],"Physics · PC3"), study(NP[3]), lesson(NP[4],"Economics · S20"), games(NP[5]) ]},
   "school-a-thu": { name:"Week A · Thu", color:C.pink, blocks:[
-    study(P1), lesson(P2,"Physics · PC1"), study(P3), lesson(P4,"Physics · PC3"), lesson(P5,"F. Maths · M6") ]},
+    study(TP[1]), lesson(TP[2],"Physics · PC1"), study(TP[3]), lesson(TP[4],"Physics · PC3"), lesson(TP[5],"F. Maths · M6") ]},
   "school-a-fri": { name:"Week A · Fri", color:C.pink, blocks:[
-    lesson(P1,"F. Maths · S14"), study(P2), lesson(P3,"Physics · PC3"), lesson(P4,"Economics · S20") ]},
+    form(), lesson(NP[1],"F. Maths · S14"), study(NP[2]), lesson(NP[3],"Physics · PC3"), lesson(NP[4],"Economics · S20") ]},
   "school-b-mon": { name:"Week B · Mon", color:C.cyan, blocks:[
-    lesson(P1,"F. Maths · S15"), lesson(P2,"Physics · PC1"), lesson(P3,"F. Maths · S15"), lesson(P4,"F. Maths · S14"), lesson(P5,"Physics · PC3") ]},
+    form(), lesson(NP[1],"F. Maths · S15"), lesson(NP[2],"Physics · PC1"), lesson(NP[3],"F. Maths · S15"), lesson(NP[4],"F. Maths · S14"), lesson(NP[5],"Physics · PC3") ]},
   "school-b-tue": { name:"Week B · Tue", color:C.cyan, blocks:[
-    lesson(P1,"Economics · S18"), study(P2), lesson(P3,"Economics · S18"), lesson(P4,"Physics · PC1"), lesson(P5,"F. Maths · S14") ]},
+    form(), lesson(NP[1],"Economics · S18"), study(NP[2]), lesson(NP[3],"Economics · S18"), lesson(NP[4],"Physics · PC1"), lesson(NP[5],"F. Maths · S14") ]},
   "school-b-wed": { name:"Week B · Wed", color:C.cyan, blocks:[
-    lesson(P1,"Economics · S20"), lesson(P2,"F. Maths · M6"), study(P3), lesson(P4,"Economics · S20"), games(P5) ]},
+    form(), lesson(NP[1],"Economics · S20"), lesson(NP[2],"F. Maths · M6"), study(NP[3]), lesson(NP[4],"Economics · S20"), games(NP[5]) ]},
   "school-b-thu": { name:"Week B · Thu", color:C.cyan, blocks:[
-    study(P1), study(P2), study(P3), study(P4), lesson(P5,"F. Maths · S14") ]},
+    study(TP[1]), study(TP[2]), study(TP[3]), study(TP[4]), lesson(TP[5],"F. Maths · S14") ]},
   "school-b-fri": { name:"Week B · Fri", color:C.cyan, blocks:[
-    lesson(P1,"Economics · S18"), lesson(P2,"F. Maths · S15"), lesson(P3,"Physics · PC3"), lesson(P4,"F. Maths · M6") ]},
+    form(), lesson(NP[1],"Economics · S18"), lesson(NP[2],"F. Maths · S15"), lesson(NP[3],"Physics · PC3"), lesson(NP[4],"F. Maths · M6") ]},
   "weekend": { name:"Weekend", color:C.green, blocks:[
     { t:10,e:12,label:"Revision",cat:"Revision" }, { t:15,e:16.5,label:"Gym",cat:"Gym" } ]},
   "holiday": { name:"Holiday / Half-term", color:C.gold, blocks:[
