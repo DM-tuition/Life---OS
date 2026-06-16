@@ -263,6 +263,7 @@ export default function LifeOS(){
   const [toast,setToast] = useState("");
   const [showBackup,setShowBackup] = useState(false);
   const [showSync,setShowSync] = useState(false);
+  const [showMore,setShowMore] = useState(false);
   const isMobile = useIsMobile();
 
   useEffect(()=>{ (async()=>{
@@ -353,11 +354,18 @@ export default function LifeOS(){
       {showBackup && <BackupModal close={()=>setShowBackup(false)} flash={flash} />}
       {showSync && <CloudSyncModal close={()=>setShowSync(false)} flash={flash} />}
 
-      <div className="lo-tabs" style={{ display:"flex", gap:4, padding:"12px 24px 0", borderBottom:`1px solid ${C.line}`, overflowX:"auto" }}>
-        {[["today","Today"],["month","Month"],["habits","Habits"],["week","Weekly Review"],["trends","Reports"],["journal","Journal"],["finance","Finance"],["types","Day Types"]].map(([k,l])=>(
+      <div className="lo-tabs" style={{ display:"flex", gap:4, padding:"12px 24px 0", borderBottom:`1px solid ${C.line}`, overflowX:"auto", position:"relative" }}>
+        {[["today","Today"],["month","Month"],["habits","Habits"],["finance","Finance"]].map(([k,l])=>(
           <button key={k} onClick={()=>setTab(k)} style={{ padding:"10px 18px", cursor:"pointer", border:"none", background:"transparent",
             color:tab===k?C.ink:C.faint, fontWeight:600, fontSize:14, borderBottom:`2px solid ${tab===k?C.teal:"transparent"}`, marginBottom:-1, whiteSpace:"nowrap" }}>{l}</button>
         ))}
+        {(()=>{ const MORE=[["week","Weekly Review"],["trends","Reports"],["journal","Journal"],["types","Day Types"]]; const onMore=MORE.some(m=>m[0]===tab); const cur=MORE.find(m=>m[0]===tab);
+          return <div style={{ position:"relative" }}>
+            <button onClick={()=>setShowMore(s=>!s)} style={{ padding:"10px 18px", cursor:"pointer", border:"none", background:"transparent", color:onMore?C.ink:C.faint, fontWeight:600, fontSize:14, borderBottom:`2px solid ${onMore?C.teal:"transparent"}`, marginBottom:-1, whiteSpace:"nowrap" }}>{onMore?cur[1]:"More"} ▾</button>
+            {showMore && <div style={{ position:"absolute", top:"100%", right:0, marginTop:4, background:C.panel2, border:`1px solid ${C.line}`, borderRadius:10, padding:6, zIndex:60, minWidth:160, boxShadow:"0 8px 30px rgba(0,0,0,.6)" }}>
+              {MORE.map(([k,l])=> <button key={k} onClick={()=>{ setTab(k); setShowMore(false); }} style={{ display:"block", width:"100%", textAlign:"left", padding:"9px 12px", borderRadius:8, border:"none", background:tab===k?C.panel:"transparent", color:tab===k?C.ink:C.dim, cursor:"pointer", fontSize:13 }}>{l}</button>)}
+            </div>}
+          </div>; })()}
       </div>
 
       <div style={{ maxWidth:1180, margin:"0 auto", padding:isMobile?"16px 12px":"24px" }}>
@@ -656,7 +664,8 @@ function TodayView({ day,date,setDate,upd,dayTypes,applyDayType,links,allDays,fl
   const [showApply,setShowApply] = useState(false);
   const isMobile = useIsMobile();
   const dateRef = useRef(null);
-  const [showLog,setShowLog] = useState(typeof window!=="undefined" && window.innerWidth>760);
+  const [showLog,setShowLog] = useState(false);
+  const [showActions,setShowActions] = useState(false);
   const dn = dayNameOf(date);
   const isToday = date===todayISO();
   const isPast = date<todayISO();
@@ -701,16 +710,18 @@ function TodayView({ day,date,setDate,upd,dayTypes,applyDayType,links,allDays,fl
       </div>
 
       <div style={{ display:"flex", justifyContent:"center", alignItems:"center", gap:10, marginBottom:16, position:"relative", flexWrap:"wrap" }}>
-        <span style={{ fontSize:12, color:C.faint }}>Format:</span>
         <button onClick={()=>setShowApply(s=>!s)} style={{ padding:"6px 14px", borderRadius:20, cursor:"pointer", fontSize:13, fontWeight:600, border:`1px solid ${currentType?currentType.color:C.line}`, background:"transparent", color:currentType?currentType.color:C.dim }}>{currentType?currentType.name:"Blank"} ▾</button>
-        <button onClick={()=>upd({ bs:!day.bs })} style={{ padding:"6px 14px", borderRadius:20, cursor:"pointer", fontSize:13, fontWeight:700, border:`1px solid ${day.bs?C.red:C.line}`, background:day.bs?C.red:"transparent", color:day.bs?"#fff":C.dim }}>
-          {day.bs?"✓ BS day":"Mark BS"}
-        </button>
-        {/* streak freeze: ill / away — this day neither counts nor breaks any streak */}
-        <button onClick={()=>upd({ frozen:!day.frozen })} style={{ padding:"6px 14px", borderRadius:20, cursor:"pointer", fontSize:13, fontWeight:700, border:`1px solid ${day.frozen?C.blue:C.line}`, background:day.frozen?C.blue:"transparent", color:day.frozen?"#fff":C.dim }}>
-          {day.frozen?"❄ Frozen":"Freeze"}
-        </button>
-        <button onClick={copyYesterday} style={{ padding:"6px 14px", borderRadius:20, cursor:"pointer", fontSize:13, fontWeight:600, border:`1px solid ${C.line}`, background:"transparent", color:C.dim }}>⧉ Copy yesterday</button>
+        {(day.bs||day.frozen) && <span style={{ fontSize:11, fontWeight:700, padding:"4px 8px", borderRadius:8, background:day.bs?C.red:C.blue, color:"#fff" }}>{day.bs?"BS day":"❄ Frozen"}</span>}
+        <div style={{ position:"relative" }}>
+          <button onClick={()=>setShowActions(s=>!s)} style={{ padding:"6px 12px", borderRadius:20, cursor:"pointer", fontSize:13, fontWeight:600, border:`1px solid ${C.line}`, background:"transparent", color:C.dim }}>⋯</button>
+          {showActions && (
+            <div style={{ position:"absolute", top:"100%", marginTop:6, right:0, background:C.panel2, border:`1px solid ${C.line}`, borderRadius:10, padding:6, zIndex:30, width:190, boxShadow:"0 8px 30px rgba(0,0,0,.6)" }}>
+              <button onClick={()=>{ copyYesterday(); setShowActions(false); }} style={{ display:"block", width:"100%", textAlign:"left", padding:"8px 10px", borderRadius:8, border:"none", background:"transparent", color:C.ink, cursor:"pointer", fontSize:13 }}>⧉ Copy yesterday</button>
+              <button onClick={()=>{ upd({ bs:!day.bs }); setShowActions(false); }} style={{ display:"block", width:"100%", textAlign:"left", padding:"8px 10px", borderRadius:8, border:"none", background:"transparent", color:day.bs?C.red:C.ink, cursor:"pointer", fontSize:13 }}>{day.bs?"✓ Unmark BS day":"Mark BS day"}</button>
+              <button onClick={()=>{ upd({ frozen:!day.frozen }); setShowActions(false); }} style={{ display:"block", width:"100%", textAlign:"left", padding:"8px 10px", borderRadius:8, border:"none", background:"transparent", color:day.frozen?C.blue:C.ink, cursor:"pointer", fontSize:13 }}>{day.frozen?"❄ Unfreeze day":"❄ Freeze day (ill/away)"}</button>
+            </div>
+          )}
+        </div>
         {showApply && (
           <div style={{ position:"absolute", top:"100%", marginTop:8, background:C.panel2, border:`1px solid ${C.line}`, borderRadius:12, padding:8, zIndex:30, width:240, maxHeight:300, overflowY:"auto", boxShadow:"0 8px 30px rgba(0,0,0,.6)", left:"50%", transform:"translateX(-50%)" }}>
             <div style={{ fontSize:10, color:C.faint, padding:"4px 8px 8px" }}>Apply a format to this day (replaces blocks)</div>
