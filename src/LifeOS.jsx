@@ -14,41 +14,38 @@ const CATS = {
 };
 const CAT_KEYS = Object.keys(CATS);
 
-// ============ DAY TYPE TEMPLATES (from your Week A/B planners; times = decimal hours) ============
+// ============ DAY TYPE TEMPLATES — Daniel's real 12GH A-level timetable (Week A/B) ============
+// Period times (adjust to your exact bell times): P1 8:30-9:30, P2 9:30-10:30, P3 11:00-12:00, P4 12:00-13:00, P5 14:00-15:00
+const P1=[8.5,9.5], P2=[9.5,10.5], P3=[11,12], P4=[12,13], P5=[14,15];
+const lesson=(p,label)=>({ t:p[0], e:p[1], label, cat:"School" });
+const study=(p)=>({ t:p[0], e:p[1], label:"Private Study", cat:"Revision" });
+const games=(p)=>({ t:p[0], e:p[1], label:"Games · Field", cat:"Sport" });
 const SEED_DAYTYPES = {
-  "school-a-mon": { name:"School A · Mon", color:C.pink, blocks:[
-    { t:8.5,e:9.5,label:"Volleyball + Form",cat:"Sport" }, { t:9.5,e:10.5,label:"Olney",cat:"School" },
-    { t:10.5,e:11.5,label:"Speedy",cat:"School" }, { t:11.5,e:12.5,label:"Olney",cat:"School" },
-    { t:12.5,e:13.5,label:"Gym: 3k + Workout",cat:"Gym" }, { t:13.5,e:14.5,label:"Gooch",cat:"School" },
-    { t:14.5,e:15.5,label:"Squire",cat:"School" }, { t:16,e:18,label:"Gym + Pool",cat:"Gym" },
-    { t:18,e:19,label:"Compos Call",cat:"Activity" } ]},
-  "school-a-tue": { name:"School A · Tue", color:C.pink, blocks:[
-    { t:9,e:10,label:"Stiles",cat:"School" }, { t:10,e:11,label:"Stiles",cat:"School" },
-    { t:12,e:13,label:"Speedy",cat:"School" }, { t:14,e:15,label:"Gooch",cat:"School" } ]},
-  "school-a-wed": { name:"School A · Wed", color:C.pink, blocks:[
-    { t:8.5,e:9.5,label:"Smith",cat:"School" }, { t:9.5,e:10.5,label:"Short",cat:"School" },
-    { t:11,e:12,label:"Kho training",cat:"Sport" }, { t:12,e:13,label:"Smith",cat:"School" },
-    { t:13,e:14,label:"Football training",cat:"Sport" }, { t:15.5,e:17,label:"Football or KHO",cat:"Sport" } ]},
-  "school-a-thu": { name:"School A · Thu", color:C.pink, blocks:[
-    { t:14,e:15,label:"Gooch",cat:"School" }, { t:17,e:18.5,label:"Football",cat:"Sport" } ]},
-  "school-a-fri": { name:"School A · Fri", color:C.pink, blocks:[
-    { t:8.5,e:9.5,label:"Stiles",cat:"School" }, { t:9.5,e:10.5,label:"Olney",cat:"School" },
-    { t:10.5,e:11.5,label:"Squire",cat:"School" }, { t:12,e:13,label:"Short",cat:"School" },
-    { t:15,e:17,label:"Gym + Pool",cat:"Gym" }, { t:17,e:18.5,label:"Library",cat:"Revision" } ]},
-  "school-b-mon": { name:"School B · Mon", color:C.cyan, blocks:[
-    { t:8.5,e:9.5,label:"Volleyball + Form",cat:"Sport" }, { t:9.5,e:10.5,label:"Olney",cat:"School" },
-    { t:10.5,e:11.5,label:"Speedy",cat:"School" }, { t:11.5,e:12.5,label:"Gooch",cat:"School" },
-    { t:12.5,e:13.5,label:"Gym: 3k + Workout",cat:"Gym" }, { t:13.5,e:14.5,label:"Short",cat:"School" },
-    { t:16,e:18,label:"Gym + Pool",cat:"Gym" } ]},
+  "school-a-mon": { name:"Week A · Mon", color:C.pink, blocks:[
+    lesson(P1,"F. Maths · S15"), lesson(P2,"Physics · PC1"), lesson(P3,"F. Maths · S14"), study(P4), lesson(P5,"F. Maths · M6") ]},
+  "school-a-tue": { name:"Week A · Tue", color:C.pink, blocks:[
+    lesson(P1,"Economics · S18"), study(P2), lesson(P3,"Economics · S18"), lesson(P4,"Physics · PC3"), lesson(P5,"F. Maths · S15") ]},
+  "school-a-wed": { name:"Week A · Wed", color:C.pink, blocks:[
+    lesson(P1,"Economics · S20"), lesson(P2,"Physics · PC3"), study(P3), lesson(P4,"Economics · S20"), games(P5) ]},
+  "school-a-thu": { name:"Week A · Thu", color:C.pink, blocks:[
+    study(P1), lesson(P2,"Physics · PC1"), study(P3), lesson(P4,"Physics · PC3"), lesson(P5,"F. Maths · M6") ]},
+  "school-a-fri": { name:"Week A · Fri", color:C.pink, blocks:[
+    lesson(P1,"F. Maths · S14"), study(P2), lesson(P3,"Physics · PC3"), lesson(P4,"Economics · S20") ]},
+  "school-b-mon": { name:"Week B · Mon", color:C.cyan, blocks:[
+    lesson(P1,"F. Maths · S15"), lesson(P2,"Physics · PC1"), lesson(P3,"F. Maths · S15"), lesson(P4,"F. Maths · S14"), lesson(P5,"Physics · PC3") ]},
+  "school-b-tue": { name:"Week B · Tue", color:C.cyan, blocks:[
+    lesson(P1,"Economics · S18"), study(P2), lesson(P3,"Economics · S18"), lesson(P4,"Physics · PC1"), lesson(P5,"F. Maths · S14") ]},
+  "school-b-wed": { name:"Week B · Wed", color:C.cyan, blocks:[
+    lesson(P1,"Economics · S20"), lesson(P2,"F. Maths · M6"), study(P3), lesson(P4,"Economics · S20"), games(P5) ]},
+  "school-b-thu": { name:"Week B · Thu", color:C.cyan, blocks:[
+    study(P1), study(P2), study(P3), study(P4), lesson(P5,"F. Maths · S14") ]},
+  "school-b-fri": { name:"Week B · Fri", color:C.cyan, blocks:[
+    lesson(P1,"Economics · S18"), lesson(P2,"F. Maths · S15"), lesson(P3,"Physics · PC3"), lesson(P4,"F. Maths · M6") ]},
   "weekend": { name:"Weekend", color:C.green, blocks:[
-    { t:8,e:8.5,label:"Cold plunge + reps",cat:"Activity" }, { t:10,e:12,label:"Football game",cat:"Sport" },
-    { t:14,e:16,label:"Revision",cat:"Revision" } ]},
+    { t:10,e:12,label:"Revision",cat:"Revision" }, { t:15,e:16.5,label:"Gym",cat:"Gym" } ]},
   "holiday": { name:"Holiday / Half-term", color:C.gold, blocks:[
-    { t:8,e:8.5,label:"Cold plunge + reps",cat:"Activity" }, { t:10,e:12,label:"Deep work / revision",cat:"Revision" },
-    { t:16,e:18,label:"Gym",cat:"Gym" } ]},
-  "workexp": { name:"Work Experience", color:C.teal, blocks:[
-    { t:9,e:17,label:"Work placement",cat:"Work" }, { t:18,e:19.5,label:"Gym",cat:"Gym" } ]},
-  "rest": { name:"Rest Day", color:C.purple, blocks:[ { t:8,e:8.5,label:"Cold plunge + reps",cat:"Activity" } ]},
+    { t:10,e:12,label:"Deep work / revision",cat:"Revision" }, { t:16,e:18,label:"Gym",cat:"Gym" } ]},
+  "rest": { name:"Rest Day", color:C.purple, blocks:[] },
   "blank": { name:"Blank Day", color:C.dim, blocks:[] },
 };
 
@@ -65,8 +62,8 @@ const DEFAULT_WEEK = {
   Thursday:"school-a-thu", Friday:"school-a-fri", Saturday:"weekend", Sunday:"weekend",
 };
 const DEFAULT_WEEK_B = {
-  Monday:"school-b-mon", Tuesday:"school-a-tue", Wednesday:"school-a-wed",
-  Thursday:"school-a-thu", Friday:"school-a-fri", Saturday:"weekend", Sunday:"weekend",
+  Monday:"school-b-mon", Tuesday:"school-b-tue", Wednesday:"school-b-wed",
+  Thursday:"school-b-thu", Friday:"school-b-fri", Saturday:"weekend", Sunday:"weekend",
 };
 
 // ============ DATE HELPERS (all parse noon to dodge timezone/DST drift) ============
@@ -1025,6 +1022,7 @@ function DayTypesView({ dayTypes,save,weekMap,saveWeekMap,weekMapB,saveWeekMapB,
   const sel = dayTypes[selId];
   const updType=(patch)=> save({ ...dayTypes, [selId]:{ ...sel, ...patch } });
   const newType=()=>{ const id="type-"+Date.now(); save({ ...dayTypes, [id]:{ name:"New Day Type", color:C.teal, blocks:[] } }); setSelId(id); flash("Day type created"); };
+  const loadReal=()=>{ if(!window.confirm("Replace your day-type formats and default A/B weeks with your real timetable? (Your logged days stay untouched.)")) return; save(SEED_DAYTYPES); saveWeekMap(DEFAULT_WEEK); saveWeekMapB(DEFAULT_WEEK_B); setSelId(Object.keys(SEED_DAYTYPES)[0]); flash("Loaded your timetable"); };
   const delType=()=>{ if(Object.keys(dayTypes).length<=1) return; if(!confirmDel(`the "${sel?.name||"day type"}" format`)) return; const copy={...dayTypes}; delete copy[selId]; save(copy); setSelId(Object.keys(copy)[0]); };
   const blocksWithIds = useMemo(()=> (sel?.blocks||[]).map((b,i)=>({ id:b.id||1000+i, done:false, ...b })),[sel]);
   const saveTimelineBlocks=(updater)=>{ const cur=blocksWithIds; const next=typeof updater==="function"?updater(cur):updater; updType({ blocks: next.map(({id,done,...rest})=>rest) }); };
@@ -1040,6 +1038,7 @@ function DayTypesView({ dayTypes,save,weekMap,saveWeekMap,weekMapB,saveWeekMapB,
           <Panel accent={C.teal} title="Your Formats">
             {Object.entries(dayTypes).map(([id,t])=> <button key={id} onClick={()=>setSelId(id)} style={{ display:"flex", alignItems:"center", gap:8, width:"100%", padding:"9px 10px", borderRadius:8, marginBottom:4, cursor:"pointer", textAlign:"left", border:`1px solid ${selId===id?t.color:"transparent"}`, background:selId===id?C.panel2:"transparent", color:C.ink, fontSize:13 }}><span style={{ width:9,height:9,borderRadius:"50%",background:t.color,flexShrink:0 }}/><span style={{ flex:1 }}>{t.name}</span><span style={{ fontSize:10, color:C.faint }}>{(t.blocks||[]).length}</span></button>)}
             <button onClick={newType} style={{ ...addBtn, marginTop:8 }}>+ New day type</button>
+            <button onClick={loadReal} style={{ ...addBtn, marginTop:6, borderColor:C.pink, color:C.pink }}>↺ Load my real timetable</button>
           </Panel>
           <Panel accent={C.gold} title="Default Week (A / B)">
             <Label>This week is currently</Label>
