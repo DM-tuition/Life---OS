@@ -126,11 +126,20 @@ const SEED_EVENTS = {
     "2026-06-25":"Uni open days", "2026-06-26":"Uni open days",
   },
 };
-function seedEvents(){ try{ if(localStorage.getItem("lifeos:seededEvents:v1")) return;
-  for(const mk in SEED_EVENTS){ const key="lifeos:monthEvents:"+mk;
-    let existing={}; try{ existing=JSON.parse(localStorage.getItem(key)||"{}"); }catch{}
-    localStorage.setItem(key, JSON.stringify({ ...SEED_EVENTS[mk], ...existing })); }
-  localStorage.setItem("lifeos:seededEvents:v1","1"); }catch{} }
+// confirmed family-calendar events (only the ones Daniel said he's doing)
+const SEED_EVENTS_FAMILY = {
+  "2026-06": { "2026-06-01":"Half term" },
+  "2026-07": { "2026-07-04":"Canal working party",
+    "2026-07-20":"Dan work experience","2026-07-21":"Dan work experience","2026-07-22":"Dan work experience","2026-07-23":"Dan work experience","2026-07-24":"Dan work experience" },
+  "2026-08": { "2026-08-01":"Annecy","2026-08-02":"Annecy","2026-08-03":"Annecy","2026-08-07":"Canal working party" },
+  "2026-09": { "2026-09-11":"Canal working party" },
+  "2026-10": { "2026-10-04":"Half marathon" },
+};
+function mergeMonths(seed){ for(const mk in seed){ const key="lifeos:monthEvents:"+mk; let ex={}; try{ ex=JSON.parse(localStorage.getItem(key)||"{}"); }catch{} localStorage.setItem(key, JSON.stringify({ ...seed[mk], ...ex })); } }
+function seedEvents(){ try{
+  if(!localStorage.getItem("lifeos:seededEvents:v1")){ mergeMonths(SEED_EVENTS); localStorage.setItem("lifeos:seededEvents:v1","1"); }
+  if(!localStorage.getItem("lifeos:seededEvents:v2")){ mergeMonths(SEED_EVENTS_FAMILY); localStorage.setItem("lifeos:seededEvents:v2","1"); }
+}catch{} }
 
 const blankDay = (iso)=>({
   date:iso, dayTypeId:null, blocks:[], bs:false, frozen:false, bin:[],
