@@ -117,8 +117,23 @@ async function syncBootstrap(){ // called before the app reads localStorage
 const buzz = (ms=8)=>{ try{ if(navigator.vibrate) navigator.vibrate(ms); }catch{} };
 const confirmDel = (what)=>{ try{ return window.confirm(`Delete ${what}? This can't be undone.`); }catch{ return true; } };
 
+// one-time seed of calendar events onto the Month tab (existing entries always win)
+const SEED_EVENTS = {
+  "2026-06": {
+    "2026-06-03":"Lancaster", "2026-06-06":"Canal", "2026-06-07":"D of E",
+    "2026-06-13":"Dragon boat", "2026-06-17":"Picture day", "2026-06-20":"Gym vs One (league)",
+    "2026-06-22":"Edinburgh", "2026-06-23":"FHS Football", "2026-06-24":"Uni open days",
+    "2026-06-25":"Uni open days", "2026-06-26":"Uni open days",
+  },
+};
+function seedEvents(){ try{ if(localStorage.getItem("lifeos:seededEvents:v1")) return;
+  for(const mk in SEED_EVENTS){ const key="lifeos:monthEvents:"+mk;
+    let existing={}; try{ existing=JSON.parse(localStorage.getItem(key)||"{}"); }catch{}
+    localStorage.setItem(key, JSON.stringify({ ...SEED_EVENTS[mk], ...existing })); }
+  localStorage.setItem("lifeos:seededEvents:v1","1"); }catch{} }
+
 const blankDay = (iso)=>({
-  date:iso, dayTypeId:null, blocks:[], bs:false, frozen:false,
+  date:iso, dayTypeId:null, blocks:[], bs:false, frozen:false, bin:[],
   reps:{ target:dayOfYear(iso), done:false },
   breakdown:{ Sleep:0,Lessons:0,Revision:0,Gym:0,Activity:0 },
   breakdownAdj:{ Sleep:0,Lessons:0,Revision:0,Gym:0,Activity:0 },
@@ -268,10 +283,13 @@ export default function LifeOS(){
   const [showBackup,setShowBackup] = useState(false);
   const [showSync,setShowSync] = useState(false);
   const [showMore,setShowMore] = useState(false);
+  const [canUndo,setCanUndo] = useState(false);
+  const undoStack = useRef([]);
   const isMobile = useIsMobile();
 
   useEffect(()=>{ (async()=>{
     await syncBootstrap();   // pull newest cloud state before reading local (no-op if sync isn't set up)
+    seedEvents();            // add June calendar events to the Month tab once
     setDayTypes(await sGet("dayTypes:v2", SEED_DAYTYPES));
     setWeekMap(await sGet("weekMap:v2", DEFAULT_WEEK));
     setWeekMapB(await sGet("weekMapB:v1", DEFAULT_WEEK_B));
@@ -305,6 +323,7 @@ export default function LifeOS(){
     if(!d.reps) d.reps = { target:dayOfYear(date), done:false };
     if(d.bs===undefined) d.bs = false;
     if(d.frozen===undefined) d.frozen = false;
+    if(!d.bin) d.bin = [];
     if(!d.breakdownAdj) d.breakdownAdj = { Sleep:0,Lessons:0,Revision:0,Gym:0,Activity:0 };
     // breakdown = auto from timeline + the day's manual adjustments
     d.breakdown = withAdj(computeBreakdown(d.blocks), d.breakdownAdj);
@@ -312,10 +331,15 @@ export default function LifeOS(){
   })(); },[date, loading, weekAnchorA]); // eslint-disable-line
 
   const flash = (m)=>{ buzz(); setToast(m); setTimeout(()=>setToast(""),1600); };
-  const persistDay = async (d)=>{ setDay(d); await sSet(`day:${d.date}`, d);
+  const persistDay = async (d)=>{
+    if(day && day.date===d.date){ undoStack.current.push(day); if(undoStack.current.length>50) undoStack.current.shift(); setCanUndo(true); }
+    setDay(d); await sSet(`day:${d.date}`, d);
     const idx=await sGet("index:days",[]); if(!idx.includes(d.date)){ idx.push(d.date); await sSet("index:days",idx); }
     setAllDays(prev=>({ ...prev, [d.date]:d })); };
   const upd = (patch)=> persistDay({ ...day, ...patch });
+  const undo = async ()=>{ const prev=undoStack.current.pop(); setCanUndo(undoStack.current.length>0); if(!prev) return;
+    await sSet(`day:${prev.date}`, prev); setAllDays(p=>({ ...p, [prev.date]:prev }));
+    if(prev.date!==date) setDate(prev.date); setDay(prev); buzz(); setToast("Undid last change"); setTimeout(()=>setToast(""),1400); };
   const persistFinance = async (f)=>{ setFinance(f); await sSet("finance:v2", f); };
   const persistDayTypes = async (dt)=>{ setDayTypes(dt); await sSet("dayTypes:v2", dt); };
   const persistWeekMap = async (wm)=>{ setWeekMap(wm); await sSet("weekMap:v2", wm); };
@@ -384,6 +408,7 @@ export default function LifeOS(){
       </div>
 
       {toast && <div style={{ position:"fixed", bottom:24, left:"50%", transform:"translateX(-50%)", background:C.teal, color:"#001014", padding:"10px 22px", borderRadius:30, fontWeight:600, fontSize:14, zIndex:100, boxShadow:"0 8px 30px rgba(0,0,0,.5)", animation:"lo-pop .18s ease" }}>{toast}</div>}
+      {canUndo && <button onClick={undo} style={{ position:"fixed", bottom:24, left:20, background:C.panel2, color:C.ink, border:`1px solid ${C.line}`, padding:"9px 16px", borderRadius:30, fontWeight:600, fontSize:13, zIndex:100, boxShadow:"0 8px 30px rgba(0,0,0,.5)", cursor:"pointer" }}>↶ Undo</button>}
     </div>
   );
 }
@@ -506,7 +531,7 @@ function snapStroke(pts,w,held){
   return pts;
 }
 
-function Timeline({ blocks,onChange,isToday=false,isPast=false,sketch,onSketch }){
+function Timeline({ blocks,onChange,isToday=false,isPast=false,sketch,onSketch,onDeleteId }){
   const railRef = useRef(null);
   const scrollRef = useRef(null);
   const dragRef = useRef(null);      // moving / resizing / wiping an existing block
@@ -530,7 +555,7 @@ function Timeline({ blocks,onChange,isToday=false,isPast=false,sketch,onSketch }
   useEffect(()=>{ if(scrollRef.current){ scrollRef.current.scrollTop = timeToY(isToday ? Math.max(DAY_START, nowDec()-1.5) : 7.5); } },[]); // open near the relevant time
 
   const updBlock=(id,patch)=> onChange(prev=>prev.map(b=>b.id===id?{...b,...patch}:b));
-  const delBlock=(id)=>{ onChange(prev=>prev.filter(b=>b.id!==id)); setEditing(null); };
+  const delBlock=(id)=>{ if(onDeleteId) onDeleteId(id); else onChange(prev=>prev.filter(b=>b.id!==id)); setEditing(null); };
   const elapsed=(b)=> isPast || (isToday && b.e<=now);
   const effState=(b)=> b.status==="missed" ? "missed" : (elapsed(b) ? "done" : "plan");
   const pathD=(pts)=> pts.map((p,i)=> (i?"L":"M")+(p.x*railW).toFixed(1)+" "+p.y.toFixed(1)).join(" ");
@@ -673,8 +698,16 @@ function TodayView({ day,date,setDate,upd,dayTypes,applyDayType,links,allDays,fl
   const dn = dayNameOf(date);
   const isToday = date===todayISO();
   const isPast = date<todayISO();
+  const [showBin,setShowBin] = useState(false);
   const setBlocks = (updater)=>{ const next=typeof updater==="function"?updater(day.blocks):updater; upd({ blocks:next, breakdown:withAdj(computeBreakdown(next), day.breakdownAdj) }); };
   const setSketch = (s)=> upd({ sketch:s });
+  const bin = day.bin||[];
+  const deleteToBin=(id)=>{ const b=day.blocks.find(x=>x.id===id); const blocks=day.blocks.filter(x=>x.id!==id);
+    const nb=[...bin, ...(b?[{ t:b.t,e:b.e,label:b.label,cat:b.cat }]:[])].slice(-40);
+    upd({ blocks, bin:nb, breakdown:withAdj(computeBreakdown(blocks), day.breakdownAdj) }); flash&&flash("Moved to bin"); };
+  const restoreBin=(i)=>{ const b=bin[i]; if(!b) return; const blocks=[...day.blocks,{ ...b, id:Date.now() }]; const nb=bin.filter((_,j)=>j!==i);
+    upd({ blocks, bin:nb, breakdown:withAdj(computeBreakdown(blocks), day.breakdownAdj) }); flash&&flash("Restored"); };
+  const clearBin=()=> upd({ bin:[] });
   const adjustBd = (k,delta)=>{ const adj={ ...(day.breakdownAdj||{}), [k]:((day.breakdownAdj&&day.breakdownAdj[k])||0)+delta }; upd({ breakdownAdj:adj, breakdown:withAdj(computeBreakdown(day.blocks), adj) }); };
   const addTask=(b)=>{ if(!newTask.trim())return; upd({ todos:{ ...day.todos,[b]:[...day.todos[b],{text:newTask.trim(),done:false}] } }); setNewTask(""); };
   const toggleTask=(b,i)=>{ const a=[...day.todos[b]]; a[i]={...a[i],done:!a[i].done}; upd({ todos:{ ...day.todos,[b]:a } }); };
@@ -742,11 +775,35 @@ function TodayView({ day,date,setDate,upd,dayTypes,applyDayType,links,allDays,fl
         ].map(s=> <button key={s.l} onClick={s.on} style={{ background:C.panel, border:`1px solid ${C.line}`, borderRadius:12, padding:"8px 16px", cursor:"pointer", textAlign:"center", minWidth:96 }}><div style={{ fontSize:18, fontWeight:700, color:s.c }}>{s.v}</div><div style={{ fontSize:10, color:C.dim, marginTop:3 }}>{s.l}</div></button>)}
       </div>
 
-      <Panel accent={C.pink} title="Day" right={<span style={{ fontSize:11, color:C.faint }}>draw · swipe a block to skip</span>}>
+      <Panel accent={C.pink} title="Day" right={
+        <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+          {bin.length>0 && <button onClick={()=>setShowBin(true)} style={{ background:"none", border:`1px solid ${C.line}`, borderRadius:8, padding:"3px 9px", color:C.dim, cursor:"pointer", fontSize:11 }}>🗑 {bin.length}</button>}
+          <span style={{ fontSize:11, color:C.faint }}>tap to add · swipe to skip</span>
+        </div>}>
         <div data-timeline>
-          <Timeline blocks={day.blocks} onChange={setBlocks} isToday={isToday} isPast={isPast} sketch={day.sketch} onSketch={setSketch} />
+          <Timeline blocks={day.blocks} onChange={setBlocks} isToday={isToday} isPast={isPast} sketch={day.sketch} onSketch={setSketch} onDeleteId={deleteToBin} />
         </div>
       </Panel>
+
+      {showBin && (
+        <div onClick={()=>setShowBin(false)} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,.6)", zIndex:200, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
+          <div onClick={e=>e.stopPropagation()} style={{ background:C.panel, border:`1px solid ${C.line}`, borderRadius:14, padding:20, width:"100%", maxWidth:380, maxHeight:"80vh", overflowY:"auto" }}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
+              <div style={{ fontFamily:"'Caveat',cursive", fontSize:26, color:C.teal }}>Bin · {fmt(date)}</div>
+              {bin.length>0 && <button onClick={()=>{ if(confirmDel("everything in the bin")){ clearBin(); setShowBin(false); } }} style={{ background:"none", border:"none", color:C.red, cursor:"pointer", fontSize:12 }}>Empty bin</button>}
+            </div>
+            {bin.length===0 ? <Empty>Deleted blocks land here so you can put them back.</Empty> :
+              bin.map((b,i)=>{ const col=CATS[b.cat]||C.dim; return (
+                <div key={i} style={{ display:"flex", alignItems:"center", gap:10, padding:"9px 0", borderBottom:`1px solid ${C.line}` }}>
+                  <span style={{ width:8,height:8,borderRadius:"50%",background:col,flexShrink:0 }}/>
+                  <div style={{ flex:1, minWidth:0 }}><div style={{ fontSize:13, color:C.ink }}>{b.label||"(untitled)"}</div><div style={{ fontSize:10, color:C.faint }}>{hhmm(b.t)}–{hhmm(b.e)} · {b.cat}</div></div>
+                  <button onClick={()=>restoreBin(i)} style={{ ...addBtn, width:"auto", padding:"5px 12px", borderColor:C.green, color:C.green, fontSize:12 }}>Restore</button>
+                </div>
+              ); })}
+            <button onClick={()=>setShowBin(false)} style={{ ...addBtn, marginTop:14 }}>Close</button>
+          </div>
+        </div>
+      )}
 
       <button onClick={()=>setShowLog(s=>!s)} style={{ ...addBtn, marginTop:16 }}>{showLog?"Hide day log ▴":"Open day log (reps · habits · to-dos · review) ▾"}</button>
 
