@@ -655,31 +655,6 @@ function Timeline({ blocks,onChange,isToday=false,isPast=false,sketch,onSketch,o
                   style={{ position:"absolute", top:3, right:3, width:22, height:22, borderRadius:6, border:"none", background:"rgba(0,0,0,.4)", color:"#fff", fontSize:12, cursor:"pointer", lineHeight:1, padding:0, display:"flex", alignItems:"center", justifyContent:"center", zIndex:8 }}>🗑</button>
                 <div onMouseDown={(e)=>startBlock(e,b,"resize")} onTouchStart={(e)=>startBlock(e,b,"resize")} onClick={(e)=>e.stopPropagation()}
                   style={{ position:"absolute", bottom:0, left:0, right:0, height:10, cursor:"ns-resize" }}/>
-                {editing===b.id && <div onMouseDown={e=>{e.stopPropagation();setEditing(null);}} onClick={e=>{e.stopPropagation();setEditing(null);}} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,.55)", zIndex:190 }}/>}
-                {editing===b.id && (
-                  <div onMouseDown={e=>e.stopPropagation()} onClick={e=>e.stopPropagation()} style={{ position:"fixed", left:"50%", top:"50%", transform:"translate(-50%,-50%)", width:"min(380px,92vw)", maxHeight:"88vh", overflowY:"auto", background:C.panel2, border:`1px solid ${C.line}`, borderRadius:14, padding:16, zIndex:200, boxShadow:"0 8px 30px rgba(0,0,0,.6)" }}>
-                    <Label>What is it?</Label>
-                    <input autoFocus value={b.label} onChange={e=>updBlock(b.id,{label:e.target.value})} placeholder="Type it here…" style={{ ...inp, width:"100%", marginBottom:10, fontSize:17, fontWeight:600, padding:"12px 12px" }}/>
-                    <div style={{ display:"flex", flexWrap:"wrap", gap:5, marginBottom:12 }}>
-                      {QUICK_LABELS.map(l=> <button key={l} onClick={()=>updBlock(b.id,{label:l})} style={{ fontSize:11, padding:"5px 9px", borderRadius:14, cursor:"pointer", border:`1px solid ${b.label===l?C.teal:C.line}`, background:b.label===l?C.teal:"transparent", color:b.label===l?"#001014":C.dim, fontWeight:b.label===l?700:400 }}>{l}</button>)}
-                    </div>
-                    <Label>Notes / extra info</Label>
-                    <textarea value={b.note||""} onChange={e=>updBlock(b.id,{note:e.target.value})} placeholder="Anything extra about this — what to bring, who with, details…" style={{ ...inp, width:"100%", minHeight:64, resize:"vertical", marginBottom:12 }}/>
-                    {elapsed(b) && <button onClick={()=>updBlock(b.id,{status:b.status==="missed"?undefined:"missed"})} style={{ ...addBtn, marginBottom:12, borderColor:b.status==="missed"?C.red:C.green, color:b.status==="missed"?C.red:C.green }}>{b.status==="missed"?"✗ Didn't happen (tap to undo)":"✓ Did it — tap if you didn't"}</button>}
-                    <Label>Category</Label>
-                    <div style={{ display:"flex", flexWrap:"wrap", gap:5, marginBottom:12 }}>
-                      {CAT_KEYS.map(c=> <button key={c} onClick={()=>updBlock(b.id,{cat:c})} style={{ fontSize:12, padding:"6px 10px", borderRadius:14, cursor:"pointer", border:`1px solid ${b.cat===c?CATS[c]:C.line}`, background:b.cat===c?CATS[c]:"transparent", color:b.cat===c?"#0b0b0b":C.dim, fontWeight:b.cat===c?700:400 }}>{c}</button>)}
-                    </div>
-                    <div style={{ display:"flex", gap:8, marginBottom:12 }}>
-                      <div style={{ flex:1 }}><Label>Start</Label><input type="time" value={hhmm(b.t)} onChange={e=>{ const [H,M]=e.target.value.split(":").map(Number); updBlock(b.id,{t:H+M/60}); }} style={{ ...inp, width:"100%" }}/></div>
-                      <div style={{ flex:1 }}><Label>End</Label><input type="time" value={hhmm(b.e)} onChange={e=>{ const [H,M]=e.target.value.split(":").map(Number); updBlock(b.id,{e:H+M/60}); }} style={{ ...inp, width:"100%" }}/></div>
-                    </div>
-                    <div style={{ display:"flex", gap:8 }}>
-                      <button onClick={()=>delBlock(b.id)} style={{ ...delBtn, flex:1, width:"auto" }}>Delete</button>
-                      <button onClick={()=>setEditing(null)} style={{ ...addBtn, flex:2, borderColor:C.teal, color:C.teal }}>Done</button>
-                    </div>
-                  </div>
-                )}
               </div>
             );
           })}
@@ -700,6 +675,33 @@ function Timeline({ blocks,onChange,isToday=false,isPast=false,sketch,onSketch,o
         </div>
       </div>
       </div>
+      {editing && (()=>{ const b=blocks.find(x=>x.id===editing); if(!b) return null; return (
+        <>
+          <div onClick={()=>setEditing(null)} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,.55)", zIndex:190 }}/>
+          <div style={{ position:"fixed", left:"50%", top:"50%", transform:"translate(-50%,-50%)", width:"min(380px,92vw)", maxHeight:"88vh", overflowY:"auto", background:C.panel2, border:`1px solid ${C.line}`, borderRadius:14, padding:16, zIndex:200, boxShadow:"0 8px 30px rgba(0,0,0,.6)" }}>
+            <Label>What is it?</Label>
+            <input value={b.label} onChange={e=>updBlock(b.id,{label:e.target.value})} placeholder="Tap to type a name…" style={{ ...inp, width:"100%", marginBottom:10, fontSize:17, fontWeight:600, padding:"12px 12px" }}/>
+            <div style={{ display:"flex", flexWrap:"wrap", gap:5, marginBottom:12 }}>
+              {QUICK_LABELS.map(l=> <button key={l} onClick={()=>updBlock(b.id,{label:l})} style={{ fontSize:11, padding:"5px 9px", borderRadius:14, cursor:"pointer", border:`1px solid ${b.label===l?C.teal:C.line}`, background:b.label===l?C.teal:"transparent", color:b.label===l?"#001014":C.dim, fontWeight:b.label===l?700:400 }}>{l}</button>)}
+            </div>
+            <Label>Notes / extra info</Label>
+            <textarea value={b.note||""} onChange={e=>updBlock(b.id,{note:e.target.value})} placeholder="Anything extra — what to bring, who with, details…" style={{ ...inp, width:"100%", minHeight:64, resize:"vertical", marginBottom:12 }}/>
+            {elapsed(b) && <button onClick={()=>updBlock(b.id,{status:b.status==="missed"?undefined:"missed"})} style={{ ...addBtn, marginBottom:12, borderColor:b.status==="missed"?C.red:C.green, color:b.status==="missed"?C.red:C.green }}>{b.status==="missed"?"✗ Didn't happen (tap to undo)":"✓ Did it — tap if you didn't"}</button>}
+            <Label>Category</Label>
+            <div style={{ display:"flex", flexWrap:"wrap", gap:5, marginBottom:12 }}>
+              {CAT_KEYS.map(c=> <button key={c} onClick={()=>updBlock(b.id,{cat:c})} style={{ fontSize:12, padding:"6px 10px", borderRadius:14, cursor:"pointer", border:`1px solid ${b.cat===c?CATS[c]:C.line}`, background:b.cat===c?CATS[c]:"transparent", color:b.cat===c?"#0b0b0b":C.dim, fontWeight:b.cat===c?700:400 }}>{c}</button>)}
+            </div>
+            <div style={{ display:"flex", gap:8, marginBottom:12 }}>
+              <div style={{ flex:1 }}><Label>Start</Label><input type="time" value={hhmm(b.t)} onChange={e=>{ const [H,M]=e.target.value.split(":").map(Number); updBlock(b.id,{t:H+M/60}); }} style={{ ...inp, width:"100%" }}/></div>
+              <div style={{ flex:1 }}><Label>End</Label><input type="time" value={hhmm(b.e)} onChange={e=>{ const [H,M]=e.target.value.split(":").map(Number); updBlock(b.id,{e:H+M/60}); }} style={{ ...inp, width:"100%" }}/></div>
+            </div>
+            <div style={{ display:"flex", gap:8 }}>
+              <button onClick={()=>delBlock(b.id)} style={{ ...delBtn, flex:1, width:"auto" }}>Delete</button>
+              <button onClick={()=>setEditing(null)} style={{ ...addBtn, flex:2, borderColor:C.teal, color:C.teal }}>Done</button>
+            </div>
+          </div>
+        </>
+      ); })()}
     </div>
   );
 }
