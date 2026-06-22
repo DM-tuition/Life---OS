@@ -649,22 +649,22 @@ function Timeline({ blocks,onChange,isToday=false,isPast=false,sketch,onSketch,o
                   <span style={{ width:7,height:7,borderRadius:"50%",background:col,flexShrink:0,opacity:plan?0.5:1 }}/>
                   <span style={{ fontSize:12.5, fontWeight:600, color:missed?C.faint:C.ink, textDecoration:missed?"line-through":"none", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{b.label}</span>
                 </div>
-                {h>34 && <div style={{ fontSize:10, color:C.dim, marginTop:2 }}>{hhmm(b.t)}–{hhmm(b.e)} · {b.cat}{missed?" · skipped":""}</div>}
+                {h>34 && <div style={{ fontSize:10, color:C.dim, marginTop:2 }}>{hhmm(b.t)}–{hhmm(b.e)} · {b.cat}{b.note?" · 📝":""}{missed?" · skipped":""}</div>}
                 {/* one-tap delete → bin */}
                 <button onMouseDown={(e)=>e.stopPropagation()} onTouchStart={(e)=>e.stopPropagation()} onClick={(e)=>{ e.stopPropagation(); buzz(); delBlock(b.id); }}
                   style={{ position:"absolute", top:3, right:3, width:22, height:22, borderRadius:6, border:"none", background:"rgba(0,0,0,.4)", color:"#fff", fontSize:12, cursor:"pointer", lineHeight:1, padding:0, display:"flex", alignItems:"center", justifyContent:"center", zIndex:8 }}>🗑</button>
                 <div onMouseDown={(e)=>startBlock(e,b,"resize")} onTouchStart={(e)=>startBlock(e,b,"resize")} onClick={(e)=>e.stopPropagation()}
                   style={{ position:"absolute", bottom:0, left:0, right:0, height:10, cursor:"ns-resize" }}/>
-                {editing===b.id && isMobile && <div onMouseDown={e=>{e.stopPropagation();setEditing(null);}} onClick={e=>{e.stopPropagation();setEditing(null);}} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,.55)", zIndex:190 }}/>}
+                {editing===b.id && <div onMouseDown={e=>{e.stopPropagation();setEditing(null);}} onClick={e=>{e.stopPropagation();setEditing(null);}} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,.55)", zIndex:190 }}/>}
                 {editing===b.id && (
-                  <div onMouseDown={e=>e.stopPropagation()} onClick={e=>e.stopPropagation()} style={ isMobile
-                    ? { position:"fixed", left:"50%", top:"50%", transform:"translate(-50%,-50%)", width:"min(340px,92vw)", maxHeight:"86vh", overflowY:"auto", background:C.panel2, border:`1px solid ${C.line}`, borderRadius:14, padding:16, zIndex:200, boxShadow:"0 8px 30px rgba(0,0,0,.6)" }
-                    : { position:"absolute", top:0, left:"calc(100% + 8px)", width:260, maxHeight:520, overflowY:"auto", background:C.panel2, border:`1px solid ${C.line}`, borderRadius:12, padding:14, zIndex:20, boxShadow:"0 8px 30px rgba(0,0,0,.6)" } }>
+                  <div onMouseDown={e=>e.stopPropagation()} onClick={e=>e.stopPropagation()} style={{ position:"fixed", left:"50%", top:"50%", transform:"translate(-50%,-50%)", width:"min(380px,92vw)", maxHeight:"88vh", overflowY:"auto", background:C.panel2, border:`1px solid ${C.line}`, borderRadius:14, padding:16, zIndex:200, boxShadow:"0 8px 30px rgba(0,0,0,.6)" }}>
                     <Label>What is it?</Label>
-                    <input autoFocus value={b.label} onChange={e=>updBlock(b.id,{label:e.target.value})} onKeyDown={e=>{ if(e.key==="Enter") setEditing(null); }} placeholder="Type it here…" style={{ ...inp, width:"100%", marginBottom:10, fontSize:17, fontWeight:600, padding:"12px 12px" }}/>
+                    <input autoFocus value={b.label} onChange={e=>updBlock(b.id,{label:e.target.value})} placeholder="Type it here…" style={{ ...inp, width:"100%", marginBottom:10, fontSize:17, fontWeight:600, padding:"12px 12px" }}/>
                     <div style={{ display:"flex", flexWrap:"wrap", gap:5, marginBottom:12 }}>
                       {QUICK_LABELS.map(l=> <button key={l} onClick={()=>updBlock(b.id,{label:l})} style={{ fontSize:11, padding:"5px 9px", borderRadius:14, cursor:"pointer", border:`1px solid ${b.label===l?C.teal:C.line}`, background:b.label===l?C.teal:"transparent", color:b.label===l?"#001014":C.dim, fontWeight:b.label===l?700:400 }}>{l}</button>)}
                     </div>
+                    <Label>Notes / extra info</Label>
+                    <textarea value={b.note||""} onChange={e=>updBlock(b.id,{note:e.target.value})} placeholder="Anything extra about this — what to bring, who with, details…" style={{ ...inp, width:"100%", minHeight:64, resize:"vertical", marginBottom:12 }}/>
                     {elapsed(b) && <button onClick={()=>updBlock(b.id,{status:b.status==="missed"?undefined:"missed"})} style={{ ...addBtn, marginBottom:12, borderColor:b.status==="missed"?C.red:C.green, color:b.status==="missed"?C.red:C.green }}>{b.status==="missed"?"✗ Didn't happen (tap to undo)":"✓ Did it — tap if you didn't"}</button>}
                     <Label>Category</Label>
                     <div style={{ display:"flex", flexWrap:"wrap", gap:5, marginBottom:12 }}>
