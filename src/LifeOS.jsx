@@ -646,10 +646,11 @@ function Timeline({ blocks,onChange,isToday=false,isPast=false,sketch,onSketch,o
                   borderRadius:8, padding:"5px 9px", cursor:"grab", overflow:"hidden", touchAction:"none", userSelect:"none",
                   opacity: missed? 0.32 : (1 - Math.min(0.65, Math.abs(dx)/170)), transition: dx?"none":"opacity .15s", zIndex:5 }}>
                 <div style={{ display:"flex", alignItems:"center", gap:6, paddingRight:24 }}>
-                  <span style={{ width:7,height:7,borderRadius:"50%",background:col,flexShrink:0,opacity:plan?0.5:1 }}/>
-                  <span style={{ fontSize:12.5, fontWeight:600, color:missed?C.faint:C.ink, textDecoration:missed?"line-through":"none", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{b.label}</span>
+                  <span style={{ width:8,height:8,borderRadius:"50%",background:col,flexShrink:0,opacity:plan?0.5:1 }}/>
+                  <span style={{ fontSize:15, fontWeight:700, color:missed?C.faint:C.ink, textDecoration:missed?"line-through":"none", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{b.label}</span>
                 </div>
-                {h>34 && <div style={{ fontSize:10, color:C.dim, marginTop:2 }}>{hhmm(b.t)}–{hhmm(b.e)} · {b.cat}{b.note?" · 📝":""}{missed?" · skipped":""}</div>}
+                {h>32 && <div style={{ fontSize:10, color:C.dim, marginTop:2 }}>{hhmm(b.t)}–{hhmm(b.e)} · {b.cat}{(b.note && h<=50)?" · 📝":""}{missed?" · skipped":""}</div>}
+                {b.note && h>50 && <div style={{ fontSize:11.5, color:missed?C.faint:C.dim, marginTop:4, lineHeight:1.3, overflow:"hidden", display:"-webkit-box", WebkitLineClamp:3, WebkitBoxOrient:"vertical", whiteSpace:"normal", paddingRight:24 }}>{b.note}</div>}
                 {/* one-tap delete → bin */}
                 <button onMouseDown={(e)=>e.stopPropagation()} onTouchStart={(e)=>e.stopPropagation()} onClick={(e)=>{ e.stopPropagation(); buzz(); delBlock(b.id); }}
                   style={{ position:"absolute", top:3, right:3, width:22, height:22, borderRadius:6, border:"none", background:"rgba(0,0,0,.4)", color:"#fff", fontSize:12, cursor:"pointer", lineHeight:1, padding:0, display:"flex", alignItems:"center", justifyContent:"center", zIndex:8 }}>🗑</button>
