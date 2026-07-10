@@ -286,6 +286,7 @@ export default function LifeOS(){
   const [weekAnchorA,setWeekAnchorA] = useState(todayISO());// Monday of a week designated "Week A"
   const [habitLinks,setHabitLinks] = useState({});         // habit key -> block category (auto-complete)
   const [habitCfg,setHabitCfg] = useState({});             // habit key -> { per, type }
+  const [masterTodos,setMasterTodos] = useState([]);       // long-term to-do list
   const [allDays,setAllDays] = useState({});
   const [finance,setFinance] = useState(null);
   const [toast,setToast] = useState("");
@@ -307,6 +308,7 @@ export default function LifeOS(){
     setWeekAnchorA(await sGet("weekAnchorA:v1", todayISO()));
     setHabitLinks(await sGet("habitLinks:v1", {}));
     setHabitCfg(await sGet("habitCfg:v1", {}));
+    setMasterTodos(await sGet("masterTodos:v1", []));
     const idx = await sGet("index:days", []);
     const map={}; for(const iso of idx) map[iso]=await sGet(`day:${iso}`, null);
     setAllDays(map);
@@ -358,6 +360,8 @@ export default function LifeOS(){
   const persistWeekAnchor = async (iso)=>{ setWeekAnchorA(iso); await sSet("weekAnchorA:v1", iso); };
   const persistHabitLinks = async (l)=>{ setHabitLinks(l); await sSet("habitLinks:v1", l); };
   const persistHabitCfg = async (c)=>{ setHabitCfg(c); await sSet("habitCfg:v1", c); };
+  const persistMasterTodos = async (t)=>{ setMasterTodos(t); await sSet("masterTodos:v1", t); };
+  const toggleMasterTodo = (id)=> persistMasterTodos(masterTodos.map(t=>t.id===id?{...t,done:!t.done}:t));
   const applyDayType = (typeId)=>{ const dt=dayTypes[typeId]; if(!dt) return;
     persistDay({ ...day, dayTypeId:typeId, blocks:cloneBlocks(dt.blocks) }); flash(`Applied: ${dt.name}`); };
 
@@ -394,7 +398,7 @@ export default function LifeOS(){
       {showSync && <CloudSyncModal close={()=>setShowSync(false)} flash={flash} />}
 
       <div className="lo-tabs" style={{ display:"flex", gap:4, padding:"12px 24px 0", borderBottom:`1px solid ${C.line}`, overflowX:"auto" }}>
-        {[["today","Today"],["month","Month"],["habits","Habits"],["finance","Finance"]].map(([k,l])=>(
+        {[["today","Today"],["month","Month"],["todo","To Do"],["habits","Habits"],["finance","Finance"]].map(([k,l])=>(
           <button key={k} onClick={()=>setTab(k)} style={{ padding:"10px 18px", cursor:"pointer", border:"none", background:"transparent",
             color:tab===k?C.ink:C.faint, fontWeight:600, fontSize:14, borderBottom:`2px solid ${tab===k?C.teal:"transparent"}`, marginBottom:-1, whiteSpace:"nowrap" }}>{l}</button>
         ))}
@@ -411,7 +415,8 @@ export default function LifeOS(){
       )}
 
       <div style={{ maxWidth:1180, margin:"0 auto", padding:isMobile?"16px 12px":"24px" }}>
-        {tab==="today" && <TodayView day={day} date={date} setDate={setDate} upd={upd} dayTypes={dayTypes} applyDayType={applyDayType} links={habitLinks} allDays={allDays} flash={flash} />}
+        {tab==="today" && <TodayView day={day} date={date} setDate={setDate} upd={upd} dayTypes={dayTypes} applyDayType={applyDayType} links={habitLinks} allDays={allDays} flash={flash} masterTodos={masterTodos} toggleMasterTodo={toggleMasterTodo} goTodos={()=>setTab("todo")} />}
+        {tab==="todo" && <TodoListView todos={masterTodos} save={persistMasterTodos} flash={flash} />}
         {tab==="month" && <MonthView date={date} setDate={setDate} setTab={setTab} allDays={allDays} dayTypes={dayTypes} flash={flash} />}
         {tab==="habits" && <HabitsView allDays={allDays} links={habitLinks} saveLinks={persistHabitLinks} cfg={habitCfg} saveCfg={persistHabitCfg} />}
         {tab==="week" && <WeekView allDays={allDays} date={date} setDate={setDate} links={habitLinks} />}
@@ -708,7 +713,7 @@ function Timeline({ blocks,onChange,isToday=false,isPast=false,sketch,onSketch,o
 }
 
 // ============ TODAY ============
-function TodayView({ day,date,setDate,upd,dayTypes,applyDayType,links,allDays,flash }){
+function TodayView({ day,date,setDate,upd,dayTypes,applyDayType,links,allDays,flash,masterTodos,toggleMasterTodo,goTodos }){
   const [newTask,setNewTask] = useState("");
   const [showApply,setShowApply] = useState(false);
   const isMobile = useIsMobile();
@@ -744,6 +749,10 @@ function TodayView({ day,date,setDate,upd,dayTypes,applyDayType,links,allDays,fl
     for(const b of ["shortImp","longImp","shortUnimp","longUnimp"]){ const have=new Set((nt[b]||[]).map(t=>t.text));
       for(const t of (y.todos[b]||[])){ if(!t.done && !have.has(t.text)){ nt[b]=[...(nt[b]||[]),{ text:t.text, done:false }]; n++; } } }
     if(n){ upd({ todos:nt }); flash&&flash(`Carried over ${n} task${n>1?"s":""}`); } else flash&&flash("Nothing unfinished to carry"); };
+
+  const mt = masterTodos||[];
+  const dueToday = mt.filter(t=>t.due===date && !t.done);
+  const overdue = isToday ? mt.filter(t=>t.due && t.due<date && !t.done) : [];
 
   const adh = (()=>{ if(!day.blocks.length) return null;
     const el=day.blocks.filter(b=> isPast || (isToday && b.e<=nowDec())); if(!el.length) return null;
@@ -850,6 +859,16 @@ function TodayView({ day,date,setDate,upd,dayTypes,applyDayType,links,allDays,fl
           </Panel>
 
           <Panel accent={C.green} title="To Do" style={{ gridColumn:isMobile?"auto":"1 / -1" }} right={<button onClick={pullTodos} style={{ background:"none", border:"none", color:C.dim, cursor:"pointer", fontSize:11 }}>↓ carry over unfinished</button>}>
+            {(dueToday.length>0 || overdue.length>0) && (
+              <div style={{ background:C.panel2, borderRadius:10, padding:12, marginBottom:14, border:`1px solid ${overdue.length?C.red:C.teal}44` }}>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
+                  <span style={{ fontSize:11, fontWeight:700, letterSpacing:0.5, textTransform:"uppercase", color:overdue.length?C.red:C.teal }}>📌 From your To Do list</span>
+                  <button onClick={goTodos} style={{ background:"none", border:"none", color:C.dim, cursor:"pointer", fontSize:11 }}>View all →</button>
+                </div>
+                {overdue.map(t=> <div key={t.id} style={{ display:"flex", alignItems:"center", gap:8, marginBottom:6 }}><Check on={false} color={C.red} onClick={()=>toggleMasterTodo(t.id)} size={17}/><span style={{ flex:1, fontSize:13, color:C.ink, fontWeight:t.star?700:400 }}>{t.star?"★ ":""}{t.text}</span><span style={{ fontSize:10, color:C.red }}>overdue · {fmt(t.due)}</span></div>)}
+                {dueToday.map(t=> <div key={t.id} style={{ display:"flex", alignItems:"center", gap:8, marginBottom:6 }}><Check on={false} color={C.teal} onClick={()=>toggleMasterTodo(t.id)} size={17}/><span style={{ flex:1, fontSize:13, color:C.ink, fontWeight:t.star?700:400 }}>{t.star?"★ ":""}{t.text}</span><span style={{ fontSize:10, color:C.faint }}>due today</span></div>)}
+              </div>
+            )}
             <input value={newTask} onChange={e=>setNewTask(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addTask("shortImp")} placeholder="Add task + Enter (→ Short/Important)…" style={{ ...inp, width:"100%", marginBottom:14 }}/>
             <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14 }}>
               <TodoBucket label="Short · Important" color={C.gold} items={day.todos.shortImp} bucket="shortImp" toggle={toggleTask} del={delTask}/>
@@ -1249,6 +1268,81 @@ function HabitsView({ allDays, links, saveLinks, cfg, saveCfg }){
         })}
       </div>
       <Mini>Quota habits (e.g. 3×/wk) streak by weeks hit, and this week can't break until it's over. Frozen days show as ❄ outlines — they never break a chain. Strength is the honest score: one miss dents it, consistency rebuilds it.</Mini>
+    </div>
+  );
+}
+
+// ============ MASTER TO-DO LIST (long-term, Microsoft To Do style) ============
+function TodoListView({ todos,save,flash }){
+  const [text,setText] = useState("");
+  const [due,setDue] = useState("");
+  const [star,setStar] = useState(false);
+  const [showDone,setShowDone] = useState(false);
+  const today = todayISO();
+
+  const add=()=>{ const t=text.trim(); if(!t) return;
+    save([{ id:Date.now(), text:t, done:false, star, due:due||null, created:today }, ...todos]);
+    setText(""); setDue(""); setStar(false); flash("Added"); };
+  const upd=(id,p)=> save(todos.map(t=>t.id===id?{...t,...p}:t));
+  const del=(id)=> save(todos.filter(t=>t.id!==id));
+  const clearDone=()=>{ if(confirmDel("all completed tasks")) save(todos.filter(t=>!t.done)); };
+
+  const open = todos.filter(t=>!t.done);
+  const done = todos.filter(t=>t.done);
+  const srt = (a,b)=> (b.star?1:0)-(a.star?1:0) || String(a.due||"9999").localeCompare(String(b.due||"9999")) || b.id-a.id;
+  const sections = [
+    { key:"overdue", title:"Overdue", color:C.red,  items: open.filter(t=>t.due && t.due<today).sort(srt) },
+    { key:"today",   title:"Today",   color:C.teal, items: open.filter(t=>t.due===today).sort(srt) },
+    { key:"upcoming",title:"Upcoming",color:C.gold, items: open.filter(t=>t.due && t.due>today).sort(srt) },
+    { key:"someday", title:"Someday", color:C.dim,  items: open.filter(t=>!t.due).sort(srt) },
+  ];
+
+  const Row = ({ t })=>(
+    <div style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 0", borderBottom:`1px solid ${C.line}` }}>
+      <Check on={t.done} color={t.star?C.gold:C.teal} onClick={()=>{ upd(t.id,{done:!t.done}); }} size={22}/>
+      <div style={{ flex:1, minWidth:0 }}>
+        <input value={t.text} onChange={e=>upd(t.id,{text:e.target.value})} style={{ background:"transparent", border:"none", outline:"none", width:"100%", fontSize:15, fontWeight:t.star?700:500, color:t.done?C.faint:C.ink, textDecoration:t.done?"line-through":"none", padding:0 }}/>
+        {t.due && <div style={{ fontSize:11, color: !t.done && t.due<today ? C.red : C.faint, marginTop:2 }}>📅 {fmt(t.due)}{!t.done && t.due<today ? " · overdue":""}</div>}
+      </div>
+      <input type="date" value={t.due||""} onChange={e=>upd(t.id,{due:e.target.value||null})} style={{ ...inp, padding:"5px 6px", fontSize:11, width:34, color:"transparent", cursor:"pointer" }} title="Set date"/>
+      <button onClick={()=>upd(t.id,{star:!t.star})} style={{ background:"none", border:"none", cursor:"pointer", fontSize:17, color:t.star?C.gold:C.faint, padding:0 }}>{t.star?"★":"☆"}</button>
+      <button onClick={()=>del(t.id)} style={{ background:"none", border:"none", color:C.faint, cursor:"pointer", fontSize:17, padding:0 }}>×</button>
+    </div>
+  );
+
+  return (
+    <div style={{ maxWidth:680, margin:"0 auto" }}>
+      <div style={{ textAlign:"center", marginBottom:18 }}>
+        <div style={{ fontFamily:"'Caveat',cursive", fontSize:40, color:C.teal }}>To Do</div>
+        <div style={{ fontSize:12, color:C.dim }}>{open.length} open · dated tasks appear on that day automatically</div>
+      </div>
+
+      <Panel accent={C.green} title={null} style={{ marginBottom:18 }}>
+        <input value={text} onChange={e=>setText(e.target.value)} onKeyDown={e=>e.key==="Enter"&&add()} placeholder="Add a task…" style={{ ...inp, width:"100%", fontSize:16, padding:"13px 12px", marginBottom:10 }}/>
+        <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
+          <input type="date" value={due} onChange={e=>setDue(e.target.value)} style={{ ...inp, fontSize:12, padding:"7px 8px" }}/>
+          {due && <button onClick={()=>setDue("")} style={{ background:"none", border:"none", color:C.faint, cursor:"pointer", fontSize:14 }}>×</button>}
+          <button onClick={()=>setStar(s=>!s)} style={{ background:"none", border:`1px solid ${star?C.gold:C.line}`, borderRadius:8, padding:"6px 10px", cursor:"pointer", fontSize:13, color:star?C.gold:C.dim }}>{star?"★ Important":"☆ Important"}</button>
+          <button onClick={add} style={{ ...addBtn, width:"auto", padding:"7px 18px", borderColor:C.green, color:C.green, marginLeft:"auto" }}>Add</button>
+        </div>
+      </Panel>
+
+      {open.length===0 && <Empty big>Nothing on the list. Add anything you must not forget — date it and it'll surface on that day's plan.</Empty>}
+      {sections.map(s=> s.items.length>0 && (
+        <Panel key={s.key} accent={s.color} title={`${s.title} · ${s.items.length}`} style={{ marginBottom:14 }}>
+          {s.items.map(t=> <Row key={t.id} t={t}/>)}
+        </Panel>
+      ))}
+
+      {done.length>0 && (
+        <div style={{ marginTop:6 }}>
+          <button onClick={()=>setShowDone(s=>!s)} style={{ ...addBtn }}>{showDone?"Hide":"Show"} completed ({done.length}) {showDone?"▴":"▾"}</button>
+          {showDone && <Panel accent={C.faint} title={null} style={{ marginTop:10 }}>
+            {done.map(t=> <Row key={t.id} t={t}/>)}
+            <button onClick={clearDone} style={{ ...addBtn, marginTop:10, borderColor:C.red, color:C.red }}>Clear all completed</button>
+          </Panel>}
+        </div>
+      )}
     </div>
   );
 }
