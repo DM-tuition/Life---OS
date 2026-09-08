@@ -141,6 +141,125 @@ function seedEvents(){ try{
   if(!localStorage.getItem("lifeos:seededEvents:v2")){ mergeMonths(SEED_EVENTS_FAMILY); localStorage.setItem("lifeos:seededEvents:v2","1"); }
 }catch{} }
 
+// ============ VAULT PLAN SEED (v3) — timetable + committed future, from the knowledge vault ============
+// Everything below is real, dated commitment pulled out of the second brain (Calendar, Live
+// Workstreams, ESAT Prep, UCAS List, ADS, DM-Tuition, Review) on 2026-09-08. It is merged into
+// whatever is already on the device — existing entries always win, nothing is overwritten, and
+// each seed runs exactly once behind its own version flag.
+
+// -- 1. Dated events -> Month tab -------------------------------------------------------------
+const SEED_EVENTS_PLAN = {
+  "2026-10": {
+    "2026-10-10": "UCAS — submit (target)",
+    "2026-10-13": "★ ESAT exam",
+    "2026-10-14": "Driving test",
+    "2026-10-15": "UCAS deadline — Oxford",
+  },
+};
+
+// -- 2. Open loops -> To Do tab ---------------------------------------------------------------
+// Hard deadlines carry the vault's own date. The rest are dated to the first sensible slot that
+// respects the deadline behind them — re-date any row with one tap if the timing is wrong.
+const SEED_TODOS = [
+  { k:"resync",   text:"Resync dump — 5 min of voice notes (100-miler result + total, residential, COMPOS, EY, Isla, ISA)", due:"2026-09-08", star:true },
+  { k:"sync",     text:"Life OS — switch on cloud sync so this data isn't one phone away from gone (CLOUD_SYNC_SETUP.md)", due:"2026-09-11", star:true },
+  { k:"esat-diag",text:"ESAT — sit the first scored, timed diagnostic", due:"2026-09-12", star:true },
+  { k:"esat-plan",text:"ESAT — turn the diagnostic into a week-by-week topic plan to 13 Oct", due:"2026-09-13", star:true },
+  { k:"terms",    text:"Add term dates + half-term to the Month tab (school calendar)", due:"2026-09-13" },
+  { k:"isla",     text:"Isla — lock a regular weekly slot, log each session", due:"2026-09-13" },
+  { k:"higgs",    text:"Higgs project — environment setup (Anaconda + CERN open data portal)", due:"2026-09-19" },
+  { k:"isa",      text:"Open the Stocks & Shares ISA — the £10k needs somewhere to land", due:"2026-09-19", star:true },
+  { k:"ads-close",text:"100-mile run close-out — final fundraising total, thank-yous, Challenge Log entry", due:"2026-09-20" },
+  { k:"ps",       text:"Personal statement — action the teacher feedback, revise the draft", due:"2026-09-20", star:true },
+  { k:"ey",       text:"Chase the EY apprenticeship outcome (interview sat 27 Jul)", due:"2026-09-21" },
+  { k:"apikey",   text:"⚠ DM Tuition — move the site chatbot's API key server-side, then rotate it", due:"2026-09-26", star:true },
+  { k:"decision", text:"Decide: Oxford Physics vs Cambridge NatSci — can't apply to both", due:"2026-10-04", star:true },
+  { k:"ucas",     text:"UCAS — final check and submit (Oxford deadline 15 Oct)", due:"2026-10-10", star:true },
+  { k:"interview",text:"Oxford/Cambridge interview prep block — starts once ESAT is sat", due:"2026-10-19" },
+  { k:"stamford", text:"Stamford House site — captain photos, real house email, verify the event data" },
+  { k:"tri",      text:"ADS — pick the next challenge (triathlon / HYROX) and put a date on it" },
+  { k:"peaks",    text:"Three Peaks 2027 — find the driver, then lock a weather window" },
+];
+
+// -- 3. Recurring commitments -> Day Type templates -------------------------------------------
+const PLAN_BLOCKS = {
+  obj:  { t:16.5, e:17.5,  label:"Objective block", cat:"Revision", note:"The one thing that matters today. ESAT topic drill until 13 Oct — timed, marked, not just read." },
+  gym:  { t:18,   e:19.25, label:"Gym · with Rory", cat:"Gym" },
+  ftbl: { t:19,   e:20.5,  label:"6-a-side football · Tom", cat:"Sport" },
+  wind: { t:22,   e:22.5,  label:"Wind-down · phone out of the room", cat:"Other", note:"Lights out 10:30. The evening phone is the sleep problem — this block is the fix." },
+};
+const PLAN_PATCH = {
+  "school-a-mon":["obj","gym","wind"],  "school-b-mon":["obj","gym","wind"],
+  "school-a-tue":["obj","ftbl","wind"], "school-b-tue":["obj","ftbl","wind"],
+  "school-a-wed":["obj","gym","wind"],  "school-b-wed":["obj","gym","wind"],
+  "school-a-thu":["obj","gym","wind"],  "school-b-thu":["obj","gym","wind"],
+  "school-a-fri":["obj","gym","wind"],  "school-b-fri":["obj","gym","wind"],
+  "weekend":["wind"], "holiday":["obj","wind"],
+};
+// A Saturday format for the run-in to 13 Oct: three papers to the clock, then the marking that
+// actually teaches you something.
+const PLAN_DAYTYPES = {
+  "esat-mock": { name:"ESAT Mock Day", color:C.gold, blocks:[
+    { t:9.5,  e:10.25, label:"ESAT Maths 1 · timed", cat:"Revision", note:"27 MCQs / 40 min. No calculator, no negative marking." },
+    { t:10.5, e:11.25, label:"ESAT Maths 2 · timed", cat:"Revision", note:"27 MCQs / 40 min." },
+    { t:11.5, e:12.25, label:"ESAT Physics · timed", cat:"Revision", note:"27 MCQs / 40 min." },
+    { t:13.5, e:15,    label:"Mark it + review every wrong answer", cat:"Revision", note:"The marking is the revision. Every miss goes on the weak-topic list." },
+    { t:16,   e:17.5,  label:"Gym", cat:"Gym" },
+    { t:22,   e:22.5,  label:"Wind-down · phone out of the room", cat:"Other" },
+  ]},
+  "tuition": { name:"Tuition Day", color:C.teal, blocks:[
+    { t:17, e:18, label:"Isla · maths & physics", cat:"Work", note:"Grade 6 → 9. Log what was covered, gaps, and homework straight after." },
+    { t:22, e:22.5, label:"Wind-down · phone out of the room", cat:"Other" },
+  ]},
+};
+
+// append seeded events to a day without clobbering what's already there
+function mergeMonthsAppend(seed){
+  for(const mk in seed){
+    const key="lifeos:monthEvents:"+mk; let ex={};
+    try{ ex=JSON.parse(localStorage.getItem(key)||"{}"); }catch{}
+    const out={ ...ex };
+    for(const iso in seed[mk]){
+      const cur = Array.isArray(out[iso]) ? out[iso] : (out[iso] ? [out[iso]] : []);
+      if(!cur.some(t=>String(t).trim().toLowerCase()===seed[mk][iso].toLowerCase())) cur.push(seed[mk][iso]);
+      out[iso]=cur;
+    }
+    localStorage.setItem(key, JSON.stringify(out));
+  }
+}
+function seedPlanTodos(){
+  let cur=[]; try{ cur=JSON.parse(localStorage.getItem("lifeos:masterTodos:v1")||"[]"); }catch{}
+  const have=new Set(cur.map(t=>String(t&&t.text||"").trim().toLowerCase()));
+  const seeded=new Set(cur.map(t=>t&&t.seed).filter(Boolean));
+  const add=SEED_TODOS
+    .filter(t=>!seeded.has(t.k) && !have.has(t.text.toLowerCase()))
+    .map((t,i)=>({ id:Date.now()+i, text:t.text, done:false, star:!!t.star, due:t.due||null, created:todayISO(), seed:t.k }));
+  if(add.length) localStorage.setItem("lifeos:masterTodos:v1", JSON.stringify([...add, ...cur]));
+}
+function seedPlanDayTypes(){
+  let dt=null; try{ dt=JSON.parse(localStorage.getItem("lifeos:dayTypes:v2")||"null"); }catch{}
+  const next={ ...(dt||SEED_DAYTYPES) };
+  for(const id in PLAN_PATCH){
+    const type=next[id]; if(!type) continue;
+    const blocks=[...(type.blocks||[])];
+    for(const k of PLAN_PATCH[id]){
+      const b=PLAN_BLOCKS[k];
+      if(!blocks.some(x=>String(x.label||"").toLowerCase()===b.label.toLowerCase())) blocks.push({ ...b });
+    }
+    next[id]={ ...type, blocks };
+  }
+  for(const id in PLAN_DAYTYPES) if(!next[id]) next[id]={ ...PLAN_DAYTYPES[id] };
+  localStorage.setItem("lifeos:dayTypes:v2", JSON.stringify(next));
+}
+function seedPlan(){ try{
+  if(localStorage.getItem("lifeos:seededPlan:v3")) return;
+  mergeMonthsAppend(SEED_EVENTS_PLAN);
+  seedPlanTodos();
+  seedPlanDayTypes();
+  localStorage.setItem("lifeos:seededPlan:v3","1");
+  schedulePush();          // make sure the seeded plan reaches the cloud row too, if sync is on
+}catch(e){ console.error(e); } }
+
 const blankDay = (iso)=>({
   date:iso, dayTypeId:null, blocks:[], bs:false, frozen:false, bin:[],
   reps:{ target:dayOfYear(iso), done:false },
@@ -302,6 +421,7 @@ export default function LifeOS(){
   useEffect(()=>{ (async()=>{
     await syncBootstrap();   // pull newest cloud state before reading local (no-op if sync isn't set up)
     seedEvents();            // add June calendar events to the Month tab once
+    seedPlan();              // one-time: vault dates, open loops and recurring commitments
     setDayTypes(await sGet("dayTypes:v2", SEED_DAYTYPES));
     setWeekMap(await sGet("weekMap:v2", DEFAULT_WEEK));
     setWeekMapB(await sGet("weekMapB:v1", DEFAULT_WEEK_B));
