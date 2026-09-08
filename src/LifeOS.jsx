@@ -81,6 +81,7 @@ const fmt = (iso)=> pd(iso).toLocaleDateString("en-GB",{weekday:"short",day:"num
 const dayOfYear = (iso)=>{ const d=pd(iso); const start=new Date(d.getFullYear(),0,0,12); return Math.floor((d-start)/86400000); };
 const hhmm = (dec)=>{ const h=Math.floor(dec); const m=Math.round((dec-h)*60); return `${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}`; };
 const weeksBetween = (isoA,isoB)=> Math.round((pd(isoB)-pd(isoA))/(7*86400000));
+const daysBetween = (isoA,isoB)=> Math.round((pd(isoB)-pd(isoA))/86400000);
 // true if the week containing `iso` is a "Week B" given `anchorA` (a Monday designated Week A)
 const weekIsB = (iso,anchorA)=> ((((weeksBetween(weekKeyOf(anchorA), weekKeyOf(iso)))%2)+2)%2)===1;
 
@@ -90,7 +91,8 @@ async function sSet(key,v){ try{ localStorage.setItem("lifeos:"+key, JSON.string
 
 // ============ CLOUD SYNC (optional Supabase backup + cross-device sync) ============
 // The whole local state is stored as one JSON blob per user. Last-write-wins by updated_at.
-let SB=null, SBuser=null, pushTimer=null;
+let SB=null, SBuser=null, pushTimer=null, lastSyncErr="";
+const syncErr = ()=> lastSyncErr;
 const SYNC_KEYS_SKIP = new Set(["lifeos:syncCfg","lifeos:lastSync"]);
 function syncCfg(){ try{ return JSON.parse(localStorage.getItem("lifeos:syncCfg")||"null"); }catch{ return null; } }
 function setSyncCfg(c){ localStorage.setItem("lifeos:syncCfg", JSON.stringify(c)); }
@@ -99,11 +101,13 @@ function collectState(){ const data={}; for(let i=0;i<localStorage.length;i++){ 
 function applyState(data){ for(const k in data){ if(k.startsWith("lifeos:")&&!SYNC_KEYS_SKIP.has(k)) localStorage.setItem(k, data[k]); } }
 async function pushState(){ if(!SB||!SBuser) return; try{ const updated_at=new Date().toISOString();
   const { error }=await SB.from("lifeos_state").upsert({ user_id:SBuser.id, data:collectState(), updated_at });
-  if(!error) localStorage.setItem("lifeos:lastSync", updated_at); }catch(e){ console.error(e); } }
+  if(error){ lastSyncErr=error.message||String(error); console.error(error); return; }
+  lastSyncErr=""; localStorage.setItem("lifeos:lastSync", updated_at); }catch(e){ lastSyncErr=String(e&&e.message||e); console.error(e); } }
 function schedulePush(){ if(!SB||!SBuser) return; clearTimeout(pushTimer); pushTimer=setTimeout(()=>{ pushState(); }, 1500); }
 async function pullState(){ if(!SB||!SBuser) return "no";
   try{ const { data, error }=await SB.from("lifeos_state").select("data,updated_at").eq("user_id",SBuser.id).maybeSingle();
-    if(error) return "err";
+    if(error){ lastSyncErr=error.message||String(error); return "err"; }
+    lastSyncErr="";
     if(!data){ await pushState(); return "seeded"; }
     const local=localStorage.getItem("lifeos:lastSync")||"";
     if((data.updated_at||"")>local){ applyState(data.data||{}); localStorage.setItem("lifeos:lastSync", data.updated_at); return "pulled"; }
@@ -213,6 +217,39 @@ const PLAN_DAYTYPES = {
   ]},
 };
 
+// -- 4. Key dates -> the deadline radar on Today ----------------------------------------------
+const KEY_DATES = [
+  { name:"UCAS submit", date:"2026-10-10" },
+  { name:"ESAT",        date:"2026-10-13" },
+  { name:"Driving test",date:"2026-10-14" },
+  { name:"Oxford deadline", date:"2026-10-15" },
+];
+
+// -- 5. The plan channel ----------------------------------------------------------------------
+// `lifeos:plan:v1` is written by the knowledge-vault Routine and arrives here through cloud sync
+// like any other key. Nothing in the app writes it. Shape:
+//   { updated:"2026-09-08T06:00:00Z",
+//     keyDates:[{ name:"ESAT", date:"2026-10-13" }],
+//     objective:{ date:"2026-09-09", label:"ESAT — circular motion, timed",
+//                 note:"45 min, marked.", t:16.5, e:17.5, cat:"Revision" } }
+// keyDates are merged into the radar; an objective for a given day is dropped onto that day's
+// timeline if nothing with the same label is already there.
+function readPlan(){ try{ return JSON.parse(localStorage.getItem("lifeos:plan:v1")||"null"); }catch{ return null; } }
+function planObjectiveFor(iso){
+  const p=readPlan(); const o=p&&p.objective;
+  if(!o||o.date!==iso||!o.label) return null;
+  const t=typeof o.t==="number"?o.t:16.5, e=typeof o.e==="number"?o.e:t+1;
+  return { t, e, label:String(o.label), cat:CATS[o.cat]?o.cat:"Revision", note:o.note?String(o.note):"" };
+}
+function mergePlanKeyDates(){
+  const p=readPlan(); if(!p||!Array.isArray(p.keyDates)) return;
+  let cur=[]; try{ cur=JSON.parse(localStorage.getItem("lifeos:keyDates:v1")||"[]"); }catch{}
+  const id=(d)=>`${d.date}|${String(d.name).trim().toLowerCase()}`;
+  const have=new Set(cur.map(id));
+  const add=p.keyDates.filter(d=>d&&d.date&&d.name&&!have.has(id(d))).map(d=>({ name:String(d.name), date:String(d.date) }));
+  if(add.length) localStorage.setItem("lifeos:keyDates:v1", JSON.stringify([...cur,...add]));
+}
+
 // append seeded events to a day without clobbering what's already there
 function mergeMonthsAppend(seed){
   for(const mk in seed){
@@ -252,6 +289,9 @@ function seedPlanDayTypes(){
   localStorage.setItem("lifeos:dayTypes:v2", JSON.stringify(next));
 }
 function seedPlan(){ try{
+  // key dates seed once and then belong to Dan — emptying the list keeps it empty
+  if(localStorage.getItem("lifeos:keyDates:v1")===null) localStorage.setItem("lifeos:keyDates:v1", JSON.stringify(KEY_DATES));
+  mergePlanKeyDates();
   if(localStorage.getItem("lifeos:seededPlan:v3")) return;
   mergeMonthsAppend(SEED_EVENTS_PLAN);
   seedPlanTodos();
@@ -406,6 +446,7 @@ export default function LifeOS(){
   const [habitLinks,setHabitLinks] = useState({});         // habit key -> block category (auto-complete)
   const [habitCfg,setHabitCfg] = useState({});             // habit key -> { per, type }
   const [masterTodos,setMasterTodos] = useState([]);       // long-term to-do list
+  const [keyDates,setKeyDates] = useState([]);             // deadline radar
   const [allDays,setAllDays] = useState({});
   const [finance,setFinance] = useState(null);
   const [toast,setToast] = useState("");
@@ -429,6 +470,7 @@ export default function LifeOS(){
     setHabitLinks(await sGet("habitLinks:v1", {}));
     setHabitCfg(await sGet("habitCfg:v1", {}));
     setMasterTodos(await sGet("masterTodos:v1", []));
+    setKeyDates(await sGet("keyDates:v1", []));
     const idx = await sGet("index:days", []);
     const map={}; for(const iso of idx) map[iso]=await sGet(`day:${iso}`, null);
     setAllDays(map);
@@ -458,6 +500,10 @@ export default function LifeOS(){
     if(d.frozen===undefined) d.frozen = false;
     if(!d.bin) d.bin = [];
     if(!d.breakdownAdj) d.breakdownAdj = { Sleep:0,Lessons:0,Revision:0,Gym:0,Activity:0 };
+    // the morning brief's one objective, if the vault Routine sent one for this day
+    const obj = planObjectiveFor(date);
+    if(obj && !(d.blocks||[]).some(b=>String(b.label||"").toLowerCase()===obj.label.toLowerCase()))
+      d.blocks = [...(d.blocks||[]), { id:Date.now(), done:false, ...obj }];
     // breakdown = auto from timeline + the day's manual adjustments
     d.breakdown = withAdj(computeBreakdown(d.blocks), d.breakdownAdj);
     setDay(d);
@@ -481,6 +527,7 @@ export default function LifeOS(){
   const persistHabitLinks = async (l)=>{ setHabitLinks(l); await sSet("habitLinks:v1", l); };
   const persistHabitCfg = async (c)=>{ setHabitCfg(c); await sSet("habitCfg:v1", c); };
   const persistMasterTodos = async (t)=>{ setMasterTodos(t); await sSet("masterTodos:v1", t); };
+  const persistKeyDates = async (k)=>{ setKeyDates(k); await sSet("keyDates:v1", k); };
   const toggleMasterTodo = (id)=> persistMasterTodos(masterTodos.map(t=>t.id===id?{...t,done:!t.done}:t));
   const applyDayType = (typeId)=>{ const dt=dayTypes[typeId]; if(!dt) return;
     persistDay({ ...day, dayTypeId:typeId, blocks:cloneBlocks(dt.blocks) }); flash(`Applied: ${dt.name}`); };
@@ -535,7 +582,7 @@ export default function LifeOS(){
       )}
 
       <div style={{ maxWidth:1180, margin:"0 auto", padding:isMobile?"16px 12px":"24px" }}>
-        {tab==="today" && <TodayView day={day} date={date} setDate={setDate} upd={upd} dayTypes={dayTypes} applyDayType={applyDayType} links={habitLinks} allDays={allDays} flash={flash} masterTodos={masterTodos} toggleMasterTodo={toggleMasterTodo} goTodos={()=>setTab("todo")} />}
+        {tab==="today" && <TodayView day={day} date={date} setDate={setDate} upd={upd} dayTypes={dayTypes} applyDayType={applyDayType} links={habitLinks} allDays={allDays} flash={flash} masterTodos={masterTodos} toggleMasterTodo={toggleMasterTodo} goTodos={()=>setTab("todo")} keyDates={keyDates} saveKeyDates={persistKeyDates} />}
         {tab==="todo" && <TodoListView todos={masterTodos} save={persistMasterTodos} flash={flash} />}
         {tab==="month" && <MonthView date={date} setDate={setDate} setTab={setTab} allDays={allDays} dayTypes={dayTypes} flash={flash} />}
         {tab==="habits" && <HabitsView allDays={allDays} links={habitLinks} saveLinks={persistHabitLinks} cfg={habitCfg} saveCfg={persistHabitCfg} />}
@@ -576,6 +623,21 @@ function BackupModal({ close,flash }){
 }
 
 // ============ CLOUD SYNC MODAL ============
+// Supabase's own error strings are useless on a phone at 2am — say what to actually do.
+function friendlyAuthError(msg,mode){
+  const m=String(msg||"").toLowerCase();
+  if(m.includes("invalid login credentials"))
+    return mode==="in"
+      ? "No account matches that email and password. If you haven't made one yet, tap Create account. If you have, check the password field wasn't autofilled with a saved password — clear it and type it out."
+      : "Supabase rejected that. Check the email and try a password of at least 6 characters.";
+  if(m.includes("already registered")||m.includes("already exists")) return "That email already has an account — tap Sign in instead.";
+  if(m.includes("email not confirmed")) return "The account exists but isn't confirmed. In Supabase: Authentication → Sign In/Providers → Email → turn Confirm email off, then sign in.";
+  if(m.includes("password should be")||m.includes("password is too short")) return "Password needs to be at least 6 characters.";
+  if(m.includes("failed to fetch")||m.includes("networkerror")) return "Couldn't reach the project. Check the Project URL and that you're online.";
+  if(m.includes("relation")&&m.includes("does not exist")) return "Signed in, but the lifeos_state table doesn't exist yet — run the SQL from step 2 of the setup guide.";
+  if(m.includes("rate limit")||m.includes("too many")) return "Too many attempts — wait a minute and try again.";
+  return msg;
+}
 function CloudSyncModal({ close,flash }){
   const cfg=syncCfg();
   const [url,setUrl]=useState(cfg?cfg.url:"");
@@ -590,17 +652,26 @@ function CloudSyncModal({ close,flash }){
   useEffect(()=>{ (async()=>{ if(initSupabase()){ try{ const { data:{ session } }=await SB.auth.getSession(); setSession(session); }catch{} } })(); },[]);
 
   const connect=()=>{ if(!url.trim()||!key.trim()){ setMsg("Paste both the URL and the anon key."); return; }
-    setSyncCfg({ url:url.trim(), key:key.trim() }); initSupabase(); setMsg("Connected ✓ — now sign in or create an account below."); flash("Project connected"); };
+    const clean=url.trim().replace(/\/+$/,"");   // a pasted trailing slash shouldn't matter
+    setUrl(clean); setSyncCfg({ url:clean, key:key.trim().replace(/\s+/g,"") });
+    initSupabase(); setMsg("Connected ✓ — now sign in or create an account below."); flash("Project connected"); };
   const auth=async(mode)=>{ if(!initSupabase()){ setMsg("Connect your project first."); return; }
     setBusy(true); setMsg("");
     try{ const fn = mode==="up" ? SB.auth.signUp({ email:email.trim(), password:pass }) : SB.auth.signInWithPassword({ email:email.trim(), password:pass });
       const { data, error }=await fn;
-      if(error){ setMsg(error.message); setBusy(false); return; }
+      if(error){ setMsg(friendlyAuthError(error.message,mode)); setBusy(false); return; }
       if(!data.session){ setMsg("Check your email to confirm, then sign in. (Or disable email confirmation in Supabase → Authentication → Sign In/Providers.)"); setBusy(false); return; }
       SBuser=data.session.user; setSession(data.session);
       const r=await pullState(); flash(r==="pulled"?"Synced from cloud":"Backed up to cloud");
       setTimeout(()=>location.reload(),700);
-    }catch(e){ setMsg(String(e&&e.message||e)); setBusy(false); } };
+    }catch(e){ setMsg(friendlyAuthError(String(e&&e.message||e),mode)); setBusy(false); } };
+  const reset=async()=>{ if(!initSupabase()){ setMsg("Connect your project first."); return; }
+    if(!email.trim()){ setMsg("Put your email in first, then tap reset."); return; }
+    setBusy(true);
+    try{ const { error }=await SB.auth.resetPasswordForEmail(email.trim());
+      setMsg(error ? friendlyAuthError(error.message,"in") : "Reset link sent — check that inbox. (Needs an email provider configured in Supabase; if nothing arrives, delete the user under Authentication → Users and create the account again.)");
+    }catch(e){ setMsg(String(e&&e.message||e)); }
+    setBusy(false); };
   const signOut=async()=>{ try{ await SB.auth.signOut(); }catch{} SBuser=null; setSession(null); flash("Signed out"); };
   const syncNow=async()=>{ setBusy(true); SBuser=session.user; const r=await pullState(); await pushState(); setBusy(false); flash(r==="pulled"?"Pulled latest + synced":"Synced ✓"); setTimeout(()=>location.reload(),500); };
 
@@ -615,10 +686,13 @@ function CloudSyncModal({ close,flash }){
         {session ? (
           <>
             <div style={{ padding:14, background:C.panel2, borderRadius:10, marginBottom:14 }}>
-              <div style={{ fontSize:12, color:C.green, fontWeight:600 }}>● Synced &amp; backing up automatically</div>
+              <div style={{ fontSize:12, color:syncErr()?C.red:C.green, fontWeight:600 }}>{syncErr()?"● Signed in — but the last save failed":"● Synced & backing up automatically"}</div>
               <div style={{ fontSize:12, color:C.dim, marginTop:4 }}>Signed in as {session.user.email}</div>
               <div style={{ fontSize:11, color:C.faint, marginTop:2 }}>Last sync: {localStorage.getItem("lifeos:lastSync")?fmt(localStorage.getItem("lifeos:lastSync").slice(0,10)):"—"}</div>
             </div>
+            {syncErr() && <div style={{ padding:12, background:"rgba(224,82,74,.12)", border:`1px solid ${C.red}`, borderRadius:10, marginBottom:14, fontSize:12, color:C.ink, lineHeight:1.5 }}>
+              <b style={{ color:C.red }}>Last save failed.</b> {friendlyAuthError(syncErr(),"in")}
+            </div>}
             <button onClick={syncNow} disabled={busy} style={{ ...addBtn, borderColor:C.teal, color:C.teal, marginBottom:10 }}>{busy?"Syncing…":"↻ Sync now"}</button>
             <button onClick={signOut} style={{ ...addBtn, marginBottom:10 }}>Sign out</button>
           </>
@@ -637,6 +711,8 @@ function CloudSyncModal({ close,flash }){
               <button onClick={()=>auth("up")} disabled={busy} style={{ ...addBtn, flex:1, borderColor:C.green, color:C.green }}>Create account</button>
               <button onClick={()=>auth("in")} disabled={busy} style={{ ...addBtn, flex:1, borderColor:C.teal, color:C.teal }}>Sign in</button>
             </div>
+            <button onClick={reset} disabled={busy} style={{ ...addBtn, marginTop:8, fontSize:12 }}>Forgotten the password? Send a reset link</button>
+            <div style={{ fontSize:11, color:C.faint, marginTop:10, lineHeight:1.5 }}>First device: <b>Create account</b>. Every device after that: <b>Sign in</b> — creating a second account gives you a second, empty copy.</div>
           </>
         )}
         {msg && <div style={{ fontSize:11, color:C.gold, marginTop:12, lineHeight:1.5 }}>{msg}</div>}
@@ -832,8 +908,60 @@ function Timeline({ blocks,onChange,isToday=false,isPast=false,sketch,onSketch,o
   );
 }
 
+// ============ DEADLINE RADAR (the app was date-blind; now it counts down) ============
+function DeadlineRadar({ dates,save,setDate }){
+  const [edit,setEdit] = useState(false);
+  const [nm,setNm] = useState(""); const [dt,setDt] = useState("");
+  const today = todayISO();
+  const list = (dates||[]).filter(d=>d&&d.date);
+  const up = [...list].filter(d=>d.date>=today).sort((a,b)=>a.date.localeCompare(b.date));
+  const col = (n)=> n<=7?C.red : n<=21?C.gold : C.dim;
+  const lab = (n)=> n===0?"today" : n===1?"tomorrow" : `${n} days`;
+  const add = ()=>{ if(!nm.trim()||!dt) return; save([...list,{ name:nm.trim(), date:dt }]); setNm(""); setDt(""); };
+  const upd = (i,patch)=> save(list.map((d,j)=>j===i?{...d,...patch}:d));
+  const del = (i)=> save(list.filter((_,j)=>j!==i));
+
+  return (
+    <div style={{ marginBottom:14 }}>
+      <div style={{ display:"flex", alignItems:"center", gap:8, overflowX:"auto", paddingBottom:2 }} className="lo-tabs">
+        {up.length===0 && <button onClick={()=>setEdit(true)} style={{ ...addBtn, width:"auto", padding:"7px 14px", fontSize:12 }}>+ add a date worth counting down to</button>}
+        {up.slice(0,5).map((d,i)=>{ const n=daysBetween(today,d.date); const c=col(n); return (
+          <button key={d.date+d.name+i} onClick={()=>setDate(d.date)} style={{ flexShrink:0, display:"flex", alignItems:"baseline", gap:7, background:C.panel, border:`1px solid ${n<=7?c:C.line}`, borderRadius:20, padding:"6px 13px", cursor:"pointer" }}>
+            <span style={{ fontSize:13, fontWeight:700, color:c, fontVariantNumeric:"tabular-nums" }}>{lab(n)}</span>
+            <span style={{ fontSize:12, color:C.dim, whiteSpace:"nowrap" }}>{d.name}</span>
+          </button>
+        ); })}
+        {up.length>0 && <button onClick={()=>setEdit(true)} style={{ flexShrink:0, width:30, height:30, borderRadius:"50%", border:`1px solid ${C.line}`, background:"transparent", color:C.faint, cursor:"pointer", fontSize:13, padding:0 }}>⋯</button>}
+      </div>
+
+      {edit && (
+        <div onClick={()=>setEdit(false)} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,.6)", zIndex:200, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
+          <div onClick={e=>e.stopPropagation()} style={{ background:C.panel, border:`1px solid ${C.line}`, borderRadius:14, padding:20, width:"100%", maxWidth:400, maxHeight:"84vh", overflowY:"auto" }}>
+            <div style={{ fontFamily:"'Caveat',cursive", fontSize:26, color:C.teal, marginBottom:4 }}>Deadline radar</div>
+            <div style={{ fontSize:12, color:C.dim, marginBottom:16, lineHeight:1.5 }}>The dates that decide things. They count down on Today and drop off on their own once they've passed.</div>
+            {list.sort((a,b)=>a.date.localeCompare(b.date)).map((d,i)=>(
+              <div key={i} style={{ display:"flex", gap:6, alignItems:"center", marginBottom:8 }}>
+                <input value={d.name} onChange={e=>upd(i,{name:e.target.value})} style={{ ...inp, flex:1, fontSize:13, minWidth:0 }}/>
+                <input type="date" value={d.date} onChange={e=>e.target.value&&upd(i,{date:e.target.value})} style={{ ...inp, fontSize:12, padding:"7px 8px" }}/>
+                <button onClick={()=>del(i)} style={delBtn}>×</button>
+              </div>
+            ))}
+            {list.length===0 && <Empty>Nothing on the radar.</Empty>}
+            <div style={{ display:"flex", gap:6, marginTop:14, marginBottom:14 }}>
+              <input value={nm} onChange={e=>setNm(e.target.value)} placeholder="What is it?" style={{ ...inp, flex:1, minWidth:0 }}/>
+              <input type="date" value={dt} onChange={e=>setDt(e.target.value)} style={{ ...inp, fontSize:12, padding:"7px 8px" }}/>
+              <button onClick={add} style={{ ...addBtn, width:"auto", padding:"0 14px", borderColor:C.green, color:C.green }}>Add</button>
+            </div>
+            <button onClick={()=>setEdit(false)} style={addBtn}>Done</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ============ TODAY ============
-function TodayView({ day,date,setDate,upd,dayTypes,applyDayType,links,allDays,flash,masterTodos,toggleMasterTodo,goTodos }){
+function TodayView({ day,date,setDate,upd,dayTypes,applyDayType,links,allDays,flash,masterTodos,toggleMasterTodo,goTodos,keyDates,saveKeyDates }){
   const [newTask,setNewTask] = useState("");
   const [showApply,setShowApply] = useState(false);
   const isMobile = useIsMobile();
@@ -885,6 +1013,7 @@ function TodayView({ day,date,setDate,upd,dayTypes,applyDayType,links,allDays,fl
 
   return (
     <div onTouchStart={onTS} onTouchEnd={onTE}>
+      <DeadlineRadar dates={keyDates} save={saveKeyDates} setDate={setDate} />
       <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:18, marginBottom:10 }}>
         <Nav onClick={()=>setDate(addDays(date,-1))}>‹</Nav>
         <div style={{ textAlign:"center", minWidth:200, position:"relative" }}>
@@ -1151,6 +1280,33 @@ function WeekView({ allDays,date,setDate,links }){
   const bdTotals = BREAKDOWN.map(k=>({ k, hrs:filled.reduce((s,d)=>s+(d.breakdown[k]||0),0) }));
   const maxBd = Math.max(1, ...bdTotals.map(b=>b.hrs));
 
+  // ---- six-week patterns: what actually gets skipped, and on which day ----
+  const patterns = useMemo(()=>{
+    const today=todayISO(), cutoff=addDays(today,-42);
+    const days=Object.values(allDays).filter(d=>d&&d.date>=cutoff&&d.date<=today&&!d.frozen&&(d.blocks||[]).length);
+    if(days.length<7) return { short:days.length };
+    const byDow={}, skips={}, skipsByDow={};
+    for(const d of days){
+      const el=(d.blocks||[]).filter(b=> d.date<today || b.e<=nowDec());
+      if(!el.length) continue;
+      const dn=dayNameOf(d.date);
+      const row=byDow[dn]||(byDow[dn]={ t:0,k:0,bs:0,n:0 });
+      row.t+=el.length; row.k+=el.filter(b=>b.status!=="missed").length; row.n++; if(d.bs) row.bs++;
+      for(const b of el) if(b.status==="missed"){ const l=b.label||"(untitled)";
+        skips[l]=(skips[l]||0)+1;
+        (skipsByDow[dn]=skipsByDow[dn]||{})[l]=((skipsByDow[dn]||{})[l]||0)+1; }
+    }
+    const rows=DAYS.filter(dn=>byDow[dn]&&byDow[dn].t>0).map(dn=>({ dn, ...byDow[dn], pct:Math.round(byDow[dn].k/byDow[dn].t*100) }));
+    if(!rows.length) return { short:days.length };
+    const worst=[...rows].sort((a,b)=>a.pct-b.pct)[0];
+    const best=[...rows].sort((a,b)=>b.pct-a.pct)[0];
+    const top=Object.entries(skips).sort((a,b)=>b[1]-a[1]).slice(0,3);
+    const bsDow=[...rows].sort((a,b)=>b.bs-a.bs)[0];
+    // what gets dropped ON the worst day — that's the block worth moving, not the global winner
+    const worstTop=Object.entries(skipsByDow[worst.dn]||{}).sort((a,b)=>b[1]-a[1])[0];
+    return { rows, worst, best, top, bsDow, worstTop, n:days.length };
+  },[allDays]);
+
   const [review,setReview] = useState({ feedback:"",adapt1:"",adapt2:"",target1:"",target2:"" });
   useEffect(()=>{ (async()=>{ setReview(await sGet(`review:${wk}`, { feedback:"",adapt1:"",adapt2:"",target1:"",target2:"" })); })(); },[wk]);
   const saveReview = async (patch)=>{ const r={...review,...patch}; setReview(r); await sSet(`review:${wk}`, r); };
@@ -1182,6 +1338,41 @@ function WeekView({ allDays,date,setDate,links }){
         <Panel accent={C.sleep} title="Where Time Went">
           {bdTotals.map(b=> <div key={b.k} style={{ display:"flex", alignItems:"center", gap:10, marginBottom:11 }}><span style={{ width:70, fontSize:13, color:C.dim }}>{b.k}</span><div style={{ flex:1, height:10, background:C.panel2, borderRadius:5, overflow:"hidden" }}><div style={{ width:`${(b.hrs/maxBd)*100}%`, height:"100%", background:C.sleep }}/></div><span style={{ width:42, textAlign:"right", fontSize:13, color:C.ink }}>{b.hrs}h</span></div>)}
         </Panel>
+        <Panel accent={C.gold} title="Patterns · last 6 weeks" style={{ gridColumn:"1 / -1" }} right={<span style={{ fontSize:11, color:C.faint }}>{patterns.rows?`${patterns.n} days`:""}</span>}>
+          {!patterns.rows ? <Empty>Log a few more planned days and this fills in — it needs about a week of timelines before the pattern means anything.</Empty> : (
+            <>
+              <Label>Plan adherence by day of the week</Label>
+              {patterns.rows.map(r=>(
+                <div key={r.dn} style={{ display:"flex", alignItems:"center", gap:10, marginBottom:8 }}>
+                  <span style={{ width:34, fontSize:12, color:C.dim }}>{r.dn.slice(0,3)}</span>
+                  <div style={{ flex:1, height:9, background:C.panel2, borderRadius:5, overflow:"hidden" }}>
+                    <div style={{ width:`${r.pct}%`, height:"100%", background: r.pct>=70?C.green : r.pct>=40?C.gold : C.red }}/>
+                  </div>
+                  <span style={{ width:38, textAlign:"right", fontSize:12, color:C.ink, fontVariantNumeric:"tabular-nums" }}>{r.pct}%</span>
+                  <span style={{ width:52, textAlign:"right", fontSize:10, color:C.faint }}>{r.n} {r.n===1?"day":"days"}</span>
+                </div>
+              ))}
+              {patterns.top.length>0 && (
+                <div style={{ marginTop:16 }}>
+                  <Label>Blocks you swipe away most</Label>
+                  {patterns.top.map(([label,n])=>(
+                    <div key={label} style={{ display:"flex", justifyContent:"space-between", gap:10, padding:"6px 0", borderBottom:`1px solid ${C.line}` }}>
+                      <span style={{ fontSize:13, color:C.ink, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{label}</span>
+                      <span style={{ fontSize:12, color:C.red, flexShrink:0 }}>skipped {n}×</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div style={{ marginTop:16, padding:14, background:C.panel2, borderRadius:10, fontSize:13, color:C.ink, lineHeight:1.55 }}>
+                {patterns.worst.pct<70
+                  ? <><b>{patterns.worst.dn}</b> is your weakest day at <b style={{color:C.red}}>{patterns.worst.pct}%</b>{patterns.best.pct-patterns.worst.pct>=15?<> — against {patterns.best.pct}% on {patterns.best.dn}</>:null}. That's a timetable problem, not a willpower one: move {patterns.worstTop?<b>{patterns.worstTop[0]}</b>:"the block you keep skipping"} to a time you actually turn up, then change the day type so next {patterns.worst.dn} starts right.</>
+                  : <>Adherence is holding above 70% every day — the plan you write is roughly the plan you live. Push the next block harder rather than tidying the schedule.</>}
+                {patterns.bsDow&&patterns.bsDow.bs>1 ? <> Also: <b>{patterns.bsDow.bs}</b> BS days landed on a <b>{patterns.bsDow.dn}</b>.</> : null}
+              </div>
+            </>
+          )}
+        </Panel>
+
         <Panel accent={C.cyan} title="Events / Learned / Thoughts" style={{ gridColumn:"1 / -1" }}>
           <textarea value={review.feedback} onChange={e=>saveReview({feedback:e.target.value})} placeholder="What happened this week? What did you learn?" style={{ ...inp, width:"100%", minHeight:80, resize:"vertical" }}/>
         </Panel>
