@@ -173,4 +173,9 @@ export const VAULT_PLAN = [
     text: "Stamford House site — captain photos, real house email, verify the event data" },
   { key: "td-peaks",      kind: "todo",
     text: "Three Peaks 2027 — find the driver, then lock a weather window" },
+
+  // --- appended 2026-09-09 -------------------------------------------------
+  // The 4 Oct half marathon was seeded from the family calendar in July and is not real
+  // (corrected in the vault 7 Sep) — HYROX at the end of October replaced it.
+  { key: "fix-half-marathon-4oct", kind: "event-remove", date: "2026-10-04", text: "Half marathon" },
 ];
