@@ -17,17 +17,24 @@ Production builds output to `dist/` and are deployed automatically by Vercel on 
 
 ## Seeded data (from the knowledge vault)
 
-Real dates and commitments are seeded into the app from Dan's knowledge vault rather than
-typed in by hand. Each seed runs **once per device**, behind its own flag in `localStorage`:
+`src/vault-plan.js` is the one file that carries Dan's real life into the app: the Year 13
+timetable, the calendar, the deadline radar and the open-loop list, all sourced from
+`DM-tuition/knowledge-vault`.
 
-| Flag | What it seeds |
-|---|---|
-| `lifeos:seededEvents:v1` / `:v2` | June calendar + confirmed family-calendar events → Month tab |
-| `lifeos:seededPlan:v3` | Vault dates (ESAT, UCAS, driving test) → Month · open loops → To Do · recurring commitments (objective block, gym, football, wind-down) and the ESAT Mock / Tuition formats → Day Types |
+Every entry has a `key`. The app applies a key once per device and records it in
+`lifeos:appliedSeeds:v1`, so:
 
-Rules for adding a seed: bump to a new flag, never reuse one; merge into what's on the device
-(existing entries always win); make it idempotent so a re-run is a no-op. See `seedPlan()` in
-`src/LifeOS.jsx`.
+- **adding something Dan tells us = append one entry with a new key.** It lands on his phone at
+  the next load and never re-applies.
+- **his edits stick** — deleting or re-dating something afterwards is permanent, because the
+  key is already marked applied.
+- entries are additive; only ones marked `replace: true` overwrite (a new timetable does).
+
+Never edit or reuse an existing key — that is what makes the whole thing safe to re-run.
+Entry kinds: `event`, `event-remove`, `keyDate`, `todo`, `dayTypes`, `weekAnchor`.
+
+Older one-shot seeds (`lifeos:seededEvents:v1` / `:v2`, the June and family-calendar events)
+still run behind their own flags and are left alone.
 
 ## The plan channel (`lifeos:plan:v1`)
 

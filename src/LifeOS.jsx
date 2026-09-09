@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { createClient } from "@supabase/supabase-js";
+import { VAULT_PLAN, DEFAULT_DAYTYPES } from "./vault-plan";
 
 // ============ DESIGN TOKENS ============
 const C = {
@@ -14,44 +15,10 @@ const CATS = {
 };
 const CAT_KEYS = Object.keys(CATS);
 
-// ============ DAY TYPE TEMPLATES — Daniel's real 12GH A-level timetable (Week A/B) ============
-// Normal day (Mon/Tue/Wed/Fri): Form 8:40, P1 9:00, P2 10:00, break, P3 11:20, lunch 12:20-13:20, P4 13:20, P5 14:20-15:20
-// Thursday (no form): starts 9:20, 55-min lessons, 20-min break, lunch 12:30-13:30
-const FORM=[8+40/60, 9];
-const NP=[null,[9,10],[10,11],[11+20/60,12+20/60],[13+20/60,14+20/60],[14+20/60,15+20/60]];
-const TP=[null,[9+20/60,10+15/60],[10+15/60,11+10/60],[11.5,12+25/60],[13.5,14+25/60],[14+25/60,15+20/60]];
-const form=()=>({ t:FORM[0], e:FORM[1], label:"Form · S14", cat:"School" });
-const lesson=(p,label)=>({ t:p[0], e:p[1], label, cat:"School" });
-const study=(p)=>({ t:p[0], e:p[1], label:"Private Study", cat:"Revision" });
-const games=(p)=>({ t:p[0], e:p[1], label:"Games · Field", cat:"Sport" });
-const SEED_DAYTYPES = {
-  "school-a-mon": { name:"Week A · Mon", color:C.pink, blocks:[
-    form(), lesson(NP[1],"F. Maths · S15"), lesson(NP[2],"Physics · PC1"), lesson(NP[3],"F. Maths · S14"), study(NP[4]), lesson(NP[5],"F. Maths · M6") ]},
-  "school-a-tue": { name:"Week A · Tue", color:C.pink, blocks:[
-    form(), lesson(NP[1],"Economics · S18"), study(NP[2]), lesson(NP[3],"Economics · S18"), lesson(NP[4],"Physics · PC3"), lesson(NP[5],"F. Maths · S15") ]},
-  "school-a-wed": { name:"Week A · Wed", color:C.pink, blocks:[
-    form(), lesson(NP[1],"Economics · S20"), lesson(NP[2],"Physics · PC3"), study(NP[3]), lesson(NP[4],"Economics · S20"), games(NP[5]) ]},
-  "school-a-thu": { name:"Week A · Thu", color:C.pink, blocks:[
-    study(TP[1]), lesson(TP[2],"Physics · PC1"), study(TP[3]), lesson(TP[4],"Physics · PC3"), lesson(TP[5],"F. Maths · M6") ]},
-  "school-a-fri": { name:"Week A · Fri", color:C.pink, blocks:[
-    form(), lesson(NP[1],"F. Maths · S14"), study(NP[2]), lesson(NP[3],"Physics · PC3"), lesson(NP[4],"Economics · S20") ]},
-  "school-b-mon": { name:"Week B · Mon", color:C.cyan, blocks:[
-    form(), lesson(NP[1],"F. Maths · S15"), lesson(NP[2],"Physics · PC1"), lesson(NP[3],"F. Maths · S15"), lesson(NP[4],"F. Maths · S14"), lesson(NP[5],"Physics · PC3") ]},
-  "school-b-tue": { name:"Week B · Tue", color:C.cyan, blocks:[
-    form(), lesson(NP[1],"Economics · S18"), study(NP[2]), lesson(NP[3],"Economics · S18"), lesson(NP[4],"Physics · PC1"), lesson(NP[5],"F. Maths · S14") ]},
-  "school-b-wed": { name:"Week B · Wed", color:C.cyan, blocks:[
-    form(), lesson(NP[1],"Economics · S20"), lesson(NP[2],"F. Maths · M6"), study(NP[3]), lesson(NP[4],"Economics · S20"), games(NP[5]) ]},
-  "school-b-thu": { name:"Week B · Thu", color:C.cyan, blocks:[
-    study(TP[1]), study(TP[2]), study(TP[3]), study(TP[4]), lesson(TP[5],"F. Maths · S14") ]},
-  "school-b-fri": { name:"Week B · Fri", color:C.cyan, blocks:[
-    form(), lesson(NP[1],"Economics · S18"), lesson(NP[2],"F. Maths · S15"), lesson(NP[3],"Physics · PC3"), lesson(NP[4],"F. Maths · M6") ]},
-  "weekend": { name:"Weekend", color:C.green, blocks:[
-    { t:10,e:12,label:"Revision",cat:"Revision" }, { t:15,e:16.5,label:"Gym",cat:"Gym" } ]},
-  "holiday": { name:"Holiday / Half-term", color:C.gold, blocks:[
-    { t:10,e:12,label:"Deep work / revision",cat:"Revision" }, { t:16,e:18,label:"Gym",cat:"Gym" } ]},
-  "rest": { name:"Rest Day", color:C.purple, blocks:[] },
-  "blank": { name:"Blank Day", color:C.dim, blocks:[] },
-};
+// ============ DAY TYPE TEMPLATES ============
+// Dan's real Year 13 timetable (form 13GH, two-week A/B rota) lives in src/vault-plan.js so
+// that one file carries everything the vault knows. This is what a fresh device starts with.
+const SEED_DAYTYPES = DEFAULT_DAYTYPES;
 
 const DAYS = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
 const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
@@ -145,95 +112,65 @@ function seedEvents(){ try{
   if(!localStorage.getItem("lifeos:seededEvents:v2")){ mergeMonths(SEED_EVENTS_FAMILY); localStorage.setItem("lifeos:seededEvents:v2","1"); }
 }catch{} }
 
-// ============ VAULT PLAN SEED (v3) — timetable + committed future, from the knowledge vault ============
-// Everything below is real, dated commitment pulled out of the second brain (Calendar, Live
-// Workstreams, ESAT Prep, UCAS List, ADS, DM-Tuition, Review) on 2026-09-08. It is merged into
-// whatever is already on the device — existing entries always win, nothing is overwritten, and
-// each seed runs exactly once behind its own version flag.
+// ============ VAULT PLAN — applied per entry, once per device ============
+// The data lives in src/vault-plan.js. Each entry carries a key; a key is applied once and
+// recorded, so appending a new entry ships exactly that one change and nothing re-runs.
+// Everything is additive unless an entry says `replace` — Dan's own edits always survive.
+const APPLIED = "lifeos:appliedSeeds:v1";
+function appliedKeys(){ try{ return new Set(JSON.parse(localStorage.getItem(APPLIED)||"[]")); }catch{ return new Set(); } }
+function readLS(key,fb){ try{ const r=localStorage.getItem("lifeos:"+key); return r!==null?JSON.parse(r):fb; }catch{ return fb; } }
+const writeLS = (key,v)=> localStorage.setItem("lifeos:"+key, JSON.stringify(v));
+const evArrOf = (v)=> Array.isArray(v)?v:(v?[v]:[]);
+const sameText = (a,b)=> String(a).trim().toLowerCase()===String(b).trim().toLowerCase();
 
-// -- 1. Dated events -> Month tab -------------------------------------------------------------
-const SEED_EVENTS_PLAN = {
-  "2026-10": {
-    "2026-10-10": "UCAS — submit (target)",
-    "2026-10-13": "★ ESAT exam",
-    "2026-10-14": "Driving test",
-    "2026-10-15": "UCAS deadline — Oxford",
-  },
-};
+function applyEntry(e){
+  switch(e.kind){
+    case "event": {                       // add an event to a day, keeping whatever is there
+      const mk=e.date.slice(0,7), map=readLS("monthEvents:"+mk,{});
+      const cur=evArrOf(map[e.date]);
+      if(!cur.some(t=>sameText(t,e.text))) map[e.date]=[...cur,e.text];
+      writeLS("monthEvents:"+mk,map); return;
+    }
+    case "event-remove": {                // undo something this file got wrong earlier
+      const mk=e.date.slice(0,7), map=readLS("monthEvents:"+mk,{});
+      const cur=evArrOf(map[e.date]).filter(t=>!sameText(t,e.text));
+      if(cur.length) map[e.date]=cur; else delete map[e.date];
+      writeLS("monthEvents:"+mk,map); return;
+    }
+    case "keyDate": {                     // deadline radar
+      const cur=readLS("keyDates:v1",[]);
+      if(!cur.some(d=>d.date===e.date&&sameText(d.name,e.name))) writeLS("keyDates:v1",[...cur,{ name:e.name, date:e.date }]);
+      return;
+    }
+    case "todo": {
+      const cur=readLS("masterTodos:v1",[]);
+      if(cur.some(t=>t&&(t.seed===e.key||sameText(t.text||"",e.text)))) return;
+      writeLS("masterTodos:v1",[{ id:Date.now()+Math.floor(Math.random()*1000), text:e.text, done:false,
+        star:!!e.star, due:e.due||null, created:todayISO(), seed:e.key }, ...cur]);
+      return;
+    }
+    case "dayTypes": {                    // `replace` overwrites the ids it names (a new timetable)
+      const cur=readLS("dayTypes:v2",SEED_DAYTYPES), next={ ...cur };
+      for(const id in e.types){ if(e.replace || !next[id]) next[id]={ ...e.types[id] }; }
+      writeLS("dayTypes:v2",next); return;
+    }
+    case "weekAnchor": writeLS("weekAnchorA:v1", e.monday); return;
+    default: console.warn("vault-plan: unknown entry kind", e.kind);
+  }
+}
 
-// -- 2. Open loops -> To Do tab ---------------------------------------------------------------
-// Hard deadlines carry the vault's own date. The rest are dated to the first sensible slot that
-// respects the deadline behind them — re-date any row with one tap if the timing is wrong.
-const SEED_TODOS = [
-  { k:"resync",   text:"Resync dump — 5 min of voice notes (100-miler result + total, residential, COMPOS, EY, Isla, ISA)", due:"2026-09-08", star:true },
-  { k:"sync",     text:"Life OS — switch on cloud sync so this data isn't one phone away from gone (CLOUD_SYNC_SETUP.md)", due:"2026-09-11", star:true },
-  { k:"esat-diag",text:"ESAT — sit the first scored, timed diagnostic", due:"2026-09-12", star:true },
-  { k:"esat-plan",text:"ESAT — turn the diagnostic into a week-by-week topic plan to 13 Oct", due:"2026-09-13", star:true },
-  { k:"terms",    text:"Add term dates + half-term to the Month tab (school calendar)", due:"2026-09-13" },
-  { k:"isla",     text:"Isla — lock a regular weekly slot, log each session", due:"2026-09-13" },
-  { k:"higgs",    text:"Higgs project — environment setup (Anaconda + CERN open data portal)", due:"2026-09-19" },
-  { k:"isa",      text:"Open the Stocks & Shares ISA — the £10k needs somewhere to land", due:"2026-09-19", star:true },
-  { k:"ads-close",text:"100-mile run close-out — final fundraising total, thank-yous, Challenge Log entry", due:"2026-09-20" },
-  { k:"ps",       text:"Personal statement — action the teacher feedback, revise the draft", due:"2026-09-20", star:true },
-  { k:"ey",       text:"Chase the EY apprenticeship outcome (interview sat 27 Jul)", due:"2026-09-21" },
-  { k:"apikey",   text:"⚠ DM Tuition — move the site chatbot's API key server-side, then rotate it", due:"2026-09-26", star:true },
-  { k:"decision", text:"Decide: Oxford Physics vs Cambridge NatSci — can't apply to both", due:"2026-10-04", star:true },
-  { k:"ucas",     text:"UCAS — final check and submit (Oxford deadline 15 Oct)", due:"2026-10-10", star:true },
-  { k:"interview",text:"Oxford/Cambridge interview prep block — starts once ESAT is sat", due:"2026-10-19" },
-  { k:"stamford", text:"Stamford House site — captain photos, real house email, verify the event data" },
-  { k:"tri",      text:"ADS — pick the next challenge (triathlon / HYROX) and put a date on it" },
-  { k:"peaks",    text:"Three Peaks 2027 — find the driver, then lock a weather window" },
-];
+function applyVaultPlan(){ try{
+  const done=appliedKeys(); let changed=false;
+  for(const e of VAULT_PLAN){
+    if(!e||!e.key||done.has(e.key)) continue;
+    try{ applyEntry(e); done.add(e.key); changed=true; }
+    catch(err){ console.error("vault-plan entry failed:", e.key, err); }
+  }
+  if(changed){ localStorage.setItem(APPLIED, JSON.stringify([...done])); schedulePush(); }
+}catch(e){ console.error(e); } }
 
-// -- 3. Recurring commitments -> Day Type templates -------------------------------------------
-const PLAN_BLOCKS = {
-  obj:  { t:16.5, e:17.5,  label:"Objective block", cat:"Revision", note:"The one thing that matters today. ESAT topic drill until 13 Oct — timed, marked, not just read." },
-  gym:  { t:18,   e:19.25, label:"Gym · with Rory", cat:"Gym" },
-  ftbl: { t:19,   e:20.5,  label:"6-a-side football · Tom", cat:"Sport" },
-  wind: { t:22,   e:22.5,  label:"Wind-down · phone out of the room", cat:"Other", note:"Lights out 10:30. The evening phone is the sleep problem — this block is the fix." },
-};
-const PLAN_PATCH = {
-  "school-a-mon":["obj","gym","wind"],  "school-b-mon":["obj","gym","wind"],
-  "school-a-tue":["obj","ftbl","wind"], "school-b-tue":["obj","ftbl","wind"],
-  "school-a-wed":["obj","gym","wind"],  "school-b-wed":["obj","gym","wind"],
-  "school-a-thu":["obj","gym","wind"],  "school-b-thu":["obj","gym","wind"],
-  "school-a-fri":["obj","gym","wind"],  "school-b-fri":["obj","gym","wind"],
-  "weekend":["wind"], "holiday":["obj","wind"],
-};
-// A Saturday format for the run-in to 13 Oct: three papers to the clock, then the marking that
-// actually teaches you something.
-const PLAN_DAYTYPES = {
-  "esat-mock": { name:"ESAT Mock Day", color:C.gold, blocks:[
-    { t:9.5,  e:10.25, label:"ESAT Maths 1 · timed", cat:"Revision", note:"27 MCQs / 40 min. No calculator, no negative marking." },
-    { t:10.5, e:11.25, label:"ESAT Maths 2 · timed", cat:"Revision", note:"27 MCQs / 40 min." },
-    { t:11.5, e:12.25, label:"ESAT Physics · timed", cat:"Revision", note:"27 MCQs / 40 min." },
-    { t:13.5, e:15,    label:"Mark it + review every wrong answer", cat:"Revision", note:"The marking is the revision. Every miss goes on the weak-topic list." },
-    { t:16,   e:17.5,  label:"Gym", cat:"Gym" },
-    { t:22,   e:22.5,  label:"Wind-down · phone out of the room", cat:"Other" },
-  ]},
-  "tuition": { name:"Tuition Day", color:C.teal, blocks:[
-    { t:17, e:18, label:"Isla · maths & physics", cat:"Work", note:"Grade 6 → 9. Log what was covered, gaps, and homework straight after." },
-    { t:22, e:22.5, label:"Wind-down · phone out of the room", cat:"Other" },
-  ]},
-};
-
-// -- 4. Key dates -> the deadline radar on Today ----------------------------------------------
-const KEY_DATES = [
-  { name:"UCAS submit", date:"2026-10-10" },
-  { name:"ESAT",        date:"2026-10-13" },
-  { name:"Driving test",date:"2026-10-14" },
-  { name:"Oxford deadline", date:"2026-10-15" },
-];
-
-// -- 5. The plan channel ----------------------------------------------------------------------
-// `lifeos:plan:v1` is written by the knowledge-vault Routine and arrives here through cloud sync
-// like any other key. Nothing in the app writes it. Shape:
-//   { updated:"2026-09-08T06:00:00Z",
-//     keyDates:[{ name:"ESAT", date:"2026-10-13" }],
-//     objective:{ date:"2026-09-09", label:"ESAT — circular motion, timed",
-//                 note:"45 min, marked.", t:16.5, e:17.5, cat:"Revision" } }
-// keyDates are merged into the radar; an objective for a given day is dropped onto that day's
-// timeline if nothing with the same label is already there.
+// ============ THE PLAN CHANNEL (written by the vault Routine, only ever read here) ============
+// `lifeos:plan:v1` arrives through cloud sync. Shape and contract: see README.
 function readPlan(){ try{ return JSON.parse(localStorage.getItem("lifeos:plan:v1")||"null"); }catch{ return null; } }
 function planObjectiveFor(iso){
   const p=readPlan(); const o=p&&p.objective;
@@ -243,62 +180,12 @@ function planObjectiveFor(iso){
 }
 function mergePlanKeyDates(){
   const p=readPlan(); if(!p||!Array.isArray(p.keyDates)) return;
-  let cur=[]; try{ cur=JSON.parse(localStorage.getItem("lifeos:keyDates:v1")||"[]"); }catch{}
+  const cur=readLS("keyDates:v1",[]);
   const id=(d)=>`${d.date}|${String(d.name).trim().toLowerCase()}`;
   const have=new Set(cur.map(id));
   const add=p.keyDates.filter(d=>d&&d.date&&d.name&&!have.has(id(d))).map(d=>({ name:String(d.name), date:String(d.date) }));
-  if(add.length) localStorage.setItem("lifeos:keyDates:v1", JSON.stringify([...cur,...add]));
+  if(add.length) writeLS("keyDates:v1",[...cur,...add]);
 }
-
-// append seeded events to a day without clobbering what's already there
-function mergeMonthsAppend(seed){
-  for(const mk in seed){
-    const key="lifeos:monthEvents:"+mk; let ex={};
-    try{ ex=JSON.parse(localStorage.getItem(key)||"{}"); }catch{}
-    const out={ ...ex };
-    for(const iso in seed[mk]){
-      const cur = Array.isArray(out[iso]) ? out[iso] : (out[iso] ? [out[iso]] : []);
-      if(!cur.some(t=>String(t).trim().toLowerCase()===seed[mk][iso].toLowerCase())) cur.push(seed[mk][iso]);
-      out[iso]=cur;
-    }
-    localStorage.setItem(key, JSON.stringify(out));
-  }
-}
-function seedPlanTodos(){
-  let cur=[]; try{ cur=JSON.parse(localStorage.getItem("lifeos:masterTodos:v1")||"[]"); }catch{}
-  const have=new Set(cur.map(t=>String(t&&t.text||"").trim().toLowerCase()));
-  const seeded=new Set(cur.map(t=>t&&t.seed).filter(Boolean));
-  const add=SEED_TODOS
-    .filter(t=>!seeded.has(t.k) && !have.has(t.text.toLowerCase()))
-    .map((t,i)=>({ id:Date.now()+i, text:t.text, done:false, star:!!t.star, due:t.due||null, created:todayISO(), seed:t.k }));
-  if(add.length) localStorage.setItem("lifeos:masterTodos:v1", JSON.stringify([...add, ...cur]));
-}
-function seedPlanDayTypes(){
-  let dt=null; try{ dt=JSON.parse(localStorage.getItem("lifeos:dayTypes:v2")||"null"); }catch{}
-  const next={ ...(dt||SEED_DAYTYPES) };
-  for(const id in PLAN_PATCH){
-    const type=next[id]; if(!type) continue;
-    const blocks=[...(type.blocks||[])];
-    for(const k of PLAN_PATCH[id]){
-      const b=PLAN_BLOCKS[k];
-      if(!blocks.some(x=>String(x.label||"").toLowerCase()===b.label.toLowerCase())) blocks.push({ ...b });
-    }
-    next[id]={ ...type, blocks };
-  }
-  for(const id in PLAN_DAYTYPES) if(!next[id]) next[id]={ ...PLAN_DAYTYPES[id] };
-  localStorage.setItem("lifeos:dayTypes:v2", JSON.stringify(next));
-}
-function seedPlan(){ try{
-  // key dates seed once and then belong to Dan — emptying the list keeps it empty
-  if(localStorage.getItem("lifeos:keyDates:v1")===null) localStorage.setItem("lifeos:keyDates:v1", JSON.stringify(KEY_DATES));
-  mergePlanKeyDates();
-  if(localStorage.getItem("lifeos:seededPlan:v3")) return;
-  mergeMonthsAppend(SEED_EVENTS_PLAN);
-  seedPlanTodos();
-  seedPlanDayTypes();
-  localStorage.setItem("lifeos:seededPlan:v3","1");
-  schedulePush();          // make sure the seeded plan reaches the cloud row too, if sync is on
-}catch(e){ console.error(e); } }
 
 const blankDay = (iso)=>({
   date:iso, dayTypeId:null, blocks:[], bs:false, frozen:false, bin:[],
@@ -462,7 +349,8 @@ export default function LifeOS(){
   useEffect(()=>{ (async()=>{
     await syncBootstrap();   // pull newest cloud state before reading local (no-op if sync isn't set up)
     seedEvents();            // add June calendar events to the Month tab once
-    seedPlan();              // one-time: vault dates, open loops and recurring commitments
+    applyVaultPlan();        // vault entries not yet applied on this device
+    mergePlanKeyDates();     // anything the vault Routine pushed into lifeos:plan:v1
     setDayTypes(await sGet("dayTypes:v2", SEED_DAYTYPES));
     setWeekMap(await sGet("weekMap:v2", DEFAULT_WEEK));
     setWeekMapB(await sGet("weekMapB:v1", DEFAULT_WEEK_B));
@@ -584,7 +472,7 @@ export default function LifeOS(){
       <div style={{ maxWidth:1180, margin:"0 auto", padding:isMobile?"16px 12px":"24px" }}>
         {tab==="today" && <TodayView day={day} date={date} setDate={setDate} upd={upd} dayTypes={dayTypes} applyDayType={applyDayType} links={habitLinks} allDays={allDays} flash={flash} masterTodos={masterTodos} toggleMasterTodo={toggleMasterTodo} goTodos={()=>setTab("todo")} keyDates={keyDates} saveKeyDates={persistKeyDates} />}
         {tab==="todo" && <TodoListView todos={masterTodos} save={persistMasterTodos} flash={flash} />}
-        {tab==="month" && <MonthView date={date} setDate={setDate} setTab={setTab} allDays={allDays} dayTypes={dayTypes} flash={flash} />}
+        {tab==="month" && <MonthView date={date} setDate={setDate} setTab={setTab} allDays={allDays} dayTypes={dayTypes} flash={flash} weekAnchorA={weekAnchorA} />}
         {tab==="habits" && <HabitsView allDays={allDays} links={habitLinks} saveLinks={persistHabitLinks} cfg={habitCfg} saveCfg={persistHabitCfg} />}
         {tab==="week" && <WeekView allDays={allDays} date={date} setDate={setDate} links={habitLinks} />}
         {tab==="trends" && <TrendsView allDays={allDays} links={habitLinks} cfg={habitCfg} />}
@@ -1174,7 +1062,7 @@ function TodoBucket({ label,color,items,bucket,toggle,del }){
 }
 
 // ============ MONTH VIEW ============
-function MonthView({ date,setDate,setTab,allDays,dayTypes,flash }){
+function MonthView({ date,setDate,setTab,allDays,dayTypes,flash,weekAnchorA }){
   const isMobile = useIsMobile();
   const d = pd(date);
   const [viewY,setViewY] = useState(d.getFullYear());
@@ -1222,7 +1110,9 @@ function MonthView({ date,setDate,setTab,allDays,dayTypes,flash }){
               style={{ minHeight:isMobile?58:84, background:isToday?C.panel2:C.panel, border:`1px solid ${isToday?C.teal:C.line}`, borderRadius:isMobile?8:10, padding:isMobile?4:8, cursor:"pointer", position:"relative", display:"flex", flexDirection:"column", gap:3 }}>
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
                 <span style={{ fontSize:13, fontWeight:700, color:isToday?C.teal:C.dim }}>{dd}</span>
-                <div style={{ display:"flex", gap:3 }}>
+                <div style={{ display:"flex", gap:3, alignItems:"center" }}>
+                  {dayNameOf(iso)==="Monday" && weekAnchorA && (()=>{ const b=weekIsB(iso,weekAnchorA);
+                    return <span style={{ fontSize:8, fontWeight:700, letterSpacing:0.3, color:b?C.cyan:C.pink, border:`1px solid ${b?C.cyan:C.pink}`, borderRadius:4, padding:"0 3px" }}>{b?"B":"A"}</span>; })()}
                   {bs && <span style={{ fontSize:8, fontWeight:700, color:"#fff", background:C.red, borderRadius:4, padding:"1px 4px" }}>BS</span>}
                   {rating>0 && <span style={{ fontSize:9, color:C.faint }}>{rating}/10</span>}
                 </div>
