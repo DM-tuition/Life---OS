@@ -178,4 +178,10 @@ export const VAULT_PLAN = [
   // The 4 Oct half marathon was seeded from the family calendar in July and is not real
   // (corrected in the vault 7 Sep) — HYROX at the end of October replaced it.
   { key: "fix-half-marathon-4oct", kind: "event-remove", date: "2026-10-04", text: "Half marathon" },
+
+  // --- appended 2026-09-10 -------------------------------------------------
+  // The Shopping List (Personal/wiki/Shopping List.md) has existed since 7 Sep with nothing
+  // bought. No due date invented — Dan never gave one.
+  { key: "td-sauna-block", kind: "todo", star: true,
+    text: "Buy the sauna/pool block — sauna hat, swim cap, goggles (~£60, 9 months overdue)" },
 ];
