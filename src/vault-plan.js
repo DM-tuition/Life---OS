@@ -184,4 +184,12 @@ export const VAULT_PLAN = [
   // bought. No due date invented — Dan never gave one.
   { key: "td-sauna-block", kind: "todo", star: true,
     text: "Buy the sauna/pool block — sauna hat, swim cap, goggles (~£60, 9 months overdue)" },
+
+  // --- appended 2026-09-10 -------------------------------------------------
+  // Approved off the Shopping List. The alarm clock is the phone-out-of-the-bedroom
+  // mechanism; the socks are indicated by the 100-mile blisters, HYROX is ~25 Oct.
+  { key: "td-alarm-clock", kind: "todo", star: true,
+    text: "Buy an alarm clock + downstairs charger (~£20) — gets the phone out of the bedroom" },
+  { key: "td-hyrox-socks", kind: "todo",
+    text: "Buy anti-blister socks before HYROX (~25 Oct) — blisters on the 100-miler" },
 ];
