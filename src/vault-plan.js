@@ -178,4 +178,8 @@ export const VAULT_PLAN = [
   // The 4 Oct half marathon was seeded from the family calendar in July and is not real
   // (corrected in the vault 7 Sep) — HYROX at the end of October replaced it.
   { key: "fix-half-marathon-4oct", kind: "event-remove", date: "2026-10-04", text: "Half marathon" },
+
+  // --- appended 2026-09-10 (Dan asked directly) ----------------------------
+  { key: "td-gym-tracking", kind: "todo",
+    text: "Get gym / HYROX training tracking set up — log sessions for the ~25 Oct HYROX" },
 ];
