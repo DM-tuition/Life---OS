@@ -196,4 +196,15 @@ export const VAULT_PLAN = [
     text: "Buy an alarm clock + downstairs charger (~£20) — gets the phone out of the bedroom" },
   { key: "td-hyrox-socks", kind: "todo",
     text: "Buy anti-blister socks before HYROX (~25 Oct) — blisters on the 100-miler" },
+
+  // --- appended 2026-09-15 -------------------------------------------------
+  // Dan: "delete the Friday lessons and replace with open day, as well as Thursday evening."
+  // Friday 18 Sep's four lessons are cancelled; Thursday is school as normal, then travel.
+  // The two plain "Oxford open day" rows are replaced rather than edited (keys are immutable).
+  { key: "fix-openday-17", kind: "event-remove", date: "2026-09-17", text: "Oxford open day" },
+  { key: "fix-openday-18", kind: "event-remove", date: "2026-09-18", text: "Oxford open day" },
+  { key: "ev-openday-thu", kind: "event", date: "2026-09-17",
+    text: "School as normal (to 14:25), then travel to Oxford" },
+  { key: "ev-openday-fri", kind: "event", date: "2026-09-18",
+    text: "★ Oxford open day — no lessons, off school all day" },
 ];
