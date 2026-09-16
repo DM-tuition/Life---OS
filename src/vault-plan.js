@@ -207,4 +207,20 @@ export const VAULT_PLAN = [
     text: "School as normal (to 14:25), then travel to Oxford" },
   { key: "ev-openday-fri", kind: "event", date: "2026-09-18",
     text: "★ Oxford open day — no lessons, off school all day" },
+
+  // --- appended 2026-09-16 -------------------------------------------------
+  // Five-minute dump. Higgs costed at ~7h (3 sittings), PS is a full rewrite, so Higgs
+  // is now the critical path. College choice surfaced as a new open item on the UCAS form.
+  { key: "td-higgs-s1", kind: "todo", star: true, due: "2026-09-21",
+    text: "Higgs sitting 1 (~2h) — Colab, data in, first mass plot. It should look like noise" },
+  { key: "td-higgs-s2", kind: "todo", star: true, due: "2026-09-25",
+    text: "Higgs sitting 2 (~2h) — apply the cuts, find the ~125 GeV bump. This is the result" },
+  { key: "td-higgs-s3", kind: "todo", due: "2026-09-28",
+    text: "Higgs sitting 3 (~2h, no code) — understand it well enough for interview" },
+  { key: "td-ps-rewrite", kind: "todo", star: true, due: "2026-10-10",
+    text: "Personal statement — full rewrite, AFTER Higgs gives you a finding to end on" },
+  { key: "td-esat-data", kind: "todo", due: "2026-09-20",
+    text: "Send the ESAT data — per-section, so 'didn't go amazingly' becomes a topic list" },
+  { key: "td-colleges", kind: "todo", due: "2026-10-05",
+    text: "Oxford college choice — it's on the UCAS form. Ask at the open day, decide by ~5 Oct" },
 ];
