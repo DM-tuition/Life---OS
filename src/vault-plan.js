@@ -223,4 +223,10 @@ export const VAULT_PLAN = [
     text: "Send the ESAT data — per-section, so 'didn't go amazingly' becomes a topic list" },
   { key: "td-colleges", kind: "todo", due: "2026-10-05",
     text: "Oxford college choice — it's on the UCAS form. Ask at the open day, decide by ~5 Oct" },
+
+  // --- appended 2026-09-17 -------------------------------------------------
+  // Dan raised the rosacea checkup himself. It has sat on Appearance and Grooming since
+  // June 2026 unactioned; it is free and needs a phone call. No date given, none invented.
+  { key: "td-rosacea-gp", kind: "todo", star: true,
+    text: "Book a GP appointment about the rosacea — on file since June, costs nothing" },
 ];
