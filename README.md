@@ -31,7 +31,17 @@ Every entry has a `key`. The app applies a key once per device and records it in
 - entries are additive; only ones marked `replace: true` overwrite (a new timetable does).
 
 Never edit or reuse an existing key — that is what makes the whole thing safe to re-run.
-Entry kinds: `event`, `event-remove`, `keyDate`, `todo`, `dayTypes`, `weekAnchor`.
+Entry kinds: `event`, `event-remove`, `keyDate`, `todo`, `todo-remove`, `dayTypes`,
+`weekAnchor`.
+
+`todo-remove` takes `target` — the **key of the entry that created the row**, not its text:
+
+```js
+{ key: "rm-td-interview", kind: "todo-remove", target: "td-interview" },
+```
+
+Use it when reality moves past something already shipped (a decision closes, a date dies). It
+only ever matches rows carrying that `seed`, so Dan's own to-dos can't be caught by it.
 
 Older one-shot seeds (`lifeos:seededEvents:v1` / `:v2`, the June and family-calendar events)
 still run behind their own flags and are left alone.

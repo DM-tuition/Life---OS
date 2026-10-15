@@ -149,6 +149,12 @@ function applyEntry(e){
         star:!!e.star, due:e.due||null, created:todayISO(), seed:e.key }, ...cur]);
       return;
     }
+    case "todo-remove": {                 // retract a to-do this file shipped that reality moved past
+      const cur=readLS("masterTodos:v1",[]);
+      const next=cur.filter(t=>!(t&&t.seed===e.target));
+      if(next.length!==cur.length) writeLS("masterTodos:v1",next);
+      return;
+    }
     case "dayTypes": {                    // `replace` overwrites the ids it names (a new timetable)
       const cur=readLS("dayTypes:v2",SEED_DAYTYPES), next={ ...cur };
       for(const id in e.types){ if(e.replace || !next[id]) next[id]={ ...e.types[id] }; }

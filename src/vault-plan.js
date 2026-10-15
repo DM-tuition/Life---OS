@@ -229,4 +229,20 @@ export const VAULT_PLAN = [
   // June 2026 unactioned; it is free and needs a phone call. No date given, none invented.
   { key: "td-rosacea-gp", kind: "todo", star: true,
     text: "Book a GP appointment about the rosacea — on file since June, costs nothing" },
+
+  // --- appended 2026-10-15 -------------------------------------------------
+  // The Decision closed on 13 Oct: Cambridge Natural Sciences at Queens'. Three to-dos
+  // shipped in September are now about the wrong university, and a to-do cannot be edited
+  // once applied — so they are retracted by key and replaced. `todo-remove` targets the
+  // `seed` key of the entry that created the row; Dan's own to-dos are never touched.
+  { key: "rm-td-decision", kind: "todo-remove", target: "td-decision" },
+  { key: "rm-td-colleges", kind: "todo-remove", target: "td-colleges" },
+  { key: "rm-td-interview", kind: "todo-remove", target: "td-interview" },
+  { key: "td-cam-interview", kind: "todo", star: true,
+    text: "Cambridge interview prep — NatSci at Queens'. December, date TBC" },
+
+  // Driving test failed 15 Oct (two majors). DVSA enforces a 10-working-day wait, so the
+  // earliest retest is ~29 Oct — an estimate, not a booking, so no date goes in.
+  { key: "td-driving-rebook", kind: "todo", star: true,
+    text: "Rebook the driving test — earliest ~29 Oct (10 working days after a fail)" },
 ];
