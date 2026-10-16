@@ -245,4 +245,12 @@ export const VAULT_PLAN = [
   // earliest retest is ~29 Oct — an estimate, not a booking, so no date goes in.
   { key: "td-driving-rebook", kind: "todo", star: true,
     text: "Rebook the driving test — earliest ~29 Oct (10 working days after a fail)" },
+
+  // --- appended 2026-10-16 -------------------------------------------------
+  // The Obsidian Git token on the iPad expired, the iPad went stale without saying so, and a
+  // commit from that stale copy reverted the vault on main (restored same day). The renewal
+  // date is the thing that prevents a repeat, so it goes on the phone, not just in the vault.
+  { key: "kd-gh-token", kind: "keyDate", name: "GitHub token expires", date: "2027-09-30" },
+  { key: "td-gh-token-renew", kind: "todo", due: "2027-09-16", star: true,
+    text: "Renew the GitHub token for Obsidian Git (expires 30 Sep) — classic token, repo scope" },
 ];
