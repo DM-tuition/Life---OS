@@ -253,4 +253,10 @@ export const VAULT_PLAN = [
   { key: "kd-gh-token", kind: "keyDate", name: "GitHub token expires", date: "2027-09-30" },
   { key: "td-gh-token-renew", kind: "todo", due: "2027-09-16", star: true,
     text: "Renew the GitHub token for Obsidian Git (expires 30 Sep) — classic token, repo scope" },
+
+  // --- appended 2026-10-19 -------------------------------------------------
+  // My Cambridge Application: everything submitted-ready except three items, which Dan
+  // plans to finish tonight. Hard deadline Wed 22 Oct, 6pm UK time.
+  { key: "td-mca-finish", kind: "todo", due: "2026-10-22", star: true,
+    text: "Finish My Cambridge Application — photo, optional statement, A-level topics. Deadline 6pm" },
 ];
