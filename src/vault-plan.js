@@ -302,4 +302,39 @@ export const VAULT_PLAN = [
   // HYROX is a single day — Dan travels there and back on the 28th, so no travel days.
   { key: "td-hyrox-time", kind: "todo", due: "2026-10-26",
     text: "HYROX (Wed 28th) — find out the actual start time and put it in" },
+
+  // --- appended 2026-10-19 (fourth pass) -----------------------------------
+  // Dan: "interview prep is highest priority." UCAS is in, the ESAT is sat, the college is
+  // chosen — December interviews are the only thing left that the outcome depends on. So the
+  // single vague "Cambridge interview prep" row is replaced with the actual work, dated to
+  // half term (Fri 23 Oct – Sun 1 Nov), which is the biggest free block before December.
+  { key: "rm-td-cam-interview-vague", kind: "todo-remove", target: "td-cam-interview" },
+
+  // Mock dates have to be asked for AT SCHOOL, and school breaks up Thu 22nd (half day).
+  { key: "td-mock-dates", kind: "todo", due: "2026-10-22", star: true,
+    text: "Pin dates for the 4 mock interviews (2 school, 2 Blue Education) — ask before Thu" },
+
+  // Integrity item: it is named in the submitted personal statement and is unfinished.
+  { key: "td-six-easy-pieces", kind: "todo", due: "2026-11-01", star: true,
+    text: "Finish Six Easy Pieces — it's in your submitted PS, so they can ask about it" },
+
+  // Highest-yield single thing: most of the PS word count is the Higgs/Z analysis.
+  { key: "td-higgs-outloud", kind: "todo", due: "2026-11-01", star: true,
+    text: "Explain the Higgs/Z analysis out loud, unaided, in 5 min — the 1.9 sigma result" },
+
+  { key: "td-natsci-partia", kind: "todo", due: "2026-11-01",
+    text: "Know NatSci Part IA: which 3 sciences + maths you'd pick, and why. They ask" },
+
+  { key: "td-why-natsci-rehearse", kind: "todo", due: "2026-11-01",
+    text: "Rehearse 'why NatSci, not Oxford Physics' out loud — reasoning, not a script" },
+
+  { key: "td-think-aloud", kind: "todo", due: "2026-11-08",
+    text: "Unseen-problem practice, narrating every step — thinking aloud IS the interview" },
+
+  { key: "td-theory-breaks", kind: "todo", due: "2026-11-08",
+    text: "Spacetime-light theory: be able to say where it breaks, not just what it is" },
+
+  // Driving test is rebooked (30 Mar 2027), so the rebook row has been overtaken.
+  { key: "rm-td-driving-rebook", kind: "todo-remove", target: "td-driving-rebook" },
+  { key: "kd-driving-retest", kind: "keyDate", name: "Driving retest", date: "2027-03-30" },
 ];
