@@ -259,4 +259,15 @@ export const VAULT_PLAN = [
   // plans to finish tonight. Hard deadline Wed 22 Oct, 6pm UK time.
   { key: "td-mca-finish", kind: "todo", due: "2026-10-22", star: true,
     text: "Finish My Cambridge Application — photo, optional statement, A-level topics. Deadline 6pm" },
+
+  // --- appended 2026-10-19 -------------------------------------------------
+  // Dan: "for my holidays, on the month section, make it a distinct colour, so I don't have to
+  // read the text of holiday — make the COLOUR holiday... maybe yellow." Holidays are now a
+  // gold wash on the Month tab (kind "holiday"), not an event row. No text is added.
+  // ⚠️ Dates are Claude's reading of "holiday from Friday this week, a whole week, until Monday
+  // the week after" (said Mon 19 Oct): Fri 23 Oct through Sun 1 Nov, back at school Mon 2 Nov.
+  // Both edges are unconfirmed — if Friday is a normal school day, or the Monday is also off,
+  // this needs a holiday-remove + a new holiday entry.
+  { key: "hol-half-term-oct26", kind: "holiday",
+    start: "2026-10-23", end: "2026-11-01", label: "October half term" },
 ];

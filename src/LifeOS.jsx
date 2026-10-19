@@ -9,6 +9,12 @@ const C = {
   teal: "#2BA8B8", sleep: "#9B5A3C", purple: "#7B4FB5", pink: "#E0529B",
   blue: "#3E6FD6", green: "#2F9E44", gold: "#E6B800", red: "#E0524A", cyan: "#4FC3E0",
 };
+// Holiday wash for the Month tab (Dan, 19 Oct 2026): "make the colour holiday, don't make the
+// text holiday" — a holiday is a tint on the day cell, never a row of text to read.
+const HOL = { bg:"rgba(230,184,0,.12)", bgToday:"rgba(230,184,0,.20)", line:"rgba(230,184,0,.45)" };
+const inHoliday = (iso,hols)=> (hols||[]).some(h=> h && h.start && h.end && iso>=h.start && iso<=h.end);
+const holidayAt  = (iso,hols)=> (hols||[]).find(h=> h && h.start && h.end && iso>=h.start && iso<=h.end) || null;
+
 const CATS = {
   School:C.pink, Gym:C.blue, Revision:C.gold, Sport:C.green,
   Activity:C.purple, Sleep:C.sleep, Work:C.teal, Social:C.cyan, Other:C.dim,
@@ -153,6 +159,18 @@ function applyEntry(e){
       const cur=readLS("masterTodos:v1",[]);
       const next=cur.filter(t=>!(t&&t.seed===e.target));
       if(next.length!==cur.length) writeLS("masterTodos:v1",next);
+      return;
+    }
+    case "holiday": {                     // a date range that tints the Month tab, with no text
+      const cur=readLS("holidays:v1",[]);
+      if(cur.some(h=>h&&(h.seed===e.key||(h.start===e.start&&h.end===e.end)))) return;
+      writeLS("holidays:v1",[...cur,{ start:e.start, end:e.end, label:e.label||"Holiday", seed:e.key }]);
+      return;
+    }
+    case "holiday-remove": {              // retract a range this file got wrong; `target` is its key,
+      const cur=readLS("holidays:v1",[]);   // so it can never catch a range Dan added himself
+      const next=cur.filter(h=>!(h&&h.seed===e.target));
+      if(next.length!==cur.length) writeLS("holidays:v1",next);
       return;
     }
     case "dayTypes": {                    // `replace` overwrites the ids it names (a new timetable)
@@ -1076,7 +1094,9 @@ function MonthView({ date,setDate,setTab,allDays,dayTypes,flash,weekAnchorA }){
   const [events,setEvents] = useState({});
   const monthKey = `${viewY}-${String(viewM+1).padStart(2,"0")}`;
 
+  const [hols,setHols] = useState([]);
   useEffect(()=>{ (async()=>{ setEvents(await sGet(`monthEvents:${monthKey}`, {})); })(); },[monthKey]);
+  useEffect(()=>{ (async()=>{ setHols(await sGet("holidays:v1", [])); })(); },[]);
   const saveEvents = async (e)=>{ setEvents(e); await sSet(`monthEvents:${monthKey}`, e); };
 
   const firstDow = (new Date(viewY,viewM,1).getDay()+6)%7; // Mon=0
@@ -1111,11 +1131,13 @@ function MonthView({ date,setDate,setTab,allDays,dayTypes,flash,weekAnchorA }){
           const iso=cellISO(dd); const isToday=iso===todayISO();
           const logged=allDays[iso]; const evArr=evList(events[iso]);
           const rating=logged?.rating; const bs=logged?.bs;
+          const hol=inHoliday(iso,hols);
           return (
             <div key={dd} onClick={()=>{ setDate(iso); setTab("today"); }}
-              style={{ minHeight:isMobile?58:84, background:isToday?C.panel2:C.panel, border:`1px solid ${isToday?C.teal:C.line}`, borderRadius:isMobile?8:10, padding:isMobile?4:8, cursor:"pointer", position:"relative", display:"flex", flexDirection:"column", gap:3 }}>
+              title={hol?(holidayAt(iso,hols)?.label||"Holiday"):undefined}
+              style={{ minHeight:isMobile?58:84, background:hol?(isToday?HOL.bgToday:HOL.bg):(isToday?C.panel2:C.panel), border:`1px solid ${isToday?C.teal:(hol?HOL.line:C.line)}`, borderRadius:isMobile?8:10, padding:isMobile?4:8, cursor:"pointer", position:"relative", display:"flex", flexDirection:"column", gap:3 }}>
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-                <span style={{ fontSize:13, fontWeight:700, color:isToday?C.teal:C.dim }}>{dd}</span>
+                <span style={{ fontSize:13, fontWeight:700, color:isToday?C.teal:(hol?C.gold:C.dim) }}>{dd}</span>
                 <div style={{ display:"flex", gap:3, alignItems:"center" }}>
                   {dayNameOf(iso)==="Monday" && weekAnchorA && (()=>{ const b=weekIsB(iso,weekAnchorA);
                     return <span style={{ fontSize:8, fontWeight:700, letterSpacing:0.3, color:b?C.cyan:C.pink, border:`1px solid ${b?C.cyan:C.pink}`, borderRadius:4, padding:"0 3px" }}>{b?"B":"A"}</span>; })()}
@@ -1153,7 +1175,7 @@ function MonthView({ date,setDate,setTab,allDays,dayTypes,flash,weekAnchorA }){
           </div>
         </div>
       ); })()}
-      <Mini>Tap a day to open & plan it · tap + to add one or more events · BS and day-score show once logged</Mini>
+      <Mini>Tap a day to open & plan it · tap + to add one or more events · BS and day-score show once logged · <span style={{ color:C.gold }}>gold days are holidays</span></Mini>
     </div>
   );
 }
