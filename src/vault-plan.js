@@ -289,4 +289,17 @@ export const VAULT_PLAN = [
   { key: "fix-kd-hyrox-25", kind: "keyDate-remove", name: "HYROX", date: "2026-10-25" },
   { key: "ev-hyrox-28", kind: "event", date: "2026-10-28", text: "HYROX doubles w/ Ayaan" },
   { key: "kd-hyrox-28", kind: "keyDate", name: "HYROX", date: "2026-10-28" },
+
+  // --- appended 2026-10-19 (third pass) ------------------------------------
+  // Dan: "just before Christmas, the week before, I'm going away... the 19th to the 24th,
+  // somewhere in the Bahamas — just say Bahamas."
+  // ⚠️ His words were "I think I'm from the 19th to the 24th" — dates unconfirmed, and he has
+  // offered to send the whole family calendar. Christmas school holiday dates still unknown,
+  // so this is the trip only, not the end of term.
+  { key: "hol-bahamas-dec26", kind: "holiday", type: "away",
+    start: "2026-12-19", end: "2026-12-24", label: "Bahamas" },
+
+  // HYROX is a single day — Dan travels there and back on the 28th, so no travel days.
+  { key: "td-hyrox-time", kind: "todo", due: "2026-10-26",
+    text: "HYROX (Wed 28th) — find out the actual start time and put it in" },
 ];

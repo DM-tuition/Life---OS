@@ -366,6 +366,7 @@ export default function LifeOS(){
   const [day,setDay] = useState(null);
   const [loading,setLoading] = useState(true);
   const [dayTypes,setDayTypes] = useState({});
+  const [hols,setHols] = useState([]);                      // day-colour ranges (off / away)
   const [weekMap,setWeekMap] = useState(DEFAULT_WEEK);      // Week A
   const [weekMapB,setWeekMapB] = useState(DEFAULT_WEEK_B);  // Week B
   const [weekAnchorA,setWeekAnchorA] = useState(todayISO());// Monday of a week designated "Week A"
@@ -391,6 +392,7 @@ export default function LifeOS(){
     applyVaultPlan();        // vault entries not yet applied on this device
     mergePlanKeyDates();     // anything the vault Routine pushed into lifeos:plan:v1
     setDayTypes(await sGet("dayTypes:v2", SEED_DAYTYPES));
+    setHols(await sGet("holidays:v1", []));
     setWeekMap(await sGet("weekMap:v2", DEFAULT_WEEK));
     setWeekMapB(await sGet("weekMapB:v1", DEFAULT_WEEK_B));
     setWeekAnchorA(await sGet("weekAnchorA:v1", todayISO()));
@@ -416,10 +418,15 @@ export default function LifeOS(){
     let d = await sGet(`day:${date}`, null);
     if(!d){
       d = blankDay(date);
+      // Dan, 19 Oct: "just leave off-school days blank." A day inside an `off` range starts
+      // with no timetable at all — school isn't happening, so the lessons would be a lie.
+      // Only applies when the day is first created; a day he has already edited is never
+      // touched. `away` days keep their timetable (he can be away on a school day).
+      const offSchool = kindsAt(date,hols).includes("off");
       const map = weekIsB(date, weekAnchorA) ? weekMapB : weekMap;
-      const typeId = map[dayNameOf(date)] || "blank";
+      const typeId = offSchool ? "blank" : (map[dayNameOf(date)] || "blank");
       d.dayTypeId = typeId;
-      d.blocks = cloneBlocks((dayTypes[typeId]?.blocks)||[]);
+      d.blocks = offSchool ? [] : cloneBlocks((dayTypes[typeId]?.blocks)||[]);
     }
     // migrate older saved days lacking new fields
     if(!d.reps) d.reps = { target:dayOfYear(date), done:false };
@@ -434,7 +441,7 @@ export default function LifeOS(){
     // breakdown = auto from timeline + the day's manual adjustments
     d.breakdown = withAdj(computeBreakdown(d.blocks), d.breakdownAdj);
     setDay(d);
-  })(); },[date, loading, weekAnchorA]); // eslint-disable-line
+  })(); },[date, loading, weekAnchorA, hols]); // eslint-disable-line
 
   const flash = (m)=>{ buzz(); setToast(m); setTimeout(()=>setToast(""),1600); };
   const persistDay = async (d)=>{
