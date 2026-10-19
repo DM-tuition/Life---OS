@@ -270,4 +270,23 @@ export const VAULT_PLAN = [
   // this needs a holiday-remove + a new holiday entry.
   { key: "hol-half-term-oct26", kind: "holiday",
     start: "2026-10-23", end: "2026-11-01", label: "October half term" },
+
+  // --- appended 2026-10-19 (second pass, after Dan saw the first) -----------
+  // "Make it subtle but noticeable, not gold and crystal everywhere." And: "the holiday
+  // itself, meaning off school, should be a colour, but if I'm going somewhere that should be
+  // a different colour." So day colours are now typed — `off` (amber) and `away` (purple) —
+  // and rendered as a faint tint plus a 3px bar along the top of the cell rather than a wash.
+  // A day that is both shows both bars.
+  { key: "hol-fix-oct26-restyle", kind: "holiday-remove", target: "hol-half-term-oct26" },
+
+  // Half term CONFIRMED by Dan: half day Thu 22nd, Friday off, back Monday the 2nd.
+  { key: "hol-half-term-oct26-v2", kind: "holiday", type: "off",
+    start: "2026-10-23", end: "2026-11-01", label: "October half term" },
+  { key: "ev-half-day-22oct", kind: "event", date: "2026-10-22", text: "Half day" },
+
+  // HYROX: Dan, 19 Oct — "it's not the 27th, not the 25th. It's the 28th."
+  { key: "fix-hyrox-25", kind: "event-remove", date: "2026-10-25", text: "HYROX doubles w/ Ayaan (~)" },
+  { key: "fix-kd-hyrox-25", kind: "keyDate-remove", name: "HYROX", date: "2026-10-25" },
+  { key: "ev-hyrox-28", kind: "event", date: "2026-10-28", text: "HYROX doubles w/ Ayaan" },
+  { key: "kd-hyrox-28", kind: "keyDate", name: "HYROX", date: "2026-10-28" },
 ];

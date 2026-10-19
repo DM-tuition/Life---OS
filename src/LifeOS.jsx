@@ -9,11 +9,19 @@ const C = {
   teal: "#2BA8B8", sleep: "#9B5A3C", purple: "#7B4FB5", pink: "#E0529B",
   blue: "#3E6FD6", green: "#2F9E44", gold: "#E6B800", red: "#E0524A", cyan: "#4FC3E0",
 };
-// Holiday wash for the Month tab (Dan, 19 Oct 2026): "make the colour holiday, don't make the
-// text holiday" — a holiday is a tint on the day cell, never a row of text to read.
-const HOL = { bg:"rgba(230,184,0,.12)", bgToday:"rgba(230,184,0,.20)", line:"rgba(230,184,0,.45)" };
-const inHoliday = (iso,hols)=> (hols||[]).some(h=> h && h.start && h.end && iso>=h.start && iso<=h.end);
-const holidayAt  = (iso,hols)=> (hols||[]).find(h=> h && h.start && h.end && iso>=h.start && iso<=h.end) || null;
+// Month-tab day colours (Dan, 19 Oct 2026): "make the colour holiday, don't make the text
+// holiday" — then, on seeing it: "make it subtle but noticeable, not gold and crystal
+// everywhere... the holiday itself, meaning off school, should be a colour, but if I'm going
+// somewhere that should be a different colour."
+// So: a barely-there tint carries the mood, and a solid 3px bar along the top of the cell
+// carries the signal. The bar is what you actually see from across the grid; the tint alone
+// would be too quiet and a full wash was too loud.
+const DAY_KINDS = {
+  off:  { bar:"#E6B800", tint:"rgba(230,184,0,.055)", label:"off school" },  // amber
+  away: { bar:"#7B4FB5", tint:"rgba(123,79,181,.07)", label:"away" },        // purple
+};
+const holidaysAt = (iso,hols)=> (hols||[]).filter(h=> h && h.start && h.end && iso>=h.start && iso<=h.end);
+const kindsAt = (iso,hols)=>{ const seen=[]; for(const h of holidaysAt(iso,hols)){ const k=DAY_KINDS[h.type]?h.type:"off"; if(!seen.includes(k)) seen.push(k); } return seen; };
 
 const CATS = {
   School:C.pink, Gym:C.blue, Revision:C.gold, Sport:C.green,
@@ -164,13 +172,20 @@ function applyEntry(e){
     case "holiday": {                     // a date range that tints the Month tab, with no text
       const cur=readLS("holidays:v1",[]);
       if(cur.some(h=>h&&(h.seed===e.key||(h.start===e.start&&h.end===e.end)))) return;
-      writeLS("holidays:v1",[...cur,{ start:e.start, end:e.end, label:e.label||"Holiday", seed:e.key }]);
+      writeLS("holidays:v1",[...cur,{ start:e.start, end:e.end, label:e.label||"Holiday",
+        type:e.type==="away"?"away":"off", seed:e.key }]);
       return;
     }
     case "holiday-remove": {              // retract a range this file got wrong; `target` is its key,
       const cur=readLS("holidays:v1",[]);   // so it can never catch a range Dan added himself
       const next=cur.filter(h=>!(h&&h.seed===e.target));
       if(next.length!==cur.length) writeLS("holidays:v1",next);
+      return;
+    }
+    case "keyDate-remove": {              // drop a radar date this file shipped at the wrong date
+      const cur=readLS("keyDates:v1",[]);
+      const next=cur.filter(d=>!(d && sameText(d.name,e.name) && d.date===e.date));
+      if(next.length!==cur.length) writeLS("keyDates:v1",next);
       return;
     }
     case "dayTypes": {                    // `replace` overwrites the ids it names (a new timetable)
@@ -1131,13 +1146,20 @@ function MonthView({ date,setDate,setTab,allDays,dayTypes,flash,weekAnchorA }){
           const iso=cellISO(dd); const isToday=iso===todayISO();
           const logged=allDays[iso]; const evArr=evList(events[iso]);
           const rating=logged?.rating; const bs=logged?.bs;
-          const hol=inHoliday(iso,hols);
+          const dayKinds=kindsAt(iso,hols);
+          const tint = dayKinds.length ? DAY_KINDS[dayKinds[0]].tint : null;
+          const radius = isMobile?8:10;
           return (
             <div key={dd} onClick={()=>{ setDate(iso); setTab("today"); }}
-              title={hol?(holidayAt(iso,hols)?.label||"Holiday"):undefined}
-              style={{ minHeight:isMobile?58:84, background:hol?(isToday?HOL.bgToday:HOL.bg):(isToday?C.panel2:C.panel), border:`1px solid ${isToday?C.teal:(hol?HOL.line:C.line)}`, borderRadius:isMobile?8:10, padding:isMobile?4:8, cursor:"pointer", position:"relative", display:"flex", flexDirection:"column", gap:3 }}>
+              title={dayKinds.length? holidaysAt(iso,hols).map(h=>h.label||DAY_KINDS[h.type]?.label||"Holiday").join(" · ") : undefined}
+              style={{ minHeight:isMobile?58:84, background:isToday?C.panel2:C.panel, backgroundImage:tint?`linear-gradient(${tint},${tint})`:undefined, border:`1px solid ${isToday?C.teal:C.line}`, borderRadius:radius, padding:isMobile?4:8, cursor:"pointer", position:"relative", display:"flex", flexDirection:"column", gap:3, overflow:"hidden" }}>
+              {dayKinds.length>0 && (
+                <div style={{ position:"absolute", top:0, left:0, right:0, height:3, display:"flex" }}>
+                  {dayKinds.map(k=> <div key={k} style={{ flex:1, background:DAY_KINDS[k].bar }}/>)}
+                </div>
+              )}
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-                <span style={{ fontSize:13, fontWeight:700, color:isToday?C.teal:(hol?C.gold:C.dim) }}>{dd}</span>
+                <span style={{ fontSize:13, fontWeight:700, color:isToday?C.teal:C.dim }}>{dd}</span>
                 <div style={{ display:"flex", gap:3, alignItems:"center" }}>
                   {dayNameOf(iso)==="Monday" && weekAnchorA && (()=>{ const b=weekIsB(iso,weekAnchorA);
                     return <span style={{ fontSize:8, fontWeight:700, letterSpacing:0.3, color:b?C.cyan:C.pink, border:`1px solid ${b?C.cyan:C.pink}`, borderRadius:4, padding:"0 3px" }}>{b?"B":"A"}</span>; })()}
@@ -1175,7 +1197,7 @@ function MonthView({ date,setDate,setTab,allDays,dayTypes,flash,weekAnchorA }){
           </div>
         </div>
       ); })()}
-      <Mini>Tap a day to open & plan it · tap + to add one or more events · BS and day-score show once logged · <span style={{ color:C.gold }}>gold days are holidays</span></Mini>
+      <Mini>Tap a day to open & plan it · tap + to add events · BS and day-score show once logged · top bar: <span style={{ color:DAY_KINDS.off.bar }}>▬ off school</span> <span style={{ color:DAY_KINDS.away.bar }}>▬ away</span></Mini>
     </div>
   );
 }
