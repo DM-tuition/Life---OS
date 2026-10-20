@@ -354,4 +354,15 @@ export const VAULT_PLAN = [
   // Not done — overtaken by events, so retired rather than ticked. Ticking these would be a lie.
   { key: "rm-td-hyrox-socks", kind: "todo-remove", target: "td-hyrox-socks" },  // "I have trainers, don't need socks" (15 Sep)
   { key: "rm-td-esat-data", kind: "todo-remove", target: "td-esat-data" },      // ESAT now sat; official results pending
+  // --- appended 2026-10-20 · daily habit check-in ------------------------------
+  // Mon 19 Oct, from Dan's ramble: bed 22:30, up 07:15, felt refreshed · ~1.5h leisure screen
+  // · upper gym + swim + sauna · eggs / soup / spag bol at mum's (homemade apple pie) · no ice
+  // bath, no reps (both lapsed over summer) · "about 7.5 out of 10".
+  { key: "hl-2026-10-19", kind: "habitLog", date: "2026-10-19", rating: 7.5,
+    habits: { sleep8: true, eatwell: true, exercise: true, screen: true } },
+
+  // No Garmin connector exists for Claude (checked 20 Oct). Strava's is already connected, and
+  // Garmin Connect can auto-sync workouts to Strava — that covers exercise. Sleep stays manual.
+  { key: "td-garmin-strava", kind: "todo", due: "2026-10-25",
+    text: "Garmin Connect → link Strava so workouts auto-sync (sleep still read off the watch)" },
 ];

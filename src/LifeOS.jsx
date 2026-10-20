@@ -212,6 +212,7 @@ function applyEntry(e){
       for(const k in (e.habits||{})) if(e.habits[k]) h[k]=true;
       d={ ...d, habits:h };
       if(e.reps) d.reps={ ...(d.reps||{ target:dayOfYear(e.date) }), done:true };
+      if(e.rating && !d.rating) d.rating=e.rating;   // his own score in the app wins
       writeLS("day:"+e.date,d); return;
     }
     case "habitCfg": {                    // retune a habit: { per: 1-7 per week, type: "build"|"quit" }
