@@ -163,6 +163,13 @@ function applyEntry(e){
         star:!!e.star, due:e.due||null, created:todayISO(), seed:e.key }, ...cur]);
       return;
     }
+    case "todo-done": {                   // tick off a row this file shipped, keeping it visible
+      const cur=readLS("masterTodos:v1",[]);   // `target` is the key of the entry that created it
+      let hit=false;
+      const next=cur.map(t=>{ if(t && t.seed===e.target && !t.done){ hit=true; return { ...t, done:true }; } return t; });
+      if(hit) writeLS("masterTodos:v1",next);
+      return;
+    }
     case "todo-remove": {                 // retract a to-do this file shipped that reality moved past
       const cur=readLS("masterTodos:v1",[]);
       const next=cur.filter(t=>!(t&&t.seed===e.target));

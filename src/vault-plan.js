@@ -337,4 +337,18 @@ export const VAULT_PLAN = [
   // Driving test is rebooked (30 Mar 2027), so the rebook row has been overtaken.
   { key: "rm-td-driving-rebook", kind: "todo-remove", target: "td-driving-rebook" },
   { key: "kd-driving-retest", kind: "keyDate", name: "Driving retest", date: "2027-03-30" },
+
+  // --- appended 2026-10-20 -------------------------------------------------
+  // Dan: "check off things I've completed on the to do list, and on the Life OS as well."
+  // Only rows the VAULT EVIDENCES as finished are ticked — nothing is assumed done. Ticked,
+  // not deleted, so the list still shows he did them. Anything he ticked himself already is
+  // skipped by the `!t.done` guard, and his own rows are untouchable (these target seed keys).
+  { key: "done-higgs-s1", kind: "todo-done", target: "td-higgs-s1" },   // Higgs run 22 Sep
+  { key: "done-higgs-s2", kind: "todo-done", target: "td-higgs-s2" },   // the result, 22 Sep
+  { key: "done-ps-rewrite", kind: "todo-done", target: "td-ps-rewrite" }, // PS done 6 Oct, submitted 14 Oct
+  { key: "done-sauna-block", kind: "todo-done", target: "td-sauna-block" }, // block 100% closed (Bought.md)
+
+  // Not done — overtaken by events, so retired rather than ticked. Ticking these would be a lie.
+  { key: "rm-td-hyrox-socks", kind: "todo-remove", target: "td-hyrox-socks" },  // "I have trainers, don't need socks" (15 Sep)
+  { key: "rm-td-esat-data", kind: "todo-remove", target: "td-esat-data" },      // ESAT now sat; official results pending
 ];
