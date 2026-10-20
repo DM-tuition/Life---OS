@@ -201,6 +201,23 @@ function applyEntry(e){
       writeLS("dayTypes:v2",next); return;
     }
     case "weekAnchor": writeLS("weekAnchorA:v1", e.monday); return;
+    case "habitLog": {                    // the daily check-in: Dan's account of a day's habits
+      // Ticks only ever turn ON — a habit he already ticked in the app is never unticked by
+      // this file. A day he hasn't opened yet is created as a `stub`, so the timetable still
+      // lands on it the first time he does.
+      let d=readLS("day:"+e.date,null);
+      if(!d){ d={ ...blankDay(e.date), stub:true };
+        const idx=readLS("index:days",[]); if(!idx.includes(e.date)) writeLS("index:days",[...idx,e.date]); }
+      const h={ ...(d.habits||{}) };
+      for(const k in (e.habits||{})) if(e.habits[k]) h[k]=true;
+      d={ ...d, habits:h };
+      if(e.reps) d.reps={ ...(d.reps||{ target:dayOfYear(e.date) }), done:true };
+      writeLS("day:"+e.date,d); return;
+    }
+    case "habitCfg": {                    // retune a habit: { per: 1-7 per week, type: "build"|"quit" }
+      const cur=readLS("habitCfg:v1",{});
+      writeLS("habitCfg:v1",{ ...cur, [e.habit]:{ ...(cur[e.habit]||{}), ...e.cfg } }); return;
+    }
     default: console.warn("vault-plan: unknown entry kind", e.kind);
   }
 }
@@ -423,8 +440,9 @@ export default function LifeOS(){
 
   useEffect(()=>{ if(loading) return; (async()=>{
     let d = await sGet(`day:${date}`, null);
-    if(!d){
-      d = blankDay(date);
+    if(!d || d.stub){
+      // a stub is a day the vault check-in created before Dan opened it: keep its ticks
+      d = d ? { ...d, stub:false } : blankDay(date);
       // Dan, 19 Oct: "just leave off-school days blank." A day inside an `off` range starts
       // with no timetable at all — school isn't happening, so the lessons would be a lie.
       // Only applies when the day is first created; a day he has already edited is never

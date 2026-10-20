@@ -12,6 +12,9 @@
 // Personal/wiki/Year 13 Timetable.md · Personal/wiki/Calendar.md · Review.md ·
 // Oxbridge-Prep/wiki/Live Workstreams.md. Keep this file in step with those.
 // Last synced: 2026-09-09.
+//
+// Daily habit check-in (from 2026-10-20): `habitLog` entries carry yesterday's habits from the
+// check-in chat — see Personal/wiki/Habit Log.md. `habitCfg` retunes a habit's quota/type.
 // ============================================================================
 
 // ---- bell times (school-wide; Thursday runs short lessons with no form) ----
