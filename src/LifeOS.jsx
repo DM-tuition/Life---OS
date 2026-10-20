@@ -215,6 +215,17 @@ function applyEntry(e){
       if(e.rating && !d.rating) d.rating=e.rating;   // his own score in the app wins
       writeLS("day:"+e.date,d); return;
     }
+    case "workout": {                     // a session from the check-in (swims especially) onto that day's timeline
+      let d=readLS("day:"+e.date,null);
+      if(!d){ d={ ...blankDay(e.date), stub:true };
+        const idx=readLS("index:days",[]); if(!idx.includes(e.date)) writeLS("index:days",[...idx,e.date]); }
+      const blocks=d.blocks||[];
+      if(!blocks.some(b=>sameText(b.label||"",e.label)))
+        d={ ...d, blocks:[...blocks,{ id:Date.now()+Math.floor(Math.random()*1000), done:true, t:e.t, e:e.e,
+          label:e.label, cat:CATS[e.cat]?e.cat:"Gym", note:e.note||"" }] };
+      d={ ...d, habits:{ ...(d.habits||{}), exercise:true } };
+      writeLS("day:"+e.date,d); return;
+    }
     case "habitCfg": {                    // retune a habit: { per: 1-7 per week, type: "build"|"quit" }
       const cur=readLS("habitCfg:v1",{});
       writeLS("habitCfg:v1",{ ...cur, [e.habit]:{ ...(cur[e.habit]||{}), ...e.cfg } }); return;
@@ -452,7 +463,7 @@ export default function LifeOS(){
       const map = weekIsB(date, weekAnchorA) ? weekMapB : weekMap;
       const typeId = offSchool ? "blank" : (map[dayNameOf(date)] || "blank");
       d.dayTypeId = typeId;
-      d.blocks = offSchool ? [] : cloneBlocks((dayTypes[typeId]?.blocks)||[]);
+      d.blocks = [...(offSchool ? [] : cloneBlocks((dayTypes[typeId]?.blocks)||[])), ...(d.blocks||[])]; // keep check-in workouts on a stub
     }
     // migrate older saved days lacking new fields
     if(!d.reps) d.reps = { target:dayOfYear(date), done:false };

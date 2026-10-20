@@ -361,8 +361,8 @@ export const VAULT_PLAN = [
   { key: "hl-2026-10-19", kind: "habitLog", date: "2026-10-19", rating: 7.5,
     habits: { sleep8: true, eatwell: true, exercise: true, screen: true } },
 
-  // No Garmin connector exists for Claude (checked 20 Oct). Strava's is already connected, and
-  // Garmin Connect can auto-sync workouts to Strava — that covers exercise. Sleep stays manual.
+  // No Garmin connector exists for Claude (checked 20 Oct). Garmin → Strava auto-sync works, but
+  // Claude's Strava connector turned out to need a paid Strava subscription — see below.
   { key: "td-garmin-strava", kind: "todo", due: "2026-10-25",
     text: "Garmin Connect → link Strava so workouts auto-sync (sleep still read off the watch)" },
 
@@ -380,4 +380,17 @@ export const VAULT_PLAN = [
   // ISA: unblocked - doing it with Mum, "very soon". No date given, so none invented.
   { key: "td-isa-date", kind: "todo", star: true,
     text: "ISA with Mum - agree an actual date. 'Very soon' has drifted 6 weeks already" },
+  // --- appended 2026-10-20 · workouts onto the timeline ------------------------
+  // Dan: "the workouts I do on Strava, if it's a swim then make sure it's represented on my
+  // Life OS." Times weren't given, so the blocks sit after school and say so — drag to fix.
+  { key: "wo-2026-10-19-gym", kind: "workout", date: "2026-10-19", t: 17.5, e: 18.5, cat: "Gym",
+    label: "Gym · upper", note: "From the habit check-in. Time approximate." },
+  { key: "wo-2026-10-19-swim", kind: "workout", date: "2026-10-19", t: 18.5, e: 19, cat: "Sport",
+    label: "Swim + sauna", note: "From the habit check-in. Time approximate." },
+
+  // Claude's Strava connector is subscribers-only (checked 20 Oct: "not eligible"), so linking
+  // Garmin → Strava alone gets Claude nothing. Retire that row; replace it with the real choice.
+  { key: "rm-td-garmin-strava", kind: "todo-remove", target: "td-garmin-strava" },
+  { key: "td-strava-sub", kind: "todo", due: "2026-10-25",
+    text: "Strava: subscribe (lets Claude read workouts) or keep telling the check-in — decide" },
 ];
