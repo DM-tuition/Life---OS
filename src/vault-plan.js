@@ -365,4 +365,19 @@ export const VAULT_PLAN = [
   // Garmin Connect can auto-sync workouts to Strava — that covers exercise. Sleep stays manual.
   { key: "td-garmin-strava", kind: "todo", due: "2026-10-25",
     text: "Garmin Connect → link Strava so workouts auto-sync (sleep still read off the watch)" },
+
+  // --- appended 2026-10-20 -------------------------------------------------
+  // Twelve gap questions answered. Only the dated/commitment ones belong in the app.
+  { key: "ev-cup-navratri", kind: "event", date: "2026-10-21", text: "School cup game · Navratri (eve)" },
+
+  // Term end is DAN'S GUESS, not the school calendar: "couldn't tell you... the Friday before
+  // the 19th". 19 Dec 2026 is a Saturday, so Fri 18 Dec. Flagged, and worth confirming.
+  { key: "ev-term-end-guess", kind: "event", date: "2026-12-18", text: "Last day of term (~ unconfirmed)" },
+
+  // HYROX start time: Dan says morning, and that the specifics don't matter. Retire the chase.
+  { key: "rm-td-hyrox-time", kind: "todo-remove", target: "td-hyrox-time" },
+
+  // ISA: unblocked - doing it with Mum, "very soon". No date given, so none invented.
+  { key: "td-isa-date", kind: "todo", star: true,
+    text: "ISA with Mum - agree an actual date. 'Very soon' has drifted 6 weeks already" },
 ];
