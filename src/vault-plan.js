@@ -393,4 +393,8 @@ export const VAULT_PLAN = [
   { key: "rm-td-garmin-strava", kind: "todo-remove", target: "td-garmin-strava" },
   { key: "td-strava-sub", kind: "todo", due: "2026-10-25",
     text: "Strava: subscribe (lets Claude read workouts) or keep telling the check-in — decide" },
+
+  // --- appended 2026-10-21 -------------------------------------------------
+  // My Cambridge Application submitted 21 Oct, a day inside the deadline.
+  { key: "rm-td-mca-finish", kind: "todo-remove", target: "td-mca-finish" },
 ];
