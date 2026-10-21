@@ -397,4 +397,13 @@ export const VAULT_PLAN = [
   // --- appended 2026-10-21 -------------------------------------------------
   // My Cambridge Application submitted 21 Oct, a day inside the deadline.
   { key: "rm-td-mca-finish", kind: "todo-remove", target: "td-mca-finish" },
+  // --- appended 2026-10-21 · habit check-in, Tue 20 Oct --------------------------
+  // Bed 22:30, 7h32 asleep (Garmin 80) — under 8h, so Sleep 8hrs+ stays unticked · mum's, ate
+  // well · football 20–21 at BTH · ~1h screen · ice baths stopped · "about 8 out of 10".
+  { key: "hl-2026-10-20", kind: "habitLog", date: "2026-10-20", rating: 8,
+    habits: { eatwell: true, exercise: true, screen: true } },
+  { key: "wo-2026-10-20-football", kind: "workout", date: "2026-10-20", t: 20, e: 21, cat: "Sport",
+    label: "Football · BTH", note: "From the habit check-in." },
+  { key: "td-garmin-connect", kind: "todo",
+    text: "Connect Garmin to Claude — needs a computer, do it when you're at one" },
 ];
