@@ -36,10 +36,11 @@ const SEED_DAYTYPES = DEFAULT_DAYTYPES;
 
 const DAYS = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
 const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+// Dan, 22 Oct: "Sleep 8hrs+" became "In bed by 22:30" (he hit bedtime and still failed 8h) and
+// Ice Bath was dropped. Old sleep8/icebath ticks stay in saved days, just no longer shown.
 const HABITS = [
-  { key:"sleep8",label:"Sleep 8hrs+",color:C.purple }, { key:"eatwell",label:"Eat Well",color:C.purple },
+  { key:"bed",label:"In bed by 22:30",color:C.purple }, { key:"eatwell",label:"Eat Well",color:C.purple },
   { key:"exercise",label:"Exercise",color:C.purple }, { key:"screen",label:"Screen < 3hrs",color:C.purple },
-  { key:"icebath",label:"Ice Bath",color:C.cyan },
 ];
 const BREAKDOWN = ["Sleep","Lessons","Revision","Gym","Activity"];
 const DEFAULT_WEEK = {
@@ -267,7 +268,7 @@ const blankDay = (iso)=>({
   reps:{ target:dayOfYear(iso), done:false },
   breakdown:{ Sleep:0,Lessons:0,Revision:0,Gym:0,Activity:0 },
   breakdownAdj:{ Sleep:0,Lessons:0,Revision:0,Gym:0,Activity:0 },
-  habits:{ sleep8:false,eatwell:false,exercise:false,screen:false,icebath:false },
+  habits:{ bed:false,eatwell:false,exercise:false,screen:false },
   todos:{ shortImp:[],longImp:[],shortUnimp:[],longUnimp:[] },
   rating:0, feedback:"", prodHours:0, unprodHours:0,
 });

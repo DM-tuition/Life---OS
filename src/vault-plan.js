@@ -406,4 +406,26 @@ export const VAULT_PLAN = [
     label: "Football · BTH", note: "From the habit check-in." },
   { key: "td-garmin-connect", kind: "todo",
     text: "Connect Garmin to Claude — needs a computer, do it when you're at one" },
+  // --- appended 2026-10-22 · habit check-in, Wed 21 Oct ---------------------------
+  // Tracker change (Dan, 22 Oct): Sleep 8hrs+ → "In bed by 22:30" (key `bed`); Ice Bath removed.
+  // Back-fill `bed` for the two nights already logged — both were 22:30 exactly.
+  { key: "hl-bed-2026-10-19", kind: "habitLog", date: "2026-10-19", habits: { bed: true } },
+  { key: "hl-bed-2026-10-20", kind: "habitLog", date: "2026-10-20", habits: { bed: true } },
+
+  // Wed 21 Oct: Navaratri, home ~01:00, bed ~01:40, 6h12 asleep (Garmin 58), up 08:30 · mum's,
+  // ate well · away football match in Liverpool (won) + Total Fitness pool and 20-min sauna +
+  // Navaratri dancing · ~40 min screen · "8.5 out of 10". Workout times weren't given.
+  { key: "hl-2026-10-21", kind: "habitLog", date: "2026-10-21", rating: 8.5,
+    habits: { eatwell: true, exercise: true, screen: true } },
+  { key: "wo-2026-10-21-football", kind: "workout", date: "2026-10-21", t: 14.5, e: 16.5, cat: "Sport",
+    label: "Football match · Liverpool (won)", note: "From the habit check-in. Time approximate." },
+  { key: "wo-2026-10-21-swim", kind: "workout", date: "2026-10-21", t: 18, e: 18.5, cat: "Sport",
+    label: "Swim · Total Fitness", note: "A few laps. From the habit check-in. Time approximate." },
+  { key: "wo-2026-10-21-sauna", kind: "workout", date: "2026-10-21", t: 18.5, e: 18.85, cat: "Gym",
+    label: "Sauna · 20 min", note: "From the habit check-in. Time approximate." },
+  { key: "wo-2026-10-21-navaratri", kind: "workout", date: "2026-10-21", t: 20.5, e: 24, cat: "Social",
+    label: "Navaratri", note: "Dancing — 'surprisingly energetic'. Home ~01:00. Time approximate." },
+
+  // Strava decided: "I'm not paying for Strava, that's not gonna happen." Ticked, not deleted.
+  { key: "done-td-strava-sub", kind: "todo-done", target: "td-strava-sub" },
 ];
