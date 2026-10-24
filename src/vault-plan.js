@@ -428,4 +428,16 @@ export const VAULT_PLAN = [
 
   // Strava decided: "I'm not paying for Strava, that's not gonna happen." Ticked, not deleted.
   { key: "done-td-strava-sub", kind: "todo-done", target: "td-strava-sub" },
+  // --- appended 2026-10-24 · habit check-in, Thu 22 + Fri 23 Oct (+ Sat so far) -------
+  // Thu 22: two tests (physics went well, maths didn't), half day, Rudy's pizza, ISOC football
+  // tournament (watched), Pepe's in Broadheath with the guys, then chose Dad's over Mum's —
+  // junk food, late bed. No exercise. "Probably a 6."
+  { key: "hl-2026-10-22", kind: "habitLog", date: "2026-10-22", rating: 6, habits: {} },
+  // Fri 23: "a true BS day" — at Dad's, woke late, film + YouTube, junk all day, heavy screen
+  // time. He scored it 0; the app's score runs 1–10, so it's flagged BS day and left unscored.
+  { key: "hl-2026-10-23", kind: "habitLog", date: "2026-10-23", bs: true, habits: {} },
+  // Sat 24 (so far): woke 10:00, then a mock HYROX at the gym from 12:00. Rest of the day
+  // gets logged at tomorrow's check-in.
+  { key: "wo-2026-10-24-mock-hyrox", kind: "workout", date: "2026-10-24", t: 12, e: 13.5, cat: "Gym",
+    label: "Mock HYROX", note: "4 days before the real one (Wed 28). From the check-in. End time approximate." },
 ];

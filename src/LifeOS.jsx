@@ -214,6 +214,7 @@ function applyEntry(e){
       d={ ...d, habits:h };
       if(e.reps) d.reps={ ...(d.reps||{ target:dayOfYear(e.date) }), done:true };
       if(e.rating && !d.rating) d.rating=e.rating;   // his own score in the app wins
+      if(e.bs) d.bs=true;                             // his own "BS day" call, from the check-in
       writeLS("day:"+e.date,d); return;
     }
     case "workout": {                     // a session from the check-in (swims especially) onto that day's timeline
