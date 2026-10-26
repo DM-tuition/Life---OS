@@ -440,4 +440,21 @@ export const VAULT_PLAN = [
   // gets logged at tomorrow's check-in.
   { key: "wo-2026-10-24-mock-hyrox", kind: "workout", date: "2026-10-24", t: 12, e: 13.5, cat: "Gym",
     label: "Mock HYROX", note: "4 days before the real one (Wed 28). From the check-in. End time approximate." },
+  // --- appended 2026-10-26 · half-term plan ------------------------------------
+  // First mock booked by Dan 24 Oct (Blue Education, 16:30–17:30, 45 min interview). Was vault-only.
+  { key: "ev-mock-blue-30oct", kind: "event", date: "2026-10-30", text: "Mock interview · Blue Education 16:30" },
+  { key: "kd-mock-blue-30oct", kind: "keyDate", name: "First mock", date: "2026-10-30" },
+  // Half-term plan set 26 Oct (vault: Personal/wiki/Calendar.md). One anchor per day.
+  { key: "td-six-easy-pieces-ht", kind: "todo", due: "2026-10-27", star: true,
+    text: "Finish Six Easy Pieces — it's in the submitted PS" },
+  { key: "td-higgs-out-loud-ht", kind: "todo", due: "2026-10-29", star: true,
+    text: "Higgs/Z analysis out loud, unaided, 5 min — recorded" },
+  { key: "td-natsci-ia-ht", kind: "todo", due: "2026-10-29",
+    text: "NatSci Part IA: pick 3 sciences + maths, say why" },
+  { key: "td-mock-debrief-30oct", kind: "todo", due: "2026-10-30",
+    text: "Debrief the mock within an hour — tell Claude what went wrong" },
+  { key: "td-gym-redesign-ht", kind: "todo", due: "2026-10-29",
+    text: "Redesign the gym routine with Claude (incl. a cardio day)" },
+  { key: "td-stamford-site-ht", kind: "todo", due: "2026-11-01",
+    text: "Stamford site: captain photos, house email, check event dates" },
 ];
