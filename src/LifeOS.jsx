@@ -211,7 +211,13 @@ function applyEntry(e){
         const idx=readLS("index:days",[]); if(!idx.includes(e.date)) writeLS("index:days",[...idx,e.date]); }
       const h={ ...(d.habits||{}) };
       for(const k in (e.habits||{})) if(e.habits[k]) h[k]=true;
-      d={ ...d, habits:h };
+      const bd={ ...(d.bad||{}) };
+      for(const k in (e.bad||{})) if(e.bad[k]){ if(k==="bs") d={ ...d, bs:true }; else bd[k]=true; }
+      // Explicit corrections, 27 Oct: "you ultimately change them based on information I give
+      // you." Only used when Dan has SAID a thing didn't happen — so `off` beats both his tick
+      // and an earlier entry. (A habit auto-satisfied by a linked timeline block still shows.)
+      for(const k of (e.off||[])){ if(k==="bs") d={ ...d, bs:false }; if(k in h) h[k]=false; if(k in bd) bd[k]=false; }
+      d={ ...d, habits:h, bad:bd };
       if(e.reps) d.reps={ ...(d.reps||{ target:dayOfYear(e.date) }), done:true };
       if(e.rating && !d.rating) d.rating=e.rating;   // his own score in the app wins
       if(e.bs) d.bs=true;                             // his own "BS day" call, from the check-in
@@ -227,6 +233,18 @@ function applyEntry(e){
           label:e.label, cat:CATS[e.cat]?e.cat:"Gym", note:e.note||"" }] };
       d={ ...d, habits:{ ...(d.habits||{}), exercise:true } };
       writeLS("day:"+e.date,d); return;
+    }
+    case "badHabit": {                    // add a bad habit to the list (remove:true drops it; BS day stays)
+      const cur=readLS("badHabits:v1",DEFAULT_BAD);
+      if(e.remove){ if(e.habit!=="bs") writeLS("badHabits:v1",cur.filter(b=>b.key!==e.habit)); return; }
+      if(!cur.some(b=>b.key===e.habit)) writeLS("badHabits:v1",[...cur,{ key:e.habit, label:e.label||e.habit }]);
+      return;
+    }
+    case "letter": {                      // a 30-day letter Dan dictated. A live one is archived, never deleted.
+      const cur=readLS("letter:v1",null), w=e.date||todayISO();
+      if(cur && cur.text) writeLS("letters:v1",[{ ...cur, closed:w }, ...readLS("letters:v1",[])]);
+      writeLS("letter:v1",{ text:e.text, written:w, target:addDays(w,30), via:"vault" });
+      return;
     }
     case "habitCfg": {                    // retune a habit: { per: 1-7 per week, type: "build"|"quit" }
       const cur=readLS("habitCfg:v1",{});
@@ -269,7 +287,7 @@ const blankDay = (iso)=>({
   reps:{ target:dayOfYear(iso), done:false },
   breakdown:{ Sleep:0,Lessons:0,Revision:0,Gym:0,Activity:0 },
   breakdownAdj:{ Sleep:0,Lessons:0,Revision:0,Gym:0,Activity:0 },
-  habits:{ bed:false,eatwell:false,exercise:false,screen:false },
+  habits:{ bed:false,eatwell:false,exercise:false,screen:false }, bad:{},
   todos:{ shortImp:[],longImp:[],shortUnimp:[],longUnimp:[] },
   rating:0, feedback:"", prodHours:0, unprodHours:0,
 });
@@ -295,6 +313,17 @@ function computeBreakdown(blocks){
 function withAdj(auto,adj){ const o={}; for(const k in auto) o[k]=Math.max(0,(auto[k]||0)+((adj&&adj[k])||0)); return o; }
 // a habit counts as done if ticked manually OR auto-satisfied by a kept timeline block of its linked category
 const habitDone = (day,key,links)=> !!(day && ((day.habits&&day.habits[key]) || (links && links[key] && (day.blocks||[]).some(b=>b.cat===links[key] && b.status!=="missed"))));
+
+// ============ DISCIPLINE (Dan, 27 Oct: "one habit, two habit, that's the scale, and a negative
+// habit brings it down") ============
+// Bad habits are ticked when they HAPPEN — the opposite of a quit habit, where a tick is a clean
+// day. "BS day" is wired to the existing day.bs flag rather than duplicated. Dan adds his own.
+const DEFAULT_BAD = [{ key:"bs", label:"BS day" }];
+const badDone = (day,key)=> !!(day && (key==="bs" ? day.bs : (day.bad && day.bad[key])));
+// a day's score: good habits done minus bad habits that happened. No record = no score (a gap),
+// never a fake zero — an unlogged day isn't a disciplined one.
+const disciplineOf = (day,links,bad)=> !day ? null :
+  HABITS.filter(h=>habitDone(day,h.key,links)).length - (bad||DEFAULT_BAD).filter(b=>badDone(day,b.key)).length;
 
 // ============ HABIT ENGINE (quotas · freezes · strength) ============
 const DEFAULT_HCFG = { per:7, type:"build" }; // per: 7 = daily, 1-6 = times per week
@@ -410,6 +439,9 @@ export default function LifeOS(){
   const [weekAnchorA,setWeekAnchorA] = useState(todayISO());// Monday of a week designated "Week A"
   const [habitLinks,setHabitLinks] = useState({});         // habit key -> block category (auto-complete)
   const [habitCfg,setHabitCfg] = useState({});             // habit key -> { per, type }
+  const [badHabits,setBadHabits] = useState(DEFAULT_BAD);   // [{ key,label }] ticked when they happen
+  const [letter,setLetter] = useState(null);                 // the live 30-day letter
+  const [letters,setLetters] = useState([]);                 // past letters — never deleted
   const [masterTodos,setMasterTodos] = useState([]);       // long-term to-do list
   const [keyDates,setKeyDates] = useState([]);             // deadline radar
   const [allDays,setAllDays] = useState({});
@@ -436,6 +468,9 @@ export default function LifeOS(){
     setWeekAnchorA(await sGet("weekAnchorA:v1", todayISO()));
     setHabitLinks(await sGet("habitLinks:v1", {}));
     setHabitCfg(await sGet("habitCfg:v1", {}));
+    setBadHabits(await sGet("badHabits:v1", DEFAULT_BAD));
+    setLetter(await sGet("letter:v1", null));
+    setLetters(await sGet("letters:v1", []));
     setMasterTodos(await sGet("masterTodos:v1", []));
     setKeyDates(await sGet("keyDates:v1", []));
     const idx = await sGet("index:days", []);
@@ -499,6 +534,9 @@ export default function LifeOS(){
   const persistWeekAnchor = async (iso)=>{ setWeekAnchorA(iso); await sSet("weekAnchorA:v1", iso); };
   const persistHabitLinks = async (l)=>{ setHabitLinks(l); await sSet("habitLinks:v1", l); };
   const persistHabitCfg = async (c)=>{ setHabitCfg(c); await sSet("habitCfg:v1", c); };
+  const persistBadHabits = async (b)=>{ setBadHabits(b); await sSet("badHabits:v1", b); };
+  const persistLetter = async (l)=>{ setLetter(l); await sSet("letter:v1", l); };
+  const persistLetters = async (l)=>{ setLetters(l); await sSet("letters:v1", l); };
   const persistMasterTodos = async (t)=>{ setMasterTodos(t); await sSet("masterTodos:v1", t); };
   const persistKeyDates = async (k)=>{ setKeyDates(k); await sSet("keyDates:v1", k); };
   const toggleMasterTodo = (id)=> persistMasterTodos(masterTodos.map(t=>t.id===id?{...t,done:!t.done}:t));
@@ -555,10 +593,10 @@ export default function LifeOS(){
       )}
 
       <div style={{ maxWidth:1180, margin:"0 auto", padding:isMobile?"16px 12px":"24px" }}>
-        {tab==="today" && <TodayView day={day} date={date} setDate={setDate} upd={upd} dayTypes={dayTypes} applyDayType={applyDayType} links={habitLinks} allDays={allDays} flash={flash} masterTodos={masterTodos} toggleMasterTodo={toggleMasterTodo} goTodos={()=>setTab("todo")} keyDates={keyDates} saveKeyDates={persistKeyDates} />}
+        {tab==="today" && <TodayView day={day} date={date} setDate={setDate} upd={upd} dayTypes={dayTypes} applyDayType={applyDayType} links={habitLinks} allDays={allDays} flash={flash} masterTodos={masterTodos} toggleMasterTodo={toggleMasterTodo} goTodos={()=>setTab("todo")} keyDates={keyDates} saveKeyDates={persistKeyDates} bad={badHabits} />}
         {tab==="todo" && <TodoListView todos={masterTodos} save={persistMasterTodos} flash={flash} />}
         {tab==="month" && <MonthView date={date} setDate={setDate} setTab={setTab} allDays={allDays} dayTypes={dayTypes} flash={flash} weekAnchorA={weekAnchorA} />}
-        {tab==="habits" && <HabitsView allDays={allDays} links={habitLinks} saveLinks={persistHabitLinks} cfg={habitCfg} saveCfg={persistHabitCfg} />}
+        {tab==="habits" && <HabitsView allDays={allDays} links={habitLinks} saveLinks={persistHabitLinks} cfg={habitCfg} saveCfg={persistHabitCfg} bad={badHabits} saveBad={persistBadHabits} letter={letter} saveLetter={persistLetter} letters={letters} saveLetters={persistLetters} />}
         {tab==="week" && <WeekView allDays={allDays} date={date} setDate={setDate} links={habitLinks} />}
         {tab==="trends" && <TrendsView allDays={allDays} links={habitLinks} cfg={habitCfg} />}
         {tab==="journal" && <JournalView allDays={allDays} setDate={setDate} setTab={setTab} />}
@@ -934,7 +972,7 @@ function DeadlineRadar({ dates,save,setDate }){
 }
 
 // ============ TODAY ============
-function TodayView({ day,date,setDate,upd,dayTypes,applyDayType,links,allDays,flash,masterTodos,toggleMasterTodo,goTodos,keyDates,saveKeyDates }){
+function TodayView({ day,date,setDate,upd,dayTypes,applyDayType,links,allDays,flash,masterTodos,toggleMasterTodo,goTodos,keyDates,saveKeyDates,bad }){
   const [newTask,setNewTask] = useState("");
   const [showApply,setShowApply] = useState(false);
   const isMobile = useIsMobile();
@@ -959,6 +997,8 @@ function TodayView({ day,date,setDate,upd,dayTypes,applyDayType,links,allDays,fl
   const toggleTask=(b,i)=>{ const a=[...day.todos[b]]; a[i]={...a[i],done:!a[i].done}; upd({ todos:{ ...day.todos,[b]:a } }); };
   const delTask=(b,i)=> upd({ todos:{ ...day.todos,[b]:day.todos[b].filter((_,j)=>j!==i) } });
   const toggleHabit=(k)=> upd({ habits:{ ...day.habits,[k]:!day.habits[k] } });
+  const toggleBad=(k)=> k==="bs" ? upd({ bs:!day.bs }) : upd({ bad:{ ...(day.bad||{}),[k]:!(day.bad&&day.bad[k]) } });
+  const dayScore = disciplineOf(day,links,bad);
   const currentType = day.dayTypeId && dayTypes[day.dayTypeId];
 
   const copyYesterday=()=>{ const y=(allDays||{})[addDays(date,-1)];
@@ -1074,9 +1114,15 @@ function TodayView({ day,date,setDate,upd,dayTypes,applyDayType,links,allDays,fl
             </div>
           </Panel>
 
-          <Panel accent={C.purple} title="Habit Tracker">
+          <Panel accent={C.purple} title="Habit Tracker" right={<span style={{ fontSize:13, fontWeight:700, color:dayScore>0?C.green:dayScore<0?C.red:C.dim }}>{dayScore>0?"+":""}{dayScore}</span>}>
             <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"10px 14px" }}>
               {HABITS.map(h=>{ const on=habitDone(day,h.key,links); const auto=on&&!(day.habits&&day.habits[h.key]); return <div key={h.key} style={{ display:"flex", alignItems:"center", gap:10 }}><Check on={on} color={h.color} onClick={()=>toggleHabit(h.key)} /><span style={{ fontSize:13, color:on?C.ink:C.dim }}>{h.label}{auto && <span style={{ fontSize:9, color:h.color, marginLeft:4 }}>auto</span>}</span></div>; })}
+            </div>
+            <div style={{ borderTop:`1px solid ${C.line}`, marginTop:12, paddingTop:10 }}>
+              <div style={{ fontSize:10, fontWeight:700, letterSpacing:0.6, textTransform:"uppercase", color:C.red, marginBottom:8 }}>Bad habits · tick if it happened</div>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"10px 14px" }}>
+                {(bad||DEFAULT_BAD).map(b=>{ const on=badDone(day,b.key); return <div key={b.key} style={{ display:"flex", alignItems:"center", gap:10 }}><Check on={on} color={C.red} onClick={()=>toggleBad(b.key)} /><span style={{ fontSize:13, color:on?C.red:C.dim }}>{b.label}</span></div>; })}
+              </div>
             </div>
           </Panel>
 
@@ -1505,7 +1551,152 @@ function DayTypesView({ dayTypes,save,weekMap,saveWeekMap,weekMapB,saveWeekMapB,
 
 // ============ HABITS (contribution grid + streak rings + block linking) ============
 const GRID_WEEKS = 18;
-function HabitsView({ allDays, links, saveLinks, cfg, saveCfg }){
+// ============ DISCIPLINE CHART — good habits up, bad habits down, over time ============
+// Catmull-Rom through each run of logged days; control points clamped so the curve never
+// overshoots the axis. Unlogged days break the line rather than being drawn as zero.
+function smoothPath(p,lo,hi){
+  if(p.length===1) return `M${p[0][0]},${p[0][1]}`;
+  const cl=(y)=>Math.max(lo,Math.min(hi,y));
+  let d=`M${p[0][0]},${p[0][1]}`;
+  for(let i=0;i<p.length-1;i++){
+    const p0=p[i-1]||p[i], p1=p[i], p2=p[i+1], p3=p[i+2]||p2;
+    d+=` C${p1[0]+(p2[0]-p0[0])/6},${cl(p1[1]+(p2[1]-p0[1])/6)} ${p2[0]-(p3[0]-p1[0])/6},${cl(p2[1]-(p3[1]-p1[1])/6)} ${p2[0]},${p2[1]}`;
+  }
+  return d;
+}
+function DisciplineChart({ allDays, links, bad }){
+  const [span,setSpan] = useState(30);
+  const today=todayISO();
+  const isos=[]; for(let i=span-1;i>=0;i--) isos.push(addDays(today,-i));
+  const scores=isos.map(iso=>disciplineOf(allDays[iso],links,bad));
+  const nGood=HABITS.length, nBad=Math.max(1,(bad||DEFAULT_BAD).length);
+  const yMax=nGood, yMin=-nBad;
+  // 7-day trend: mean of whatever was logged in the trailing week
+  const trend=scores.map((_,i)=>{ const w=scores.slice(Math.max(0,i-6),i+1).filter(v=>v!==null); return w.length? w.reduce((a,b)=>a+b,0)/w.length : null; });
+  const W=720,H=230,L=34,R=12,T=14,B=26, iw=W-L-R, ih=H-T-B;
+  const X=(i)=> L + (span===1?iw/2: i*iw/(span-1));
+  const Y=(v)=> T + (yMax-v)*ih/(yMax-yMin);
+  const runs=(arr)=>{ const out=[]; let cur=[]; arr.forEach((v,i)=>{ if(v===null){ if(cur.length) out.push(cur); cur=[]; } else cur.push([X(i),Y(v)]); }); if(cur.length) out.push(cur); return out; };
+  const lineRuns=runs(scores), trendRuns=runs(trend);
+  const zy=Y(0);
+  const logged=scores.filter(v=>v!==null);
+  const avg=(a)=> a.length? (a.reduce((x,y)=>x+y,0)/a.length) : null;
+  const last7=scores.slice(-7).filter(v=>v!==null);
+  const fmt1=(v)=> v===null?"—":(v>0?"+":"")+(Math.round(v*10)/10);
+  const todayScore=scores[scores.length-1];
+  const col=(v)=> v>=3?C.green : v>=1?C.teal : v===0?C.dim : C.red;
+  const lbl=(iso)=>{ const d=pd(iso); return `${d.getDate()}/${d.getMonth()+1}`; };
+  const step=span<=30?5:15;
+  return (
+    <Panel accent={C.teal} title="Discipline over time" style={{ marginBottom:18 }} right={
+      <div style={{ display:"flex", gap:6 }}>{[30,90].map(n=> <button key={n} onClick={()=>setSpan(n)} style={{ fontSize:11, padding:"3px 9px", borderRadius:10, cursor:"pointer", border:`1px solid ${span===n?C.teal:C.line}`, background:span===n?C.teal:"transparent", color:span===n?"#0b0b0b":C.dim }}>{n}d</button>)}</div>}>
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width:"100%", height:"auto", display:"block" }} role="img" aria-label="Daily discipline score">
+        <defs>
+          <clipPath id="dc-above"><rect x={L} y={T} width={iw} height={Math.max(0,zy-T)}/></clipPath>
+          <clipPath id="dc-below"><rect x={L} y={zy} width={iw} height={Math.max(0,T+ih-zy)}/></clipPath>
+        </defs>
+        {Array.from({length:yMax-yMin+1},(_,k)=>yMax-k).map(v=> <g key={v}>
+          <line x1={L} x2={W-R} y1={Y(v)} y2={Y(v)} stroke={v===0?C.dim:C.line} strokeWidth={v===0?1.2:1} strokeDasharray={v===0?"":"2 4"}/>
+          <text x={L-8} y={Y(v)+4} fontSize="11" fill={v===0?C.dim:C.faint} textAnchor="end">{v>0?"+":""}{v}</text>
+        </g>)}
+        {lineRuns.map((r,i)=>{ const path=smoothPath(r,T,T+ih); const area=`${path} L${r[r.length-1][0]},${zy} L${r[0][0]},${zy} Z`; return <g key={"a"+i}>
+          <path d={area} fill={C.teal} opacity="0.16" clipPath="url(#dc-above)"/>
+          <path d={area} fill={C.red} opacity="0.20" clipPath="url(#dc-below)"/>
+        </g>; })}
+        {trendRuns.map((r,i)=> <path key={"t"+i} d={smoothPath(r,T,T+ih)} fill="none" stroke={C.gold} strokeWidth="1.6" strokeDasharray="5 4" opacity="0.85"/>)}
+        {lineRuns.map((r,i)=> <path key={"l"+i} d={smoothPath(r,T,T+ih)} fill="none" stroke={C.teal} strokeWidth="2.2"/>)}
+        {scores.map((v,i)=> v===null?null: <circle key={"d"+i} cx={X(i)} cy={Y(v)} r={i===span-1?4.5:3} fill={col(v)} stroke={i===span-1?C.ink:"none"} strokeWidth="1.5"><title>{`${isos[i]} · ${v>0?"+":""}${v}`}</title></circle>)}
+        {isos.map((iso,i)=> (i%step===0||i===span-1) ? <text key={"x"+i} x={X(i)} y={H-8} fontSize="10" fill={i===span-1?C.ink:C.faint} textAnchor="middle">{i===span-1?"today":lbl(iso)}</text> : null)}
+      </svg>
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:10, marginTop:10 }}>
+        <Stat label="Today" value={fmt1(todayScore)} color={todayScore===null?C.faint:col(todayScore)}/>
+        <Stat label="7-day avg" value={fmt1(avg(last7))} color={C.gold}/>
+        <Stat label={`${span}-day avg`} value={fmt1(avg(logged))} color={C.teal}/>
+        <Stat label="Best day" value={logged.length?fmt1(Math.max(...logged)):"—"} color={C.green}/>
+        <Stat label="Days logged" value={logged.length} sub={`/${span}`} color={C.dim}/>
+      </div>
+      <Mini>Each day = good habits done − bad habits that happened (max +{nGood}). <span style={{ color:C.gold }}>Dashed</span> = 7-day trend. Gaps are days with nothing logged — counted as unknown, not as zero.</Mini>
+    </Panel>
+  );
+}
+
+// ============ LETTER TO FUTURE YOU — 30 days out (Dan, 27 Oct) ============
+function FutureLetter({ letter, saveLetter, letters, saveLetters }){
+  const today=todayISO();
+  const live=!!(letter && letter.text);
+  const [draft,setDraft]=useState(live?letter.text:"");
+  const [showOld,setShowOld]=useState(false);
+  useEffect(()=>{ setDraft(letter&&letter.text?letter.text:""); },[letter&&letter.written, letter&&letter.text]);
+  const left = live ? Math.round((pd(letter.target)-pd(today))/86400000) : null;
+  const due = live && left<=0;
+  const dirty = draft.trim()!==(live?letter.text:"");
+  const save=()=>{ const t=draft.trim(); if(!t) return;
+    // editing keeps the original date — rewriting a letter mustn't restart its 30 days
+    saveLetter(live ? { ...letter, text:t } : { text:t, written:today, target:addDays(today,30) }); };
+  const startNew=()=>{ saveLetters([{ ...letter, closed:today }, ...(letters||[])]); saveLetter(null); setDraft(""); };
+  return (
+    <Panel accent={C.gold} title="Letter to future you" style={{ marginBottom:18 }} right={live ? <span style={{ fontSize:11, color:due?C.gold:C.faint, fontWeight:due?700:400 }}>{due ? "30 days are up" : `opens in ${left} day${left===1?"":"s"}`}</span> : null}>
+      {due && <div style={{ background:`${C.gold}18`, border:`1px solid ${C.gold}55`, borderRadius:10, padding:"10px 12px", marginBottom:12, fontSize:13, color:C.ink }}>
+        You wrote this on <b>{fmt(letter.written)}</b>. Read it back honestly — did you do it? Then start the next one.
+      </div>}
+      <textarea value={draft} onChange={e=>setDraft(e.target.value)} rows={5} placeholder="Hello future me — in 30 days I want to have…"
+        style={{ ...inp, width:"100%", resize:"vertical", fontSize:14, lineHeight:1.5, boxSizing:"border-box", fontFamily:"inherit" }}/>
+      <div style={{ display:"flex", alignItems:"center", gap:10, marginTop:10, flexWrap:"wrap" }}>
+        <button onClick={save} disabled={!dirty||!draft.trim()} style={{ ...addBtn, width:"auto", padding:"6px 14px", opacity:(!dirty||!draft.trim())?0.4:1, borderColor:C.gold, color:C.gold }}>{live?"Save changes":"Seal it — 30 days"}</button>
+        {live && <span style={{ fontSize:11, color:C.faint }}>Written {fmt(letter.written)} · opens {fmt(letter.target)}{letter.via==="vault"?" · from your check-in":""}</span>}
+        {live && due && <button onClick={startNew} style={{ ...addBtn, width:"auto", padding:"6px 14px", marginLeft:"auto" }}>Archive & write the next one</button>}
+      </div>
+      {(letters||[]).length>0 && <div style={{ marginTop:14 }}>
+        <button onClick={()=>setShowOld(!showOld)} style={{ background:"none", border:"none", color:C.dim, cursor:"pointer", fontSize:12, padding:0 }}>{showOld?"▾":"▸"} Past letters ({letters.length}) — kept, never deleted</button>
+        {showOld && letters.map((l,i)=> <div key={i} style={{ marginTop:10, padding:"10px 12px", background:C.panel2, borderRadius:10, fontSize:13, color:C.dim, whiteSpace:"pre-wrap" }}>
+          <div style={{ fontSize:11, color:C.faint, marginBottom:6 }}>{fmt(l.written)} → {fmt(l.target)}</div>{l.text}
+        </div>)}
+      </div>}
+    </Panel>
+  );
+}
+
+// ============ BAD HABITS PANEL ============
+function BadHabitsPanel({ allDays, bad, saveBad, weeks }){
+  const today=todayISO();
+  const [name,setName]=useState("");
+  const list=bad||DEFAULT_BAD;
+  const add=()=>{ const t=name.trim(); if(!t) return;
+    const key="bad-"+t.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"").slice(0,24)+"-"+Date.now().toString(36).slice(-4);
+    saveBad([...list,{ key, label:t }]); setName(""); };
+  const remove=(k)=>{ if(k==="bs") return; if(confirmDel("this bad habit (it stops counting everywhere, past days included)")) saveBad(list.filter(b=>b.key!==k)); };
+  const count=(k,n)=>{ let c=0; for(let i=0;i<n;i++) if(badDone(allDays[addDays(today,-i)],k)) c++; return c; };
+  const since=(k)=>{ for(let i=0;i<400;i++){ if(badDone(allDays[addDays(today,-i)],k)) return i; } return null; };
+  return (
+    <Panel accent={C.red} title="Bad habits" style={{ marginTop:18 }} right={<span style={{ fontSize:11, color:C.faint }}>tick when it happens · each one drags the day down</span>}>
+      <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
+        {list.map(b=>{ const s=since(b.key); return (
+          <div key={b.key}>
+            <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:8, flexWrap:"wrap" }}>
+              <span style={{ fontSize:14, fontWeight:600, color:C.ink, flex:1 }}>{b.label}</span>
+              <span style={{ fontSize:11, color:C.faint }}>7d <b style={{ color:count(b.key,7)?C.red:C.green }}>{count(b.key,7)}</b></span>
+              <span style={{ fontSize:11, color:C.faint }}>30d <b style={{ color:count(b.key,30)?C.red:C.green }}>{count(b.key,30)}</b></span>
+              <span style={{ fontSize:11, color:C.faint }}>clean for <b style={{ color:C.green }}>{s===null?"—":s}</b>{s===null?"":"d"}</span>
+              {b.key!=="bs" && <button onClick={()=>remove(b.key)} style={delBtn} title="Remove">×</button>}
+            </div>
+            <div style={{ display:"flex", gap:3, overflowX:"auto", paddingBottom:4 }}>
+              {weeks.map((col,wi)=> <div key={wi} style={{ display:"flex", flexDirection:"column", gap:3, flexShrink:0 }}>
+                {col.map(iso=>{ const d=allDays[iso]; const future=iso>today; const hit=badDone(d,b.key);
+                  return <div key={iso} title={iso} style={{ width:12, height:12, borderRadius:3, background: future?"transparent" : hit? C.red : d? `${C.green}33` : C.panel2 }}/>; })}
+              </div>)}
+            </div>
+          </div>); })}
+      </div>
+      <div style={{ display:"flex", gap:8, marginTop:14 }}>
+        <input value={name} onChange={e=>setName(e.target.value)} onKeyDown={e=>{ if(e.key==="Enter") add(); }} placeholder="Add a bad habit + Enter…" style={{ ...inp, flex:1 }}/>
+        <button onClick={add} style={{ ...addBtn, width:"auto", padding:"0 16px", borderColor:C.red, color:C.red }}>Add</button>
+      </div>
+      <Mini>Green squares are logged days it didn't happen — the streak you're actually protecting. BS day is built in and can't be removed.</Mini>
+    </Panel>
+  );
+}
+
+function HabitsView({ allDays, links, saveLinks, cfg, saveCfg, bad, saveBad, letter, saveLetter, letters, saveLetters }){
   const today = todayISO();
   const start = addDays(weekKeyOf(today), -(GRID_WEEKS-1)*7);
   const weeks = useMemo(()=>{ const arr=[]; for(let w=0;w<GRID_WEEKS;w++){ const col=[]; for(let d=0;d<7;d++) col.push(addDays(start, w*7+d)); arr.push(col); } return arr; },[start]);
@@ -1518,6 +1709,8 @@ function HabitsView({ allDays, links, saveLinks, cfg, saveCfg }){
         <div style={{ fontFamily:"'Caveat',cursive", fontSize:40, color:C.teal }}>Habits</div>
         <div style={{ fontSize:12, color:C.dim }}>Don't break the chain · last {GRID_WEEKS} weeks · ❄ freeze a day from the Today tab</div>
       </div>
+      <DisciplineChart allDays={allDays} links={links} bad={bad}/>
+      <FutureLetter letter={letter} saveLetter={saveLetter} letters={letters} saveLetters={saveLetters}/>
       <div style={{ display:"flex", flexDirection:"column", gap:18 }}>
         {HABITS.map(h=>{
           const c={ ...DEFAULT_HCFG, ...(cfg[h.key]||{}) };
@@ -1564,6 +1757,7 @@ function HabitsView({ allDays, links, saveLinks, cfg, saveCfg }){
           );
         })}
       </div>
+      <BadHabitsPanel allDays={allDays} bad={bad} saveBad={saveBad} weeks={weeks}/>
       <Mini>Quota habits (e.g. 3×/wk) streak by weeks hit, and this week can't break until it's over. Frozen days show as ❄ outlines — they never break a chain. Strength is the honest score: one miss dents it, consistency rebuilds it.</Mini>
     </div>
   );
