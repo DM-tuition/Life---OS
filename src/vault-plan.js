@@ -476,4 +476,22 @@ export const VAULT_PLAN = [
     text: "Practice mock with Claude, 45 min, before the 16:30" },
   { key: "td-formet-cap", kind: "todo", due: "2026-11-01",
     text: "Formet: 2-3h cap, then stop" },
+  // --- appended 2026-10-27 · habit check-in, Sat 24 – Mon 26 Oct --------------------
+  // Sat 24: up ~10, junk breakfast, then the full HYROX solo with Rory at the gym from 12
+  // (stations doubled — home ~16:00, so the mock-HYROX block shipped 24 Oct is short),
+  // Spurs game, Rory + Maz round for UFC 333, late bed. "6 out of 10".
+  { key: "hl-2026-10-24", kind: "habitLog", date: "2026-10-24", rating: 6, habits: { exercise: true } },
+  // Sun 25: at mum's — ate well, up ~12, bed ~02:00, TV all day. Rest day after the HYROX
+  // (deliberate). "Probably 4 out of 10." Not flagged BS: he called it one, then "not a complete BS day".
+  { key: "hl-2026-10-25", kind: "habitLog", date: "2026-10-25", rating: 4, habits: { eatwell: true } },
+  // Mon 26: up ~11, easy HYROX session with Ian at 12, pool + sauna, Pizza Anna, ~2h at the
+  // library (interview prep + organising, then the Stamford House website), walk round
+  // Timperley with Julian, healthy dinner, bed ~01:00. "Let's just say 7."
+  { key: "hl-2026-10-26", kind: "habitLog", date: "2026-10-26", rating: 7, habits: { eatwell: true } },
+  { key: "wo-2026-10-26-hyrox", kind: "workout", date: "2026-10-26", t: 12, e: 13, cat: "Gym",
+    label: "HYROX session (easy) · with Ian", note: "Calm, nothing too fatiguing. Time approximate." },
+  { key: "wo-2026-10-26-swim", kind: "workout", date: "2026-10-26", t: 13, e: 13.5, cat: "Sport",
+    label: "Swim", note: "From the habit check-in. Time approximate." },
+  { key: "wo-2026-10-26-sauna", kind: "workout", date: "2026-10-26", t: 13.5, e: 13.85, cat: "Gym",
+    label: "Sauna", note: "From the habit check-in. Time approximate." },
 ];
