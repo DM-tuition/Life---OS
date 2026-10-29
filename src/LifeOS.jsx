@@ -234,6 +234,12 @@ function applyEntry(e){
       d={ ...d, habits:{ ...(d.habits||{}), exercise:true } };
       writeLS("day:"+e.date,d); return;
     }
+    case "workout-edit": {                // correct a block a `workout` entry shipped (matched by label)
+      const d=readLS("day:"+e.date,null); if(!d) return;
+      const patch={}; for(const k of ["t","e","note"]) if(e[k]!==undefined) patch[k]=e[k];
+      writeLS("day:"+e.date,{ ...d, blocks:(d.blocks||[]).map(b=>sameText(b.label||"",e.label)?{ ...b, ...patch }:b) });
+      return;
+    }
     case "badHabit": {                    // add a bad habit to the list (remove:true drops it; BS day stays)
       const cur=readLS("badHabits:v1",DEFAULT_BAD);
       if(e.remove){ if(e.habit!=="bs") writeLS("badHabits:v1",cur.filter(b=>b.key!==e.habit)); return; }

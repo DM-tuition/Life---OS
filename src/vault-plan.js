@@ -505,4 +505,7 @@ export const VAULT_PLAN = [
   // Mum flies to Vietnam Fri 30 Oct ("tomorrow, I think") — two weeks at Dad's from then.
   { key: "ev-dads-fortnight", kind: "event", date: "2026-10-30",
     text: "Mum flies to Vietnam (tbc) — 2 weeks at Dad's starts" },
+  // HYROX doubles finish: 1hr 17min (Dan, 29 Oct) — target was sub-1hr. Stretch the block.
+  { key: "wo-edit-2026-10-28-hyrox", kind: "workout-edit", date: "2026-10-28",
+    label: "HYROX doubles · Birmingham", e: 13 + 10/60 + 77/60, note: "Start 13:10, finished in 1:17:00 (target sub-1hr)." },
 ];
