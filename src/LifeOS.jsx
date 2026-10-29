@@ -361,6 +361,16 @@ function useIsMobile(bp=760){
   return m;
 }
 
+// Touch-first devices (the iPad) get the phone's bottom tab bar even when wide enough for the
+// desktop layout — Dan, 29 Oct. Layout still follows width; only navigation follows the finger.
+function useIsTouch(){
+  const q = ()=> typeof window!=="undefined" && !!window.matchMedia && window.matchMedia("(pointer: coarse)").matches;
+  const [t,setT] = useState(q);
+  useEffect(()=>{ if(!window.matchMedia) return; const m=window.matchMedia("(pointer: coarse)"); const on=()=>setT(m.matches);
+    m.addEventListener?m.addEventListener("change",on):m.addListener(on); return ()=>{ m.removeEventListener?m.removeEventListener("change",on):m.removeListener(on); }; },[]);
+  return t;
+}
+
 // ============ AUTO BREAKDOWN (derive Hourly Breakdown from timeline blocks) ============
 const BD_MAP = { Sleep:"Sleep", School:"Lessons", Revision:"Revision", Gym:"Gym", Sport:"Activity", Activity:"Activity" };
 function computeBreakdown(blocks){
@@ -552,6 +562,8 @@ export default function LifeOS(){
   const MAIN_TABS = [["today","Today"],["plan","Week"],["month","Month"],["todo","To Do"],["habits","Habits"]];
   const MORE_MOBILE = MORE;
   const isMobile = useIsMobile();
+  const isTouch = useIsTouch();
+  const bottomNav = isMobile || isTouch;
 
   useEffect(()=>{ (async()=>{
     await syncBootstrap();   // pull newest cloud state before reading local (no-op if sync isn't set up)
@@ -588,6 +600,21 @@ export default function LifeOS(){
     const idx=await sGet("index:days",[]); if(!idx.includes(d.date)){ idx.push(d.date); await sSet("index:days",idx); }
     setAllDays(prev=>({ ...prev, [d.date]:d })); };
   const upd = (patch)=> persistDay({ ...day, ...patch });
+  // Week tab drag-and-drop: lift a block off one day and drop it on another, same times.
+  // `fromDay` is the day exactly as the Week tab rendered it, so a never-opened day's template
+  // ids still match. Both days are saved, which also turns a previewed day into a real one.
+  const moveBlockToDay = async (fromDay, blk, toIso)=>{
+    if(!fromDay || fromDay.date===toIso) return;
+    const to = materialiseDay(toIso, allDays[toIso]||readLS("day:"+toIso,null), dayCtx);
+    const fromBlocks = fromDay.blocks.filter(b=>b.id!==blk.id);
+    const nf = { ...fromDay, blocks:fromBlocks, breakdown:withAdj(computeBreakdown(fromBlocks), fromDay.breakdownAdj) };
+    const toBlocks = [...to.blocks, { ...blk, id:Date.now() }];
+    const nt = { ...to, blocks:toBlocks, breakdown:withAdj(computeBreakdown(toBlocks), to.breakdownAdj) };
+    await sSet(`day:${nf.date}`, nf); await sSet(`day:${nt.date}`, nt);
+    const idx=await sGet("index:days",[]); const add=[nf.date,nt.date].filter(x=>!idx.includes(x)); if(add.length) await sSet("index:days",[...idx,...add]);
+    setAllDays(prev=>({ ...prev, [nf.date]:nf, [nt.date]:nt }));
+    if(date===nf.date) setDay(nf); if(date===nt.date) setDay(nt);
+    flash(`Moved to ${dayNameOf(toIso).slice(0,3)} ${pd(toIso).getDate()}`); };
   const undo = async ()=>{ const prev=undoStack.current.pop(); setCanUndo(undoStack.current.length>0); if(!prev) return;
     await sSet(`day:${prev.date}`, prev); setAllDays(p=>({ ...p, [prev.date]:prev }));
     if(prev.date!==date) setDate(prev.date); setDay(prev); buzz(); setToast("Undid last change"); setTimeout(()=>setToast(""),1400); };
@@ -643,7 +670,7 @@ export default function LifeOS(){
 
       {/* Dan, 29 Oct: "more like a real app". Phones get a fixed bottom tab bar with icons, the
           way every native app does it; the desktop keeps the row of tabs along the top. */}
-      {!isMobile && <div className="lo-tabs" style={{ display:"flex", gap:4, padding:"12px 24px 0", borderBottom:`1px solid ${C.line}`, overflowX:"auto" }}>
+      {!bottomNav && <div className="lo-tabs" style={{ display:"flex", gap:4, padding:"12px 24px 0", borderBottom:`1px solid ${C.line}`, overflowX:"auto" }}>
         {MAIN_TABS.map(([k,l])=>(
           <button key={k} onClick={()=>setTab(k)} style={{ padding:"10px 18px", cursor:"pointer", border:"none", background:"transparent",
             color:tab===k?C.ink:C.faint, fontWeight:600, fontSize:14, borderBottom:`2px solid ${tab===k?C.teal:"transparent"}`, marginBottom:-1, whiteSpace:"nowrap" }}>{l}</button>
@@ -651,7 +678,7 @@ export default function LifeOS(){
         {(()=>{ const onMore=MORE.some(m=>m[0]===tab); const cur=MORE.find(m=>m[0]===tab);
           return <button ref={moreRef} onClick={()=>setShowMore(s=>!s)} style={{ padding:"10px 18px", cursor:"pointer", border:"none", background:"transparent", color:onMore?C.ink:C.faint, fontWeight:600, fontSize:14, borderBottom:`2px solid ${onMore?C.teal:"transparent"}`, marginBottom:-1, whiteSpace:"nowrap" }}>{onMore?cur[1]:"More"} ▾</button>; })()}
       </div>}
-      {showMore && !isMobile && (
+      {showMore && !bottomNav && (
         <>
           <div onClick={()=>setShowMore(false)} style={{ position:"fixed", inset:0, zIndex:120 }}/>
           <div style={{ position:"fixed", top:(moreRef.current?moreRef.current.getBoundingClientRect().bottom+4:120), right:14, background:C.panel2, border:`1px solid ${C.line}`, borderRadius:10, padding:6, zIndex:121, minWidth:180, boxShadow:"0 8px 30px rgba(0,0,0,.6)" }}>
@@ -659,7 +686,7 @@ export default function LifeOS(){
           </div>
         </>
       )}
-      {showMore && isMobile && (
+      {showMore && bottomNav && (
         <Sheet close={()=>setShowMore(false)} title="More">
           {MORE_MOBILE.map(([k,l])=> <button key={k} onClick={()=>{ setTab(k); setShowMore(false); }} style={{ display:"flex", alignItems:"center", gap:12, width:"100%", textAlign:"left", padding:"14px 12px", borderRadius:10, border:"none", background:tab===k?C.panel2:"transparent", color:tab===k?C.ink:C.dim, cursor:"pointer", fontSize:16 }}><TabIcon k={k} on={tab===k}/>{l}</button>)}
           <div style={{ height:1, background:C.line, margin:"8px 0" }}/>
@@ -668,9 +695,9 @@ export default function LifeOS(){
         </Sheet>
       )}
 
-      <div style={{ maxWidth:1180, margin:"0 auto", padding:isMobile?"16px 12px calc(92px + env(safe-area-inset-bottom))":"24px" }}>
+      <div style={{ maxWidth:1180, margin:"0 auto", padding:isMobile?"16px 12px calc(92px + env(safe-area-inset-bottom))":bottomNav?"24px 24px calc(100px + env(safe-area-inset-bottom))":"24px" }}>
         {tab==="today" && <TodayView day={day} date={date} setDate={setDate} upd={upd} dayTypes={dayTypes} applyDayType={applyDayType} links={habitLinks} allDays={allDays} flash={flash} masterTodos={masterTodos} toggleMasterTodo={toggleMasterTodo} goTodos={()=>setTab("todo")} keyDates={keyDates} saveKeyDates={persistKeyDates} bad={badHabits} />}
-        {tab==="plan" && <WeekPlanView date={date} setDate={setDate} setTab={setTab} allDays={allDays} ctx={dayCtx} />}
+        {tab==="plan" && <WeekPlanView date={date} setDate={setDate} setTab={setTab} allDays={allDays} ctx={dayCtx} moveBlock={moveBlockToDay} />}
         {tab==="todo" && <TodoListView todos={masterTodos} save={persistMasterTodos} flash={flash} />}
         {tab==="month" && <MonthView date={date} setDate={setDate} setTab={setTab} allDays={allDays} dayTypes={dayTypes} flash={flash} weekAnchorA={weekAnchorA} />}
         {tab==="habits" && <HabitsView allDays={allDays} links={habitLinks} saveLinks={persistHabitLinks} cfg={habitCfg} saveCfg={persistHabitCfg} bad={badHabits} saveBad={persistBadHabits} letter={letter} saveLetter={persistLetter} letters={letters} saveLetters={persistLetters} />}
@@ -678,7 +705,7 @@ export default function LifeOS(){
         {tab==="types" && <DayTypesView dayTypes={dayTypes} save={persistDayTypes} weekMap={weekMap} saveWeekMap={persistWeekMap} weekMapB={weekMapB} saveWeekMapB={persistWeekMapB} weekAnchorA={weekAnchorA} saveWeekAnchor={persistWeekAnchor} flash={flash} />}
       </div>
 
-      {isMobile && (
+      {bottomNav && (
         <nav style={{ position:"fixed", left:0, right:0, bottom:0, zIndex:90, display:"flex", background:"rgba(21,23,29,.94)", backdropFilter:"blur(14px)", WebkitBackdropFilter:"blur(14px)", borderTop:`1px solid ${C.line}`, paddingBottom:"env(safe-area-inset-bottom)" }}>
           {BOTTOM_TABS.map(([k,l])=>{ const on = k==="more" ? MORE_MOBILE.some(m=>m[0]===tab) : tab===k;
             return <button key={k} onClick={()=>{ buzz(5); if(k==="more") setShowMore(true); else setTab(k); }}
@@ -686,8 +713,8 @@ export default function LifeOS(){
               <TabIcon k={k} on={on}/>{l}</button>; })}
         </nav>
       )}
-      {toast && <div style={{ position:"fixed", bottom:isMobile?"calc(84px + env(safe-area-inset-bottom))":24, left:"50%", transform:"translateX(-50%)", background:C.teal, color:"#001014", padding:"10px 22px", borderRadius:30, fontWeight:600, fontSize:14, zIndex:100, boxShadow:"0 8px 30px rgba(0,0,0,.5)", animation:"lo-pop .18s ease", whiteSpace:"nowrap" }}>{toast}</div>}
-      {canUndo && <button onClick={undo} style={{ position:"fixed", bottom:isMobile?"calc(84px + env(safe-area-inset-bottom))":24, left:isMobile?12:20, background:C.panel2, color:C.ink, border:`1px solid ${C.line}`, padding:"9px 16px", borderRadius:30, fontWeight:600, fontSize:13, zIndex:100, boxShadow:"0 8px 30px rgba(0,0,0,.5)", cursor:"pointer" }}>↶ Undo</button>}
+      {toast && <div style={{ position:"fixed", bottom:bottomNav?"calc(84px + env(safe-area-inset-bottom))":24, left:"50%", transform:"translateX(-50%)", background:C.teal, color:"#001014", padding:"10px 22px", borderRadius:30, fontWeight:600, fontSize:14, zIndex:100, boxShadow:"0 8px 30px rgba(0,0,0,.5)", animation:"lo-pop .18s ease", whiteSpace:"nowrap" }}>{toast}</div>}
+      {canUndo && <button onClick={undo} style={{ position:"fixed", bottom:bottomNav?"calc(84px + env(safe-area-inset-bottom))":24, left:isMobile?12:20, background:C.panel2, color:C.ink, border:`1px solid ${C.line}`, padding:"9px 16px", borderRadius:30, fontWeight:600, fontSize:13, zIndex:100, boxShadow:"0 8px 30px rgba(0,0,0,.5)", cursor:"pointer" }}>↶ Undo</button>}
     </div>
   );
 }
@@ -1220,7 +1247,8 @@ function TodayView({ day,date,setDate,upd,dayTypes,applyDayType,links,allDays,fl
       <div style={{ display:"flex", gap:10, justifyContent:"center", marginBottom:16, flexWrap:"wrap" }}>
         {[
           { l:"Plan adherence", v: adh?`${adh.pct}%`:"—", c: adh?(adh.pct>=70?C.green:adh.pct>=40?C.gold:C.red):C.faint, on:()=>setShowLog(true) },
-          { l:"Daily reps", v: day.reps.done?"✓":"○", c: day.reps.done?C.green:C.faint, on:()=>upd({ reps:{ ...day.reps, done:!day.reps.done } }) },
+          // Daily reps lapsed (Dan, 20 Oct); the discipline score is the number he asked for on 27 Oct
+          { l:"Discipline", v: dayScore===null?"—":`${dayScore>0?"+":""}${dayScore}`, c: dayScore>0?C.green:dayScore<0?C.red:C.dim, on:()=>setShowLog(true) },
           { l:"Day score", v: day.rating?`${day.rating}/10`:"—", c:C.red, on:()=>setShowLog(true) },
         ].map(s=> <button key={s.l} onClick={s.on} style={{ background:C.panel, border:`1px solid ${C.line}`, borderRadius:12, padding:"8px 16px", cursor:"pointer", textAlign:"center", minWidth:96 }}><div style={{ fontSize:18, fontWeight:700, color:s.c }}>{s.v}</div><div style={{ fontSize:10, color:C.dim, marginTop:3 }}>{s.l}</div></button>)}
       </div>
@@ -1351,7 +1379,7 @@ function TodoBucket({ label,color,items,bucket,toggle,del }){
 // previewed (A/B lessons + whatever the vault planned) without being created. School collapses to
 // one line so the evening — the part that actually varies — is what you read.
 const SCHOOL_LABELS = /^(form|private study|free period)/i;
-function WeekPlanView({ date,setDate,setTab,allDays,ctx }){
+function WeekPlanView({ date,setDate,setTab,allDays,ctx,moveBlock }){
   const isMobile = useIsMobile();
   const wk = weekKeyOf(date);
   const [open,setOpen] = useState({});
@@ -1363,6 +1391,31 @@ function WeekPlanView({ date,setDate,setTab,allDays,ctx }){
   const planned = days.reduce((s,x)=>s+(x.d.blocks||[]).filter(isPlanned).length,0);
   const isB = weekIsB(wk, ctx.weekAnchorA);
   const go = (iso)=>{ setDate(iso); setTab("today"); };
+
+  // drag a row to another day: hold ~¼ s on touch (a plain swipe still scrolls), immediate on mouse
+  const [drag,setDrag] = useState(null);   // { blk, from, x, y, over }
+  const dragRef = useRef(null);
+  const dayAt = (x,y)=>{ const el=document.elementFromPoint(x,y); const c=el&&el.closest&&el.closest("[data-iso]"); return c?c.getAttribute("data-iso"):null; };
+  const startRow=(e,blk,fromDay)=>{ const touch=!!e.touches; const p=touch?e.touches[0]:e; if(!touch&&e.button) return;
+    const st={ blk, from:fromDay, sx:p.clientX, sy:p.clientY, x:p.clientX, y:p.clientY, lifted:!touch, moved:false, sy0:window.scrollY, raf:0 };
+    dragRef.current=st;
+    const show=()=> setDrag({ blk, from:fromDay.date, x:st.x, y:st.y, over:dayAt(st.x,st.y) });
+    const edge=()=>{ if(dragRef.current!==st||!st.moved) return; const H=window.innerHeight, m=70;
+      const step = st.y<m ? -Math.ceil((m-st.y)/4) : st.y>H-m-60 ? Math.ceil((st.y-(H-m-60))/4) : 0;
+      if(step){ window.scrollBy(0,step); show(); } st.raf=requestAnimationFrame(edge); };
+    const onScroll=()=>{ if(!st.lifted) end(); };
+    if(touch){ window.addEventListener("scroll",onScroll,{ passive:true });
+      st.timer=setTimeout(()=>{ if(dragRef.current!==st) return; if(Math.abs(window.scrollY-st.sy0)>2){ end(); return; } st.lifted=true; buzz(14); show(); }, 260); }
+    const move=(ev)=>{ const q=ev.touches?ev.touches[0]:ev; st.x=q.clientX; st.y=q.clientY;
+      if(!st.lifted){ if(Math.hypot(st.x-st.sx,st.y-st.sy)>9) end(); return; }
+      if(!st.moved){ if(Math.hypot(st.x-st.sx,st.y-st.sy)<6) return; st.moved=true; st.raf=requestAnimationFrame(edge); }
+      if(ev.cancelable) ev.preventDefault(); show(); };
+    const end=()=>{ clearTimeout(st.timer); cancelAnimationFrame(st.raf); window.removeEventListener("scroll",onScroll);
+      window.removeEventListener("mousemove",move); window.removeEventListener("touchmove",move); window.removeEventListener("mouseup",up); window.removeEventListener("touchend",up); window.removeEventListener("touchcancel",up);
+      if(dragRef.current===st) dragRef.current=null; setDrag(null); };
+    const up=()=>{ const to=st.moved?dayAt(st.x,st.y):null; end(); if(to && to!==st.from.date){ buzz(10); moveBlock(st.from, st.blk, to); } };
+    window.addEventListener("mousemove",move); window.addEventListener("touchmove",move,{ passive:false }); window.addEventListener("mouseup",up); window.addEventListener("touchend",up); window.addEventListener("touchcancel",up);
+  };
 
   return (
     <div>
@@ -1380,15 +1433,16 @@ function WeekPlanView({ date,setDate,setTab,allDays,ctx }){
           const school=blocks.filter(b=>b.cat==="School"||(!isPlanned(b)&&SCHOOL_LABELS.test(b.label||"")));
           const rest=blocks.filter(b=>!school.includes(b));
           const isT=iso===today, past=iso<today, exp=!!open[iso];
-          const row=(b)=>{ const col=CATS[b.cat]||C.dim; return (
-            <div key={b.id} style={{ display:"flex", alignItems:"center", gap:9, padding:"6px 0", opacity:b.status==="missed"?0.4:1 }}>
+          const row=(b)=>{ const col=CATS[b.cat]||C.dim; const lifting=drag&&drag.blk.id===b.id; return (
+            <div key={b.id} onMouseDown={(e)=>startRow(e,b,d)} onTouchStart={(e)=>startRow(e,b,d)} onContextMenu={(e)=>e.preventDefault()}
+              style={{ display:"flex", alignItems:"center", gap:9, padding:"6px 0", opacity:lifting?0.25:b.status==="missed"?0.4:1, cursor:"grab", userSelect:"none", WebkitUserSelect:"none", WebkitTouchCallout:"none", touchAction:"pan-y" }}>
               <span style={{ width:76, fontSize:11.5, color:C.dim, fontVariantNumeric:"tabular-nums", flexShrink:0 }}>{hhmm(b.t)}–{hhmm(b.e)}</span>
               <span style={{ width:3, alignSelf:"stretch", minHeight:16, borderRadius:2, background:col, flexShrink:0 }}/>
               <span style={{ flex:1, minWidth:0, fontSize:13.5, color:C.ink, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis", textDecoration:b.status==="missed"?"line-through":"none" }}>{b.label||"Untitled"}</span>
               {isPlanned(b) && <span style={{ fontSize:10, color:C.teal }}>✦</span>}
             </div>); };
           return (
-            <div key={iso} style={{ background:isT?C.panel2:C.panel, border:`1px solid ${isT?C.teal:C.line}`, borderRadius:14, padding:"12px 14px", position:"relative", overflow:"hidden", opacity:past?0.7:1 }}>
+            <div key={iso} data-iso={iso} style={{ background:drag&&drag.over===iso&&drag.from!==iso?`${C.teal}22`:isT?C.panel2:C.panel, border:`1px solid ${drag&&drag.over===iso&&drag.from!==iso?C.teal:isT?C.teal:C.line}`, transition:"background .12s, border-color .12s", borderRadius:14, padding:"12px 14px", position:"relative", overflow:"hidden", opacity:past?0.7:1 }}>
               {kinds.length>0 && <div style={{ position:"absolute", top:0, left:0, right:0, height:3, display:"flex" }}>{kinds.map(k=> <div key={k} style={{ flex:1, background:DAY_KINDS[k].bar }}/>)}</div>}
               <button onClick={()=>go(iso)} style={{ display:"flex", alignItems:"baseline", gap:8, width:"100%", background:"none", border:"none", padding:0, cursor:"pointer", textAlign:"left", marginBottom:6 }}>
                 <span style={{ fontFamily:"'Caveat',cursive", fontSize:26, color:isT?C.teal:C.ink, lineHeight:1 }}>{dayNameOf(iso)}</span>
@@ -1409,7 +1463,11 @@ function WeekPlanView({ date,setDate,setTab,allDays,ctx }){
           );
         })}
       </div>
-      <Mini>✦ = placed by the Sunday plan · tap a day to open it · school folds into one line</Mini>
+      <Mini>✦ = placed by the Sunday plan · hold a block and drag it onto another day to move it · tap a day to open it</Mini>
+      {drag && <div style={{ position:"fixed", left:drag.x-90, top:drag.y-24, width:180, pointerEvents:"none", zIndex:300, background:C.panel2, border:`1px solid ${CATS[drag.blk.cat]||C.dim}`, borderLeft:`4px solid ${CATS[drag.blk.cat]||C.dim}`, borderRadius:10, padding:"7px 10px", boxShadow:"0 12px 30px rgba(0,0,0,.6)", transform:"scale(1.04)" }}>
+        <div style={{ fontSize:13, fontWeight:700, color:C.ink, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{drag.blk.label||"Untitled"}</div>
+        <div style={{ fontSize:11, color:C.dim }}>{hhmm(drag.blk.t)}–{hhmm(drag.blk.e)}{drag.over&&drag.over!==drag.from?` → ${dayNameOf(drag.over).slice(0,3)}`:""}</div>
+      </div>}
     </div>
   );
 }
