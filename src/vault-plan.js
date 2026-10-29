@@ -494,4 +494,15 @@ export const VAULT_PLAN = [
     label: "Swim", note: "From the habit check-in. Time approximate." },
   { key: "wo-2026-10-26-sauna", kind: "workout", date: "2026-10-26", t: 13.5, e: 13.85, cat: "Gym",
     label: "Sauna", note: "From the habit check-in. Time approximate." },
+  // --- appended 2026-10-29 · habit check-in, Tue 27 + Wed 28 Oct ------------------
+  // Tue 27: rest day before HYROX at mum's — slept and ate well, but no work. "A BS day… 4 out of 10."
+  { key: "hl-2026-10-27", kind: "habitLog", date: "2026-10-27", rating: 4, bs: true, habits: { eatwell: true } },
+  // Wed 28: HYROX doubles in Birmingham, 13:10 start (finish time not given yet); Dave's Hot
+  // Chicken after; Halloween party; bed ~03:00. Day score not given yet.
+  { key: "hl-2026-10-28", kind: "habitLog", date: "2026-10-28", habits: {} },
+  { key: "wo-2026-10-28-hyrox", kind: "workout", date: "2026-10-28", t: 13 + 10/60, e: 14 + 10/60, cat: "Sport",
+    label: "HYROX doubles · Birmingham", note: "Start 13:10 (Dan). End assumes ~1hr — finish time to come." },
+  // Mum flies to Vietnam Fri 30 Oct ("tomorrow, I think") — two weeks at Dad's from then.
+  { key: "ev-dads-fortnight", kind: "event", date: "2026-10-30",
+    text: "Mum flies to Vietnam (tbc) — 2 weeks at Dad's starts" },
 ];
