@@ -515,4 +515,7 @@ export const VAULT_PLAN = [
   // given a day. Starred so it sits at the top of the To Do list.
   { key: "td-shop-run-oct", kind: "todo", star: true,
     text: "The shopping run — gym bag, school bag, weight belt, Umbro tops + trackies, shorts, alarm clock + charger" },
+  // --- appended 2026-10-29 · gym routine set (vault: Personal/wiki/Knowledge/Gym routine.md) ---
+  { key: "td-dips-test-29oct", kind: "todo", due: "2026-10-29",
+    text: "Test max strict dips in today's gym session; tell Claude the number" },
 ];
