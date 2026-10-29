@@ -508,4 +508,11 @@ export const VAULT_PLAN = [
   // HYROX doubles finish: 1hr 17min (Dan, 29 Oct) — target was sub-1hr. Stretch the block.
   { key: "wo-edit-2026-10-28-hyrox", kind: "workout-edit", date: "2026-10-28",
     label: "HYROX doubles · Birmingham", e: 13 + 10/60 + 77/60, note: "Start 13:10, finished in 1:17:00 (target sub-1hr)." },
+
+  // --- appended 2026-10-29 -------------------------------------------------
+  // Gym bag and school bag have sat on the Shopping List since 10 Sep. Dan named the
+  // procrastination himself. Half term ends Sun 1 Nov; no due date invented, he hasn't
+  // given a day. Starred so it sits at the top of the To Do list.
+  { key: "td-shop-run-oct", kind: "todo", star: true,
+    text: "The shopping run — gym bag, school bag, weight belt, Umbro tops + trackies, shorts, alarm clock + charger" },
 ];
