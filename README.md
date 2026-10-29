@@ -32,7 +32,14 @@ Every entry has a `key`. The app applies a key once per device and records it in
 
 Never edit or reuse an existing key — that is what makes the whole thing safe to re-run.
 Entry kinds: `event`, `event-remove`, `keyDate`, `todo`, `todo-remove`, `dayTypes`,
-`weekAnchor`.
+`weekAnchor`, `plan`, `plan-remove` (and the habit kinds — see the vault's `Habit Log.md`).
+
+`plan` is the Sunday planner's: `{ key: "wp-2026-11-02", kind: "plan", date, blocks: [{ t, e,
+label, cat, note }] }` puts blocks on that day's timeline under its A/B lessons. Keys start
+`wp-` so the app marks them ✦. Each block records what it shipped as, so
+`{ key, kind: "plan-remove", date, target: "wp-2026-11-02" }` retracts only the blocks Dan never
+moved or renamed — anything he touched is his. Since 29 Oct the school templates are lessons
+only; evenings and weekends come from `plan` entries. Protocol: knowledge-vault `AI/PLANNER.md`.
 
 `todo-remove` takes `target` — the **key of the entry that created the row**, not its text:
 
