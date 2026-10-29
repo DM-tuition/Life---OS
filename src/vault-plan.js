@@ -27,7 +27,7 @@ const lesson = (p, l)  => ({ t: p[0], e: p[1], label: l, cat: "School" });
 const study  = (p)     => ({ t: p[0], e: p[1], label: "Private Study", cat: "Revision",
                              note: "Red dot on the card — timetabled study, not a free." });
 const free   = (p)     => ({ t: p[0], e: p[1], label: "Free period", cat: "Other",
-                             note: "~8 of these a week. This is where ESAT goes — it costs no evening and no gym." });
+                             note: "~8 of these a week. Silent work that costs no evening: written interview problems, or A-level homework so the evening stays free." });
 const games  = (p)     => ({ t: p[0], e: p[1], label: "Games · Field", cat: "Sport" });
 
 // ---- the evening, placed off the timetable itself ----
@@ -44,39 +44,42 @@ const wind     = { t: 22,   e: 22.5,  label: "Wind-down · phone out of the room
                    note: "Lights out 10:30. The evening phone is the sleep problem — this block is the fix." };
 
 // ---- Year 13 timetable, 2026/27 (transcribed 8 Sep 2026 from the printed card) ----
+// Lessons only since 29 Oct: the evening blocks (objective, gym with Rory, 6-a-side at 19:00,
+// wind-down) were ESAT-era guesses and the 6-a-side time was wrong. Evenings now come from the
+// Sunday planner as `plan` entries, week by week — see knowledge-vault AI/PLANNER.md.
 const MF = "Maths + F. Maths", PH = "Physics", EC = "Economics";
 const Y13 = {
   "school-a-mon": { name: "Y13 A · Mon", color: "#E0529B", blocks: [
     form(), study(P[1]), lesson(P[2], `${MF} · S14`), lesson(P[3], `${PH} · PC3`),
-    lesson(P[4], `${EC} · S20`), lesson(P[5], `${PH} · PC4`), objLate, wind ]},
+    lesson(P[4], `${EC} · S20`), lesson(P[5], `${PH} · PC4`) ]},
   "school-a-tue": { name: "Y13 A · Tue", color: "#E0529B", blocks: [
     form(), lesson(P[1], `${EC} · S18`), free(P[2]), lesson(P[3], `${MF} · M5`),
-    lesson(P[4], `${PH} · PC2`), objEarly, football, wind ]},
+    lesson(P[4], `${PH} · PC2`) ]},
   "school-a-wed": { name: "Y13 A · Wed", color: "#E0529B", blocks: [
     form(), lesson(P[1], `${PH} · PC2`), lesson(P[2], `${MF} · M5`), lesson(P[3], `${PH} · PC4`),
-    lesson(P[4], `${EC} · S20`), games(P[5]), objLate, wind ]},
+    lesson(P[4], `${EC} · S20`), games(P[5]) ]},
   "school-a-thu": { name: "Y13 A · Thu", color: "#E0529B", blocks: [
     lesson(TH[1], `${MF} · M5`), study(TH[2]), lesson(TH[3], `${PH} · PC4`),
-    lesson(TH[4], `${MF} · S14`), objEarly, gym, wind ]},
+    lesson(TH[4], `${MF} · S14`) ]},
   "school-a-fri": { name: "Y13 A · Fri", color: "#E0529B", blocks: [
     form(), lesson(P[1], `${MF} · S14`), study(P[2]), lesson(P[3], `${MF} · M5`),
-    lesson(P[4], `${PH} · PC5`), objEarly, gym, wind ]},
+    lesson(P[4], `${PH} · PC5`) ]},
 
   "school-b-mon": { name: "Y13 B · Mon", color: "#4FC3E0", blocks: [
     form(), study(P[1]), lesson(P[2], `${MF} · S14`), lesson(P[3], `${PH} · PC4`),
-    lesson(P[4], `${EC} · S18`), objEarly, gym, wind ]},
+    lesson(P[4], `${EC} · S18`) ]},
   "school-b-tue": { name: "Y13 B · Tue", color: "#4FC3E0", blocks: [
     form(), lesson(P[1], `${EC} · S18`), free(P[2]), lesson(P[3], `${MF} · S14`),
-    lesson(P[4], `${EC} · S18`), objEarly, football, wind ]},
+    lesson(P[4], `${EC} · S18`) ]},
   "school-b-wed": { name: "Y13 B · Wed", color: "#4FC3E0", blocks: [
     form(), lesson(P[1], `${EC} · S20`), lesson(P[2], `${MF} · M5`), free(P[3]),
-    lesson(P[4], `${EC} · S20`), games(P[5]), objLate, wind ]},
+    lesson(P[4], `${EC} · S20`), games(P[5]) ]},
   "school-b-thu": { name: "Y13 B · Thu", color: "#4FC3E0", blocks: [
     lesson(TH[1], `${MF} · M5`), free(TH[2]), lesson(TH[3], `${PH} · PC4`),
-    lesson(TH[4], `${MF} · S14`), objEarly, gym, wind ]},
+    lesson(TH[4], `${MF} · S14`) ]},
   "school-b-fri": { name: "Y13 B · Fri", color: "#4FC3E0", blocks: [
     form(), lesson(P[1], `${MF} · S14`), free(P[2]), lesson(P[3], `${MF} · M5`),
-    free(P[4]), lesson(P[5], `${EC} · S20`), objLate, wind ]},
+    free(P[4]), lesson(P[5], `${EC} · S20`) ]},
 };
 
 // ---- extra day formats ----
@@ -97,9 +100,7 @@ const EXTRA_TYPES = {
 
 // ---- non-school formats -------------------------------------------------------------------
 const OTHER_TYPES = {
-  "weekend": { name: "Weekend", color: "#2F9E44", blocks: [
-    { t: 10, e: 12, label: "Revision", cat: "Revision" },
-    { t: 15, e: 16.5, label: "Gym", cat: "Gym" }, wind ]},
+  "weekend": { name: "Weekend", color: "#2F9E44", blocks: [] },
   "holiday": { name: "Holiday / Half-term", color: "#E6B800", blocks: [
     { t: 10, e: 12, label: "Deep work / revision", cat: "Revision" },
     { t: 16, e: 18, label: "Gym", cat: "Gym" }, wind ]},
@@ -531,4 +532,71 @@ export const VAULT_PLAN = [
   { key: "rm-td-practice-mock-fri", kind: "todo-remove", target: "td-practice-mock-fri" },
   { key: "td-practice-mock-fri-1700", kind: "todo", due: "2026-10-30", star: true,
     text: "Practice mock with Claude, 45 min, before the 17:00 mock" },
+  // --- appended 2026-10-29 · the Sunday planner, first run (planning chat) -------------
+  // School templates are now lessons only (see Y13 above); the planner owns everything else.
+  // `plan` = blocks onto a day · `plan-remove` = retract a plan's untouched blocks for that day.
+  // Keys are wp-<date>; a re-plan adds `plan-remove` for the old key, then a new wp-<date>-v2.
+  { key: "y13-timetable-lessons-only", kind: "dayTypes", replace: true,
+    types: { ...Y13, weekend: { name: "Weekend", color: "#2F9E44", blocks: [] } } },
+
+  // Week of Mon 2 Nov — Week B, back at school, at Dad's (Mum in Vietnam to ~13 Nov).
+  // Vault: Personal/wiki/Week Plan.md. Sleep ASSUMED (no Garmin feed): bed 22:30, up 06:45.
+  // Priorities: interview reps daily (4–18 Dec), gym A/B/skills Mon/Wed/Fri, A-level homework.
+  { key: "wp-2026-11-02", kind: "plan", date: "2026-11-02", blocks: [
+    { t: 7, e: 7.25, label: "Morning: handstand + stretch + sets", cat: "Other", note: "5 min stretch · handstand 5–7 min · 1 pull-up set + 1 push-up set, 2 short of failure." },
+    { t: 7.25, e: 8.25, label: "Breakfast · leave for school", cat: "Other", note: "From Dad's — travel time assumed ~30 min. Tell the planner the real one." },
+    { t: 14.5, e: 15.25, label: "Travel · snack", cat: "Other" },
+    { t: 15.5, e: 16.33, label: "Gym A (upper)", cat: "Gym", note: "Weighted pull-up aim +17.5–20 kg · dip +12.5–15 kg · incline DB press. Full list: Gym routine." },
+    { t: 17, e: 18, label: "Interview problems — out loud", cat: "Revision", note: "2–3 unseen problems, talk the whole way, record one. Claude can play the interviewer." },
+    { t: 18, e: 19, label: "Dinner", cat: "Other" },
+    { t: 19, e: 20, label: "A-level homework", cat: "Revision", note: "Whatever is due first. Nothing due → Further Maths past-paper questions." },
+    { t: 22, e: 22.5, label: "Wind-down · phone out of the room", cat: "Other", note: "Bed 22:30." },
+  ]},
+  { key: "wp-2026-11-03", kind: "plan", date: "2026-11-03", blocks: [
+    { t: 7, e: 7.25, label: "Morning: front lever + stretch + sets", cat: "Other", note: "Archer push-ups today (board is at home — at Dad's? plain if not)." },
+    { t: 7.25, e: 8.25, label: "Breakfast · leave for school", cat: "Other" },
+    { t: 15, e: 16.5, label: "Interview problems + A-level homework", cat: "Revision", note: "45 min problems out loud, then 45 min homework. School finishes 14:20 (P5 free)." },
+    { t: 17.5, e: 18.25, label: "Dinner (early, before football)", cat: "Other" },
+    { t: 20, e: 21, label: "6-a-side · Tom", cat: "Sport" },
+    { t: 22, e: 22.5, label: "Wind-down · phone out of the room", cat: "Other", note: "Bed 22:30 — straight home after the game." },
+  ]},
+  { key: "wp-2026-11-04", kind: "plan", date: "2026-11-04", blocks: [
+    { t: 7, e: 7.25, label: "Morning: handstand + stretch + sets", cat: "Other" },
+    { t: 7.25, e: 8.25, label: "Breakfast · leave for school", cat: "Other" },
+    { t: 16, e: 16.83, label: "Gym B (legs heavier)", cat: "Gym", note: "Light muscle-ups first, then squat 6–8, RDL, weighted chin-up, OHP. Games is P5 — go easy on legs there." },
+    { t: 17.25, e: 18.25, label: "Interview problems — out loud", cat: "Revision" },
+    { t: 18.25, e: 19, label: "Dinner", cat: "Other" },
+    { t: 19, e: 20, label: "A-level homework", cat: "Revision" },
+    { t: 22, e: 22.5, label: "Wind-down · phone out of the room", cat: "Other" },
+  ]},
+  { key: "wp-2026-11-05", kind: "plan", date: "2026-11-05", blocks: [
+    { t: 7, e: 7.25, label: "Morning: front lever + stretch + sets", cat: "Other" },
+    { t: 7.25, e: 8.5, label: "Breakfast · leave for school", cat: "Other", note: "Thursday starts 09:20 — no form." },
+    { t: 15, e: 16.5, label: "Interview problems + A-level homework", cat: "Revision", note: "School finishes 14:25 (P5 free)." },
+    { t: 18, e: 19, label: "Dinner", cat: "Other" },
+    { t: 21, e: 22, label: "Football training", cat: "Sport", note: "Home ~22:20. Bed by 23:00 is the realistic target tonight, not 22:30." },
+    { t: 22.5, e: 23, label: "Wind-down · bed", cat: "Other" },
+  ]},
+  { key: "wp-2026-11-06", kind: "plan", date: "2026-11-06", blocks: [
+    { t: 7, e: 7.25, label: "Morning: handstand + stretch + sets", cat: "Other" },
+    { t: 7.25, e: 8.25, label: "Breakfast · leave for school", cat: "Other" },
+    { t: 16, e: 16.67, label: "Gym skills (no legs)", cat: "Gym", note: "Weighted muscle-ups first, front lever tucks, handstand holds, pull-up + dip sets, L-sit, prehab." },
+    { t: 17, e: 18, label: "Interview problems — out loud", cat: "Revision" },
+    { t: 18.5, e: 19.5, label: "Dinner", cat: "Other" },
+    { t: 22, e: 22.5, label: "Wind-down · phone out of the room", cat: "Other", note: "Match tomorrow at 14:00." },
+  ]},
+  { key: "wp-2026-11-07", kind: "plan", date: "2026-11-07", blocks: [
+    { t: 8.75, e: 9, label: "Stretch", cat: "Other", note: "Up ~08:30 (assumed)." },
+    { t: 10, e: 11.5, label: "Interview problems + A-level catch-up", cat: "Revision", note: "45 + 45. Library if Dad's is too loud." },
+    { t: 12, e: 12.75, label: "Lunch (carbs)", cat: "Other" },
+    { t: 14, e: 16, label: "Football match", cat: "Sport", note: "Club or school — one of the two, as every Saturday." },
+    { t: 22.5, e: 23, label: "Wind-down", cat: "Other" },
+  ]},
+  { key: "wp-2026-11-08", kind: "plan", date: "2026-11-08", blocks: [
+    { t: 9, e: 9.25, label: "Stretch", cat: "Other" },
+    { t: 10, e: 10.33, label: "Answer the planner's questions", cat: "Other", note: "In the Planning and Calendar chat. 10 minutes — it builds next week from your answers." },
+    { t: 10.5, e: 12, label: "Interview problems + A-level", cat: "Revision" },
+    { t: 18, e: 18.5, label: "School-week setup", cat: "Other", note: "Bag, kit, gym clothes for Mon + Wed." },
+    { t: 22, e: 22.5, label: "Wind-down · phone out of the room", cat: "Other" },
+  ]},
 ];

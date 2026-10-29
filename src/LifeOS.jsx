@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { createClient } from "@supabase/supabase-js";
 import { VAULT_PLAN, DEFAULT_DAYTYPES } from "./vault-plan";
 
@@ -137,6 +137,8 @@ function readLS(key,fb){ try{ const r=localStorage.getItem("lifeos:"+key); retur
 const writeLS = (key,v)=> localStorage.setItem("lifeos:"+key, JSON.stringify(v));
 const evArrOf = (v)=> Array.isArray(v)?v:(v?[v]:[]);
 const sameText = (a,b)=> String(a).trim().toLowerCase()===String(b).trim().toLowerCase();
+const sigOf = (b)=> `${(+b.t).toFixed(2)}|${(+b.e).toFixed(2)}|${String(b.label||"").trim().toLowerCase()}`;
+const isPlanned = (b)=> !!(b && b.seed && String(b.seed).startsWith("wp-"));
 
 function applyEntry(e){
   switch(e.kind){
@@ -240,6 +242,26 @@ function applyEntry(e){
       writeLS("day:"+e.date,{ ...d, blocks:(d.blocks||[]).map(b=>sameText(b.label||"",e.label)?{ ...b, ...patch }:b) });
       return;
     }
+    case "plan": {                        // the Sunday planner: blocks onto a day, school timetable untouched
+      // Dan, 29 Oct: "every Sunday... create my day by day timetable for the next week." A day not
+      // opened yet becomes a stub, so its A/B lessons still load underneath the first time he does.
+      // Each block remembers what it shipped as (`sig`), so a later `plan-remove` can tell a block
+      // he has moved or renamed — which is his now and stays — from one he never touched.
+      let d=readLS("day:"+e.date,null);
+      if(!d){ d={ ...blankDay(e.date), stub:true };
+        const idx=readLS("index:days",[]); if(!idx.includes(e.date)) writeLS("index:days",[...idx,e.date]); }
+      const blocks=d.blocks||[];
+      const add=(e.blocks||[]).filter(b=>b&&b.label&&!blocks.some(x=>sameText(x.label||"",b.label)&&Math.abs((x.t||0)-b.t)<0.01))
+        .map((b,i)=>({ id:Date.now()+i+Math.floor(Math.random()*1000), done:false, t:b.t, e:b.e, label:b.label,
+          cat:CATS[b.cat]?b.cat:"Other", note:b.note||"", seed:e.key, sig:sigOf(b) }));
+      writeLS("day:"+e.date,{ ...d, blocks:[...blocks,...add] }); return;
+    }
+    case "plan-remove": {                 // retract a plan's blocks for one day; edited ones survive
+      const d=readLS("day:"+e.date,null); if(!d) return;
+      const next=(d.blocks||[]).filter(b=>!(b && b.seed===e.target && b.sig===sigOf(b)));
+      if(next.length!==(d.blocks||[]).length) writeLS("day:"+e.date,{ ...d, blocks:next });
+      return;
+    }
     case "badHabit": {                    // add a bad habit to the list (remove:true drops it; BS day stays)
       const cur=readLS("badHabits:v1",DEFAULT_BAD);
       if(e.remove){ if(e.habit!=="bs") writeLS("badHabits:v1",cur.filter(b=>b.key!==e.habit)); return; }
@@ -298,6 +320,39 @@ const blankDay = (iso)=>({
   rating:0, feedback:"", prodHours:0, unprodHours:0,
 });
 const cloneBlocks = (blocks)=> blocks.map((b,i)=>({ id:Date.now()+i, done:false, ...b }));
+
+// What a day looks like when opened: the saved record, or — for a day never opened — its A/B
+// timetable plus anything the vault already put on it. Pure, so the Week view can preview days
+// without creating them.
+function materialiseDay(date, stored, { dayTypes, hols, weekMap, weekMapB, weekAnchorA }){
+  let d = stored;
+  if(!d || d.stub){
+    // a stub is a day the vault check-in or planner created before Dan opened it: keep its ticks
+    d = d ? { ...d, stub:false } : blankDay(date);
+    // Dan, 19 Oct: "just leave off-school days blank." A day inside an `off` range starts
+    // with no timetable at all — school isn't happening, so the lessons would be a lie.
+    // Only applies when the day is first created; a day he has already edited is never
+    // touched. `away` days keep their timetable (he can be away on a school day).
+    const offSchool = kindsAt(date,hols).includes("off");
+    const map = weekIsB(date, weekAnchorA) ? weekMapB : weekMap;
+    const typeId = offSchool ? "blank" : (map[dayNameOf(date)] || "blank");
+    d.dayTypeId = typeId;
+    d.blocks = [...(offSchool ? [] : cloneBlocks((dayTypes[typeId]?.blocks)||[])), ...(d.blocks||[])]; // keep vault blocks on a stub
+  } else d = { ...d };
+  // migrate older saved days lacking new fields
+  if(!d.reps) d.reps = { target:dayOfYear(date), done:false };
+  if(d.bs===undefined) d.bs = false;
+  if(d.frozen===undefined) d.frozen = false;
+  if(!d.bin) d.bin = [];
+  if(!d.breakdownAdj) d.breakdownAdj = { Sleep:0,Lessons:0,Revision:0,Gym:0,Activity:0 };
+  // the morning brief's one objective, if the vault Routine sent one for this day
+  const obj = planObjectiveFor(date);
+  if(obj && !(d.blocks||[]).some(b=>String(b.label||"").toLowerCase()===obj.label.toLowerCase()))
+    d.blocks = [...(d.blocks||[]), { id:Date.now(), done:false, ...obj }];
+  // breakdown = auto from timeline + the day's manual adjustments
+  d.breakdown = withAdj(computeBreakdown(d.blocks), d.breakdownAdj);
+  return d;
+}
 
 // ============ RESPONSIVE HOOK ============
 function useIsMobile(bp=760){
@@ -431,6 +486,42 @@ function Stepper({ v,set,big }){
   </div>;
 }
 
+// Bottom sheet: slides up from the bottom on a phone (thumb-reachable, swipe the handle down to
+// close), centred card on a desktop. Every editor goes through this so they all behave alike.
+function Sheet({ close,title,children,right,maxWidth=420 }){
+  const isMobile = useIsMobile();
+  const [dy,setDy] = useState(0); const start = useRef(null);
+  const onTS=(e)=>{ start.current=e.touches[0].clientY; };
+  const onTM=(e)=>{ if(start.current===null) return; setDy(Math.max(0,e.touches[0].clientY-start.current)); };
+  const onTE=()=>{ if(dy>90) close(); setDy(0); start.current=null; };
+  return (
+    <div onClick={close} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,.55)", zIndex:200, display:"flex", alignItems:isMobile?"flex-end":"center", justifyContent:"center", padding:isMobile?0:20, animation:"lo-fade .15s ease" }}>
+      <div onClick={e=>e.stopPropagation()} style={{ background:C.panel, border:`1px solid ${C.line}`, borderRadius:isMobile?"18px 18px 0 0":14, padding:isMobile?"6px 16px calc(18px + env(safe-area-inset-bottom))":20, width:"100%", maxWidth:isMobile?"100%":maxWidth, maxHeight:isMobile?"86vh":"84vh", overflowY:"auto", boxShadow:"0 -10px 40px rgba(0,0,0,.5)", transform:`translateY(${dy}px)`, transition:dy?"none":"transform .2s ease", animation:isMobile?"lo-up .22s cubic-bezier(.2,.9,.3,1)":"none" }}>
+        {isMobile && <div onTouchStart={onTS} onTouchMove={onTM} onTouchEnd={onTE} style={{ padding:"8px 0 12px", display:"flex", justifyContent:"center", touchAction:"none" }}><div style={{ width:40, height:5, borderRadius:3, background:C.faint }}/></div>}
+        {(title||right) && <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12, gap:10 }}>
+          <div style={{ fontFamily:"'Caveat',cursive", fontSize:26, color:C.teal, lineHeight:1 }}>{title}</div>{right}
+        </div>}
+        {children}
+      </div>
+    </div>
+  );
+}
+const BOTTOM_TABS = [["today","Today"],["plan","Week"],["month","Month"],["todo","To Do"],["habits","Habits"],["more","More"]];
+const ICON_PATHS = {
+  today:  "M12 3v2M12 19v2M5 12H3M21 12h-2M6.3 6.3 4.9 4.9M19.1 19.1l-1.4-1.4M6.3 17.7l-1.4 1.4M19.1 4.9l-1.4 1.4M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z",
+  plan:   "M4 5h16v15H4zM4 10h16M9 5V3M15 5V3M8 14h3M8 17h6",
+  month:  "M4 5h16v15H4zM4 10h16M9 3v4M15 3v4M8 14h.01M12 14h.01M16 14h.01M8 17h.01M12 17h.01",
+  todo:   "M9 6h11M9 12h11M9 18h11M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2",
+  habits: "M12 21s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 11c0 5.6-7 10-7 10z",
+  more:   "M5 12h.01M12 12h.01M19 12h.01",
+  finance:"M3 17l6-6 4 4 8-8M15 7h6v6",
+  week:   "M4 19V9M10 19V5M16 19v-7M22 19H2",
+  trends: "M3 3v18h18M7 14l4-4 3 3 5-6",
+  journal:"M6 3h11a2 2 0 0 1 2 2v16l-3-2-3 2-3-2-3 2V5a2 2 0 0 1 2-2zM9 8h6M9 12h6",
+  types:  "M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z",
+};
+const TabIcon = ({ k,on })=> <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={on?2.2:1.8} strokeLinecap="round" strokeLinejoin="round"><path d={ICON_PATHS[k]||ICON_PATHS.more}/></svg>;
+
 // ============ APP ============
 export default function LifeOS(){
   const [tab,setTabRaw] = useState(()=>{ try{ return localStorage.getItem("lifeos:lastTab")||"today"; }catch{ return "today"; } });
@@ -460,6 +551,8 @@ export default function LifeOS(){
   const undoStack = useRef([]);
   const moreRef = useRef(null);
   const MORE = [["week","Weekly Review"],["trends","Reports"],["journal","Journal"],["types","Day Types"]];
+  const MAIN_TABS = [["today","Today"],["plan","Week"],["month","Month"],["todo","To Do"],["habits","Habits"],["finance","Finance"]];
+  const MORE_MOBILE = [["finance","Finance"], ...MORE];
   const isMobile = useIsMobile();
 
   useEffect(()=>{ (async()=>{
@@ -493,34 +586,9 @@ export default function LifeOS(){
     setLoading(false);
   })(); },[]);
 
+  const dayCtx = { dayTypes, hols, weekMap, weekMapB, weekAnchorA };
   useEffect(()=>{ if(loading) return; (async()=>{
-    let d = await sGet(`day:${date}`, null);
-    if(!d || d.stub){
-      // a stub is a day the vault check-in created before Dan opened it: keep its ticks
-      d = d ? { ...d, stub:false } : blankDay(date);
-      // Dan, 19 Oct: "just leave off-school days blank." A day inside an `off` range starts
-      // with no timetable at all — school isn't happening, so the lessons would be a lie.
-      // Only applies when the day is first created; a day he has already edited is never
-      // touched. `away` days keep their timetable (he can be away on a school day).
-      const offSchool = kindsAt(date,hols).includes("off");
-      const map = weekIsB(date, weekAnchorA) ? weekMapB : weekMap;
-      const typeId = offSchool ? "blank" : (map[dayNameOf(date)] || "blank");
-      d.dayTypeId = typeId;
-      d.blocks = [...(offSchool ? [] : cloneBlocks((dayTypes[typeId]?.blocks)||[])), ...(d.blocks||[])]; // keep check-in workouts on a stub
-    }
-    // migrate older saved days lacking new fields
-    if(!d.reps) d.reps = { target:dayOfYear(date), done:false };
-    if(d.bs===undefined) d.bs = false;
-    if(d.frozen===undefined) d.frozen = false;
-    if(!d.bin) d.bin = [];
-    if(!d.breakdownAdj) d.breakdownAdj = { Sleep:0,Lessons:0,Revision:0,Gym:0,Activity:0 };
-    // the morning brief's one objective, if the vault Routine sent one for this day
-    const obj = planObjectiveFor(date);
-    if(obj && !(d.blocks||[]).some(b=>String(b.label||"").toLowerCase()===obj.label.toLowerCase()))
-      d.blocks = [...(d.blocks||[]), { id:Date.now(), done:false, ...obj }];
-    // breakdown = auto from timeline + the day's manual adjustments
-    d.breakdown = withAdj(computeBreakdown(d.blocks), d.breakdownAdj);
-    setDay(d);
+    setDay(materialiseDay(date, await sGet(`day:${date}`, null), dayCtx));
   })(); },[date, loading, weekAnchorA, hols]); // eslint-disable-line
 
   const flash = (m)=>{ buzz(); setToast(m); setTimeout(()=>setToast(""),1600); };
@@ -563,6 +631,9 @@ export default function LifeOS(){
         button:active{ transform: scale(0.96); }
         .lo-scroll{ -webkit-overflow-scrolling:touch; }
         .lo-tabs{ scrollbar-width:none; -webkit-overflow-scrolling:touch; } .lo-tabs::-webkit-scrollbar{ display:none; }
+        @keyframes lo-up{ from{ transform:translateY(100%);} to{ transform:translateY(0);} }
+        @keyframes lo-fade{ from{ opacity:0;} to{ opacity:1;} }
+        html,body{ overscroll-behavior-y:none; }
         @keyframes lo-pop{ from{ opacity:0; transform:translateX(-50%) translateY(8px) scale(.96);} to{ opacity:1; transform:translateX(-50%) translateY(0) scale(1);} }
       `}</style>
 
@@ -572,8 +643,8 @@ export default function LifeOS(){
           {!isMobile && <span style={{ fontSize:11, color:C.faint, letterSpacing:2, textTransform:"uppercase" }}>Plan · Track · Compound</span>}
         </div>
         <div style={{ display:"flex", gap:8, flexShrink:0 }}>
-          <button onClick={()=>setShowSync(true)} style={{ ...addBtn, width:"auto", padding:"7px 12px", fontSize:12 }}>☁ Sync</button>
-          <button onClick={()=>setShowBackup(true)} style={{ ...addBtn, width:"auto", padding:"7px 12px", fontSize:12 }}>Backup</button>
+          {!isMobile && <button onClick={()=>setShowSync(true)} style={{ ...addBtn, width:"auto", padding:"7px 12px", fontSize:12 }}>☁ Sync</button>}
+          {!isMobile && <button onClick={()=>setShowBackup(true)} style={{ ...addBtn, width:"auto", padding:"7px 12px", fontSize:12 }}>Backup</button>}
           <button onClick={()=>{ setDate(todayISO()); setTab("today"); }} style={{ ...addBtn, width:"auto", padding:"7px 14px", fontSize:12 }}>{isMobile?"Today":"Jump to Today"}</button>
         </div>
       </div>
@@ -581,15 +652,17 @@ export default function LifeOS(){
       {showBackup && <BackupModal close={()=>setShowBackup(false)} flash={flash} />}
       {showSync && <CloudSyncModal close={()=>setShowSync(false)} flash={flash} />}
 
-      <div className="lo-tabs" style={{ display:"flex", gap:4, padding:"12px 24px 0", borderBottom:`1px solid ${C.line}`, overflowX:"auto" }}>
-        {[["today","Today"],["month","Month"],["todo","To Do"],["habits","Habits"],["finance","Finance"]].map(([k,l])=>(
+      {/* Dan, 29 Oct: "more like a real app". Phones get a fixed bottom tab bar with icons, the
+          way every native app does it; the desktop keeps the row of tabs along the top. */}
+      {!isMobile && <div className="lo-tabs" style={{ display:"flex", gap:4, padding:"12px 24px 0", borderBottom:`1px solid ${C.line}`, overflowX:"auto" }}>
+        {MAIN_TABS.map(([k,l])=>(
           <button key={k} onClick={()=>setTab(k)} style={{ padding:"10px 18px", cursor:"pointer", border:"none", background:"transparent",
             color:tab===k?C.ink:C.faint, fontWeight:600, fontSize:14, borderBottom:`2px solid ${tab===k?C.teal:"transparent"}`, marginBottom:-1, whiteSpace:"nowrap" }}>{l}</button>
         ))}
         {(()=>{ const onMore=MORE.some(m=>m[0]===tab); const cur=MORE.find(m=>m[0]===tab);
           return <button ref={moreRef} onClick={()=>setShowMore(s=>!s)} style={{ padding:"10px 18px", cursor:"pointer", border:"none", background:"transparent", color:onMore?C.ink:C.faint, fontWeight:600, fontSize:14, borderBottom:`2px solid ${onMore?C.teal:"transparent"}`, marginBottom:-1, whiteSpace:"nowrap" }}>{onMore?cur[1]:"More"} ▾</button>; })()}
-      </div>
-      {showMore && (
+      </div>}
+      {showMore && !isMobile && (
         <>
           <div onClick={()=>setShowMore(false)} style={{ position:"fixed", inset:0, zIndex:120 }}/>
           <div style={{ position:"fixed", top:(moreRef.current?moreRef.current.getBoundingClientRect().bottom+4:120), right:14, background:C.panel2, border:`1px solid ${C.line}`, borderRadius:10, padding:6, zIndex:121, minWidth:180, boxShadow:"0 8px 30px rgba(0,0,0,.6)" }}>
@@ -597,9 +670,18 @@ export default function LifeOS(){
           </div>
         </>
       )}
+      {showMore && isMobile && (
+        <Sheet close={()=>setShowMore(false)} title="More">
+          {MORE_MOBILE.map(([k,l])=> <button key={k} onClick={()=>{ setTab(k); setShowMore(false); }} style={{ display:"flex", alignItems:"center", gap:12, width:"100%", textAlign:"left", padding:"14px 12px", borderRadius:10, border:"none", background:tab===k?C.panel2:"transparent", color:tab===k?C.ink:C.dim, cursor:"pointer", fontSize:16 }}><TabIcon k={k} on={tab===k}/>{l}</button>)}
+          <div style={{ height:1, background:C.line, margin:"8px 0" }}/>
+          {[["sync","☁  Cloud sync",()=>setShowSync(true)],["backup","⬇  Backup & restore",()=>setShowBackup(true)]].map(([k,l,on])=>
+            <button key={k} onClick={()=>{ setShowMore(false); on(); }} style={{ display:"block", width:"100%", textAlign:"left", padding:"14px 12px", borderRadius:10, border:"none", background:"transparent", color:C.dim, cursor:"pointer", fontSize:16 }}>{l}</button>)}
+        </Sheet>
+      )}
 
-      <div style={{ maxWidth:1180, margin:"0 auto", padding:isMobile?"16px 12px":"24px" }}>
+      <div style={{ maxWidth:1180, margin:"0 auto", padding:isMobile?"16px 12px calc(92px + env(safe-area-inset-bottom))":"24px" }}>
         {tab==="today" && <TodayView day={day} date={date} setDate={setDate} upd={upd} dayTypes={dayTypes} applyDayType={applyDayType} links={habitLinks} allDays={allDays} flash={flash} masterTodos={masterTodos} toggleMasterTodo={toggleMasterTodo} goTodos={()=>setTab("todo")} keyDates={keyDates} saveKeyDates={persistKeyDates} bad={badHabits} />}
+        {tab==="plan" && <WeekPlanView date={date} setDate={setDate} setTab={setTab} allDays={allDays} ctx={dayCtx} />}
         {tab==="todo" && <TodoListView todos={masterTodos} save={persistMasterTodos} flash={flash} />}
         {tab==="month" && <MonthView date={date} setDate={setDate} setTab={setTab} allDays={allDays} dayTypes={dayTypes} flash={flash} weekAnchorA={weekAnchorA} />}
         {tab==="habits" && <HabitsView allDays={allDays} links={habitLinks} saveLinks={persistHabitLinks} cfg={habitCfg} saveCfg={persistHabitCfg} bad={badHabits} saveBad={persistBadHabits} letter={letter} saveLetter={persistLetter} letters={letters} saveLetters={persistLetters} />}
@@ -610,8 +692,16 @@ export default function LifeOS(){
         {tab==="types" && <DayTypesView dayTypes={dayTypes} save={persistDayTypes} weekMap={weekMap} saveWeekMap={persistWeekMap} weekMapB={weekMapB} saveWeekMapB={persistWeekMapB} weekAnchorA={weekAnchorA} saveWeekAnchor={persistWeekAnchor} flash={flash} />}
       </div>
 
-      {toast && <div style={{ position:"fixed", bottom:24, left:"50%", transform:"translateX(-50%)", background:C.teal, color:"#001014", padding:"10px 22px", borderRadius:30, fontWeight:600, fontSize:14, zIndex:100, boxShadow:"0 8px 30px rgba(0,0,0,.5)", animation:"lo-pop .18s ease" }}>{toast}</div>}
-      {canUndo && <button onClick={undo} style={{ position:"fixed", bottom:24, left:20, background:C.panel2, color:C.ink, border:`1px solid ${C.line}`, padding:"9px 16px", borderRadius:30, fontWeight:600, fontSize:13, zIndex:100, boxShadow:"0 8px 30px rgba(0,0,0,.5)", cursor:"pointer" }}>↶ Undo</button>}
+      {isMobile && (
+        <nav style={{ position:"fixed", left:0, right:0, bottom:0, zIndex:90, display:"flex", background:"rgba(21,23,29,.94)", backdropFilter:"blur(14px)", WebkitBackdropFilter:"blur(14px)", borderTop:`1px solid ${C.line}`, paddingBottom:"env(safe-area-inset-bottom)" }}>
+          {BOTTOM_TABS.map(([k,l])=>{ const on = k==="more" ? MORE_MOBILE.some(m=>m[0]===tab) : tab===k;
+            return <button key={k} onClick={()=>{ buzz(5); if(k==="more") setShowMore(true); else setTab(k); }}
+              style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:3, padding:"9px 0 8px", border:"none", background:"transparent", color:on?C.teal:C.faint, fontSize:10.5, fontWeight:600, cursor:"pointer" }}>
+              <TabIcon k={k} on={on}/>{l}</button>; })}
+        </nav>
+      )}
+      {toast && <div style={{ position:"fixed", bottom:isMobile?"calc(84px + env(safe-area-inset-bottom))":24, left:"50%", transform:"translateX(-50%)", background:C.teal, color:"#001014", padding:"10px 22px", borderRadius:30, fontWeight:600, fontSize:14, zIndex:100, boxShadow:"0 8px 30px rgba(0,0,0,.5)", animation:"lo-pop .18s ease", whiteSpace:"nowrap" }}>{toast}</div>}
+      {canUndo && <button onClick={undo} style={{ position:"fixed", bottom:isMobile?"calc(84px + env(safe-area-inset-bottom))":24, left:isMobile?12:20, background:C.panel2, color:C.ink, border:`1px solid ${C.line}`, padding:"9px 16px", borderRadius:30, fontWeight:600, fontSize:13, zIndex:100, boxShadow:"0 8px 30px rgba(0,0,0,.5)", cursor:"pointer" }}>↶ Undo</button>}
     </div>
   );
 }
@@ -747,7 +837,10 @@ const snap = (t)=> Math.round(t*4)/4;
 const nowDec = ()=>{ const d=new Date(); return d.getHours()+d.getMinutes()/60; };
 const PENS = [C.cyan, C.gold, C.pink, C.ink];
 // quick-pick labels — realistically a block is only ever a few things, drawn from your schedule
-const QUICK_LABELS = Array.from(new Set(Object.values(SEED_DAYTYPES).flatMap(t=>(t.blocks||[]).map(b=>b.label))));
+// quick-pick labels for the editor: the things a non-school block usually is (the timetable
+// templates are lessons only since 29 Oct, so they no longer make a useful list)
+const QUICK_LABELS = ["Interview problems — out loud","A-level homework","Gym A (upper)","Gym B (legs heavier)","Gym skills (no legs)",
+  "Football training","Football match","6-a-side · Tom","Dinner","Travel","Library","Free time","Wind-down · phone out of the room"];
 
 // snap a freehand stroke to a clean straight line or rectangle (shape-builder)
 function _bounds(P){ let a=Infinity,b=Infinity,c=-Infinity,d=-Infinity; for(const p of P){ a=Math.min(a,p.x); b=Math.min(b,p.y); c=Math.max(c,p.x); d=Math.max(d,p.y); } return {x:a,y:b,w:c-a,h:d-b}; }
@@ -763,13 +856,31 @@ function snapStroke(pts,w,held){
   return pts;
 }
 
+// Overlapping blocks sit side by side, the way a real calendar lays them out, instead of
+// stacking on top of each other. Greedy columns within each cluster of overlaps.
+function layoutColumns(blocks){
+  const out={}; const sorted=[...blocks].sort((a,b)=>a.t-b.t||b.e-a.e);
+  let cluster=[], clusterEnd=-1;
+  const flush=()=>{ const cols=[]; for(const b of cluster){ let c=cols.findIndex(end=>end<=b.t+1e-6); if(c<0){ c=cols.length; cols.push(0); } cols[c]=b.e; out[b.id]={ col:c }; }
+    for(const b of cluster) out[b.id].n=cols.length; cluster=[]; };
+  for(const b of sorted){ if(cluster.length && b.t>=clusterEnd-1e-6){ flush(); clusterEnd=-1; } cluster.push(b); clusterEnd=Math.max(clusterEnd,b.e); }
+  if(cluster.length) flush();
+  return out;
+}
+const DURATIONS = [[0.25,"15m"],[0.5,"30m"],[0.75,"45m"],[1,"1h"],[1.5,"1½h"],[2,"2h"]];
+
+// Dan, 29 Oct: "make the boxes and stuff easier to move about... more like a real app."
+// Touch now works like a native calendar: a finger on a block scrolls the day as normal;
+// HOLD it (~¼ s, you feel a tick) to pick it up, then drag. Drag near the top or bottom edge
+// and the day scrolls with you. The grips on a block's top and bottom edges resize it straight
+// away. A quick sideways swipe still marks it skipped. Mouse drags move immediately.
 function Timeline({ blocks,onChange,isToday=false,isPast=false,sketch,onSketch,onDeleteId }){
   const railRef = useRef(null);
   const scrollRef = useRef(null);
   const dragRef = useRef(null);      // moving / resizing / wiping an existing block
-  const createRef = useRef(null);    // drawing a new block on empty space
   const strokeRef = useRef(null);    // current freehand stroke
   const suppressRef = useRef(false); // swallow the click that follows a drag
+  const autoRef = useRef(0);         // edge auto-scroll animation frame
   const isMobile = useIsMobile();
   const [, force] = useState(0); const rerender = ()=> force(n=>n+1);
   const [editing,setEditing] = useState(null);
@@ -781,32 +892,80 @@ function Timeline({ blocks,onChange,isToday=false,isPast=false,sketch,onSketch,o
   const height=(DAY_END-DAY_START)*PX_PER_HOUR;
   const canSketch = !!onSketch;
   const strokes = sketch||[];
+  const cols = useMemo(()=>layoutColumns(blocks),[blocks]);
 
   useEffect(()=>{ if(!isToday) return; const id=setInterval(()=>setNow(nowDec()),60000); return ()=>clearInterval(id); },[isToday]);
   useEffect(()=>{ const m=()=>setRailW(railRef.current?railRef.current.clientWidth:1); m(); window.addEventListener("resize",m); return ()=>window.removeEventListener("resize",m); },[]);
   useEffect(()=>{ if(scrollRef.current){ scrollRef.current.scrollTop = timeToY(isToday ? Math.max(DAY_START, nowDec()-1.5) : 7.5); } },[]); // open near the relevant time
+  useEffect(()=>()=>cancelAnimationFrame(autoRef.current),[]);
 
   const updBlock=(id,patch)=> onChange(prev=>prev.map(b=>b.id===id?{...b,...patch}:b));
   const delBlock=(id)=>{ if(onDeleteId) onDeleteId(id); else onChange(prev=>prev.filter(b=>b.id!==id)); setEditing(null); };
+  const dupBlock=(b)=>{ const id=Date.now(); const dur=b.e-b.t; const t=Math.min(DAY_END-dur,b.e);
+    const { seed, sig, ...rest }=b; onChange(prev=>[...prev,{ ...rest, id, t, e:t+dur, status:undefined }]); setEditing(id); buzz(); };
   const elapsed=(b)=> isPast || (isToday && b.e<=now);
   const effState=(b)=> b.status==="missed" ? "missed" : (elapsed(b) ? "done" : "plan");
   const pathD=(pts)=> pts.map((p,i)=> (i?"L":"M")+(p.x*railW).toFixed(1)+" "+p.y.toFixed(1)).join(" ");
 
-  // ----- drag an existing block: vertical = move, bottom edge = resize, horizontal = wipe/skip -----
+  // where the finger is, as a snapped time — read against the rail's live position, so it stays
+  // right while the day auto-scrolls underneath
+  const placeFromPointer=(d)=>{ const rail=railRef.current; if(!rail) return;
+    const y=d.y-rail.getBoundingClientRect().top; let patch=null;
+    if(d.mode==="move"){ const dur=d.oE-d.oT; let nt=snap(yToTime(y-d.grab)); nt=Math.max(DAY_START,Math.min(DAY_END-dur,nt)); if(nt!==d.last){ d.last=nt; patch={ t:nt, e:nt+dur }; } }
+    else if(d.mode==="resize-b"){ let ne=snap(yToTime(y)); ne=Math.max(d.oT+0.25,Math.min(DAY_END,ne)); if(ne!==d.last){ d.last=ne; patch={ e:ne }; } }
+    else { let nt=snap(yToTime(y)); nt=Math.max(DAY_START,Math.min(d.oE-0.25,nt)); if(nt!==d.last){ d.last=nt; patch={ t:nt }; } }
+    if(patch){ if(d.touch && d.started) buzz(3); d.started=true; updBlock(d.id,patch); } };
+  const autoScroll=()=>{ const d=dragRef.current; if(!d||!d.lifted||d.axis!=="v"){ autoRef.current=0; return; }
+    const sc=scrollRef.current, inBox=isMobile&&sc; const r=inBox?sc.getBoundingClientRect():{ top:0, bottom:window.innerHeight };
+    const edge=56, sp=(dist)=>Math.ceil((edge-dist)/5);
+    let step=0; if(d.y<r.top+edge) step=-sp(d.y-r.top); else if(d.y>r.bottom-edge) step=sp(r.bottom-d.y);
+    if(step){ if(inBox) sc.scrollTop+=step; else window.scrollBy(0,step); placeFromPointer(d); }
+    autoRef.current=requestAnimationFrame(autoScroll); };
+
   const startBlock=(e,blk,mode)=>{ e.stopPropagation(); if(pen) return;
-    const p=e.touches?e.touches[0]:e;
-    const d={ id:blk.id,mode,axis:mode==="resize"?"v":null,sx:p.clientX,sy:p.clientY,oT:blk.t,oE:blk.e,oStatus:blk.status,dx:0,moved:false };
+    suppressRef.current=false;   // a touch drag fires no click, so a stale flag would eat the next tap
+    const touch=!!e.touches; const p=touch?e.touches[0]:e; if(!touch && e.button) return;
+    const rail=railRef.current.getBoundingClientRect();
+    // which edge? decided by where the finger is on the block, not by which strip the browser
+    // happens to hit-test — touch targeting is fuzzy and kept landing on the thin grips
+    const bt=rail.top+timeToY(blk.t), bh=Math.max(22,(blk.e-blk.t)*PX_PER_HOUR), off=p.clientY-bt;
+    if(off>=bh-(touch?16:11)) mode="resize-b"; else if(bh>=40 && off<=(touch?9:7)) mode="resize-t"; else mode="move";
+    const d={ id:blk.id, mode, touch, sx:p.clientX, sy:p.clientY, y:p.clientY, oT:blk.t, oE:blk.e, oStatus:blk.status,
+      grab:p.clientY-rail.top-timeToY(blk.t), axis:mode==="move"?null:"v", lifted:!touch||mode!=="move", dx:0, moved:false, last:null, started:false };
     dragRef.current=d;
-    const move=(ev)=>{ const q=ev.touches?ev.touches[0]:ev; const dx=q.clientX-d.sx, dy=q.clientY-d.sy;
-      if(!d.axis && Math.hypot(dx,dy)>7) d.axis=Math.abs(dx)>Math.abs(dy)?"h":"v";
-      if(!d.axis) return; d.moved=true; if(ev.cancelable&&ev.touches) ev.preventDefault();
-      if(d.mode==="resize"){ let ne=snap(d.oE+dy/PX_PER_HOUR); ne=Math.max(d.oT+0.25,Math.min(DAY_END,ne)); updBlock(d.id,{e:ne}); }
-      else if(d.axis==="h"){ d.dx=dx; rerender(); }
-      else { const dur=d.oE-d.oT; let nt=snap(d.oT+dy/PX_PER_HOUR); nt=Math.max(DAY_START,Math.min(DAY_END-dur,nt)); updBlock(d.id,{t:nt,e:nt+dur}); } };
-    const up=()=>{ if(d.axis==="h" && Math.abs(d.dx)>70) updBlock(d.id,{status: d.oStatus==="missed"?undefined:"missed"});
-      if(d.moved) suppressRef.current=true; dragRef.current=null; rerender();
-      window.removeEventListener("mousemove",move); window.removeEventListener("touchmove",move); window.removeEventListener("mouseup",up); window.removeEventListener("touchend",up); };
-    window.addEventListener("mousemove",move); window.addEventListener("touchmove",move,{passive:false}); window.addEventListener("mouseup",up); window.addEventListener("touchend",up);
+    if(d.lifted && mode!=="move" && touch) buzz(8);
+    // Once the browser takes a touch over as a scroll it may stop sending us touchmove/touchend
+    // at all — so a pending hold is cancelled the moment anything scrolls, or it would grab the
+    // block mid-scroll.
+    const scrollPos=()=>{ const sc=scrollRef.current; return (sc?sc.scrollTop:0)+window.scrollY; };
+    const s0=scrollPos();
+    const onScroll=()=>{ if(!d.lifted) end(); };
+    if(touch && mode==="move"){
+      scrollRef.current && scrollRef.current.addEventListener("scroll",onScroll,{ passive:true }); window.addEventListener("scroll",onScroll,{ passive:true });
+      d.timer=setTimeout(()=>{ if(dragRef.current!==d || d.axis) return; if(Math.abs(scrollPos()-s0)>2){ end(); return; }
+        d.lifted=true; d.axis="v"; buzz(14); rerender(); autoRef.current=requestAnimationFrame(autoScroll); }, 260);
+    }
+    else if(mode!=="move") autoRef.current=requestAnimationFrame(autoScroll);
+    const move=(ev)=>{ const q=ev.touches?ev.touches[0]:ev; const dx=q.clientX-d.sx, dy=q.clientY-d.sy; d.y=q.clientY;
+      if(!d.lifted){                                     // a finger that hasn't been held yet
+        if(Math.hypot(dx,dy)<9) return;
+        clearTimeout(d.timer);
+        if(Math.abs(dx)>Math.abs(dy)*1.3){ d.lifted=true; d.axis="h"; }   // sideways = swipe to skip
+        else { end(); return; }                                          // up/down = it's a scroll
+      }
+      if(!d.axis){ if(Math.hypot(dx,dy)<7) return; d.axis=Math.abs(dx)>Math.abs(dy)?"h":"v"; if(d.axis==="v") autoRef.current=requestAnimationFrame(autoScroll); }
+      d.moved=true; if(ev.cancelable) ev.preventDefault();
+      if(d.axis==="h" && d.mode==="move"){ d.dx=dx; rerender(); return; }
+      placeFromPointer(d); };
+    const end=()=>{ clearTimeout(d.timer); cancelAnimationFrame(autoRef.current); autoRef.current=0;
+      scrollRef.current && scrollRef.current.removeEventListener("scroll",onScroll); window.removeEventListener("scroll",onScroll);
+      window.removeEventListener("mousemove",move); window.removeEventListener("touchmove",move); window.removeEventListener("mouseup",up); window.removeEventListener("touchend",up); window.removeEventListener("touchcancel",up);
+      if(dragRef.current===d) dragRef.current=null; rerender(); };
+    const up=()=>{ if(d.axis==="h" && Math.abs(d.dx)>70){ updBlock(d.id,{status: d.oStatus==="missed"?undefined:"missed"}); buzz(10); }
+      if(d.moved) suppressRef.current=true;
+      else if(d.touch && d.lifted && d.mode==="move"){ suppressRef.current=true; setEditing(d.id); }   // held and let go = open it
+      end(); };
+    window.addEventListener("mousemove",move); window.addEventListener("touchmove",move,{passive:false}); window.addEventListener("mouseup",up); window.addEventListener("touchend",up); window.addEventListener("touchcancel",up);
   };
 
   // ----- tap empty space to add a block (no drag, so the page never scrolls out from under you) -----
@@ -816,8 +975,8 @@ function Timeline({ blocks,onChange,isToday=false,isPast=false,sketch,onSketch,o
     const move=(ev)=>{ const q=ev.touches?ev.touches[0]:ev; if(Math.hypot(q.clientX-sx,q.clientY-sy)>8) moved=true; };
     const up=()=>{ window.removeEventListener("mousemove",move); window.removeEventListener("touchmove",move); window.removeEventListener("mouseup",up); window.removeEventListener("touchend",up);
       if(moved) return;                              // it was a scroll, not a tap — leave it alone
-      let t=snap(yToTime(sy-rect.top)); const dur=1; t=Math.min(DAY_END-dur,t); const id=Date.now();
-      onChange(prev=>[...prev,{ id,t,e:t+dur,label:"",cat:"Other" }]); setEditing(id); rerender(); };
+      let t=snap(Math.floor(yToTime(sy-rect.top)*2)/2); const dur=1; t=Math.min(DAY_END-dur,t); const id=Date.now();
+      onChange(prev=>[...prev,{ id,t,e:t+dur,label:"",cat:"Other" }]); setEditing(id); buzz(); rerender(); };
     window.addEventListener("mousemove",move); window.addEventListener("touchmove",move); window.addEventListener("mouseup",up); window.addEventListener("touchend",up);
   };
 
@@ -834,6 +993,8 @@ function Timeline({ blocks,onChange,isToday=false,isPast=false,sketch,onSketch,o
     window.addEventListener("mousemove",move); window.addEventListener("touchmove",move,{passive:false}); window.addEventListener("mouseup",up); window.addEventListener("touchend",up);
   };
 
+  const dd=dragRef.current; const locked=!!(dd && dd.lifted && dd.axis==="v");
+  const inner=Math.max(1,railW-12);
   return (
     <div>
       {canSketch && (
@@ -844,7 +1005,7 @@ function Timeline({ blocks,onChange,isToday=false,isPast=false,sketch,onSketch,o
           {pen && <button onClick={()=>onSketch([])} style={{ ...addBtn, width:"auto", padding:"6px 10px", borderColor:C.red, color:C.red }}>Clear</button>}
         </div>
       )}
-      <div ref={scrollRef} className="lo-scroll" style={{ position:"relative", ...(isMobile?{ maxHeight:"68vh", overflowY:"auto", overflowX:"hidden", overscrollBehavior:"contain" }:{}) }}>
+      <div ref={scrollRef} className="lo-scroll" style={{ position:"relative", ...(isMobile?{ maxHeight:"64vh", overflowY:locked?"hidden":"auto", overflowX:"hidden", overscrollBehavior:"contain" }:{}) }}>
       <div style={{ display:"flex", position:"relative" }}>
         <div style={{ width:46, position:"relative", height, flexShrink:0 }}>
           {hours.map(h=> <div key={h} style={{ position:"absolute", top:timeToY(h)-7, right:8, fontSize:10, color:C.faint, fontVariantNumeric:"tabular-nums" }}>{hhmm(h)}</div>)}
@@ -852,35 +1013,42 @@ function Timeline({ blocks,onChange,isToday=false,isPast=false,sketch,onSketch,o
         <div ref={railRef} onMouseDown={startCreate} onTouchStart={startCreate}
           style={{ flex:1, position:"relative", height, borderLeft:`1px solid ${C.line}`, cursor:pen?"crosshair":"copy", touchAction:pen?"none":"pan-y" }}>
           {hours.map(h=> <div key={h} style={{ position:"absolute", top:timeToY(h), left:0, right:0, height:1, background:C.line, opacity:0.5, pointerEvents:"none" }}/>)}
+          {hours.slice(0,-1).map(h=> <div key={"h"+h} style={{ position:"absolute", top:timeToY(h+0.5), left:0, right:0, borderTop:`1px dashed ${C.line}`, opacity:0.25, pointerEvents:"none" }}/>)}
 
-          {blocks.map(b=>{ const top=timeToY(b.t); const h=Math.max(20,(b.e-b.t)*PX_PER_HOUR); const col=CATS[b.cat]||C.dim;
-            const st=effState(b); const dd=dragRef.current; const dx=(dd&&dd.id===b.id&&dd.axis==="h")?dd.dx:0;
-            const missed=st==="missed", plan=st==="plan";
+          {blocks.map(b=>{ const top=timeToY(b.t); const h=Math.max(22,(b.e-b.t)*PX_PER_HOUR); const col=CATS[b.cat]||C.dim;
+            const st=effState(b); const mine=dd&&dd.id===b.id; const dx=(mine&&dd.axis==="h")?dd.dx:0;
+            const lifted=mine&&dd.lifted&&dd.axis!=="h"; const missed=st==="missed", plan=st==="plan";
+            const lay=cols[b.id]||{ col:0, n:1 }; const w=inner/lay.n;
             return (
               <div key={b.id} onMouseDown={(e)=>startBlock(e,b,"move")} onTouchStart={(e)=>startBlock(e,b,"move")}
+                onContextMenu={(e)=>e.preventDefault()}
                 onClick={(e)=>{ e.stopPropagation(); if(suppressRef.current){ suppressRef.current=false; return; } setEditing(editing===b.id?null:b.id); }}
-                style={{ position:"absolute", top, left:6, right:6, height:h, transform:`translateX(${dx}px)`,
-                  background: plan? "transparent" : `${col}22`, border:`${plan?"1.5px dashed":"1px solid"} ${col}`, borderLeft:`3px solid ${col}`,
-                  borderRadius:8, padding:"5px 9px", cursor:"grab", overflow:"hidden", touchAction:"none", userSelect:"none",
-                  opacity: missed? 0.32 : (1 - Math.min(0.65, Math.abs(dx)/170)), transition: dx?"none":"opacity .15s", zIndex:5 }}>
-                <div style={{ display:"flex", alignItems:"center", gap:6, paddingRight:24 }}>
-                  <span style={{ width:8,height:8,borderRadius:"50%",background:col,flexShrink:0,opacity:plan?0.5:1 }}/>
-                  <span style={{ fontSize:15, fontWeight:700, color:missed?C.faint:C.ink, textDecoration:missed?"line-through":"none", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{b.label}</span>
+                style={{ position:"absolute", top, left:6+lay.col*w, width:w-(lay.n>1?3:0), height:h,
+                  transform:`translateX(${dx}px) scale(${lifted?1.03:1})`, transformOrigin:"center",
+                  background: lifted? `${col}40` : plan? `${col}0F` : `${col}22`, border:`${plan&&!lifted?"1.5px dashed":"1px solid"} ${col}`, borderLeft:`3px solid ${col}`,
+                  borderRadius:9, padding:"5px 9px", cursor:lifted?"grabbing":"grab", overflow:"hidden", touchAction:lifted?"none":"pan-y",
+                  userSelect:"none", WebkitUserSelect:"none", WebkitTouchCallout:"none",
+                  boxShadow: lifted?"0 12px 30px rgba(0,0,0,.6)":"none",
+                  opacity: missed? 0.32 : (1 - Math.min(0.65, Math.abs(dx)/170)), transition: (dx||lifted)?"box-shadow .12s, transform .12s":"opacity .15s, transform .15s, box-shadow .15s", zIndex:lifted?30:5 }}>
+                <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                  <span style={{ width:8,height:8,borderRadius:"50%",background:col,flexShrink:0,opacity:plan?0.6:1 }}/>
+                  <span style={{ fontSize:lay.n>2?12:15, fontWeight:700, color:missed?C.faint:C.ink, textDecoration:missed?"line-through":"none", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{b.label||<span style={{ color:C.faint, fontWeight:500 }}>Untitled</span>}</span>
+                  {isPlanned(b) && <span title="From the Sunday plan" style={{ fontSize:10, color:C.teal, flexShrink:0 }}>✦</span>}
                 </div>
-                {h>32 && <div style={{ fontSize:10, color:C.dim, marginTop:2 }}>{hhmm(b.t)}–{hhmm(b.e)} · {b.cat}{(b.note && h<=50)?" · 📝":""}{missed?" · skipped":""}</div>}
-                {b.note && h>50 && <div style={{ fontSize:11.5, color:missed?C.faint:C.dim, marginTop:4, lineHeight:1.3, overflow:"hidden", display:"-webkit-box", WebkitLineClamp:3, WebkitBoxOrient:"vertical", whiteSpace:"normal", paddingRight:24 }}>{b.note}</div>}
-                {/* one-tap delete → bin */}
-                <button onMouseDown={(e)=>e.stopPropagation()} onTouchStart={(e)=>e.stopPropagation()} onClick={(e)=>{ e.stopPropagation(); buzz(); delBlock(b.id); }}
-                  style={{ position:"absolute", top:3, right:3, width:22, height:22, borderRadius:6, border:"none", background:"rgba(0,0,0,.4)", color:"#fff", fontSize:12, cursor:"pointer", lineHeight:1, padding:0, display:"flex", alignItems:"center", justifyContent:"center", zIndex:8 }}>🗑</button>
-                <div onMouseDown={(e)=>startBlock(e,b,"resize")} onTouchStart={(e)=>startBlock(e,b,"resize")} onClick={(e)=>e.stopPropagation()}
-                  style={{ position:"absolute", bottom:0, left:0, right:0, height:10, cursor:"ns-resize" }}/>
+                {(h>32 || lifted) && <div style={{ fontSize:10, color:lifted?C.ink:C.dim, marginTop:2, fontWeight:lifted?700:400, fontVariantNumeric:"tabular-nums" }}>{hhmm(b.t)}–{hhmm(b.e)}{!lifted && lay.n<3 ? ` · ${b.cat}`:""}{(b.note && h<=50 && !lifted)?" · 📝":""}{missed?" · skipped":""}</div>}
+                {b.note && h>50 && !lifted && <div style={{ fontSize:11.5, color:missed?C.faint:C.dim, marginTop:4, lineHeight:1.3, overflow:"hidden", display:"-webkit-box", WebkitLineClamp:Math.max(1,Math.floor((h-46)/15)), WebkitBoxOrient:"vertical", whiteSpace:"normal" }}>{b.note}</div>}
+                {/* resize grips (visual) — the top and bottom edges resize straight away, no hold */}
+                {h>=40 && <div style={{ position:"absolute", top:0, left:0, right:0, height:8, cursor:"ns-resize", pointerEvents:"none" }}/>}
+                <div style={{ position:"absolute", bottom:0, left:0, right:0, height:isMobile?16:11, cursor:"ns-resize", pointerEvents:"none", display:"flex", alignItems:"flex-end", justifyContent:"center", paddingBottom:3 }}>
+                  {h>=36 && <div style={{ width:22, height:3, borderRadius:2, background:col, opacity:mine?0.9:0.35 }}/>}
+                </div>
               </div>
             );
           })}
 
           {isToday && now>=DAY_START && now<=DAY_END && (
             <div style={{ position:"absolute", top:timeToY(now), left:0, right:0, borderTop:`2px solid ${C.red}`, zIndex:7, pointerEvents:"none" }}>
-              <div style={{ position:"absolute", left:-4, top:-4, width:8, height:8, borderRadius:"50%", background:C.red }}/>
+              <div style={{ position:"absolute", left:-5, top:-6, width:10, height:10, borderRadius:"50%", background:C.red }}/>
             </div>
           )}
 
@@ -890,36 +1058,38 @@ function Timeline({ blocks,onChange,isToday=false,isPast=false,sketch,onSketch,o
             {strokeRef.current && <path d={pathD(strokeRef.current.pts)} stroke={strokeRef.current.color} strokeWidth={2.5} fill="none" strokeLinecap="round" strokeLinejoin="round"/>}
           </svg>
 
-          {blocks.length===0 && !pen && <div style={{ position:"absolute", top:40, left:0, right:0, textAlign:"center", color:C.faint, fontSize:12, pointerEvents:"none" }}>Tap the grid to add a block · drag to move · drag the bottom edge to resize</div>}
+          {blocks.length===0 && !pen && <div style={{ position:"absolute", top:40, left:0, right:0, textAlign:"center", color:C.faint, fontSize:12, pointerEvents:"none", padding:"0 12px" }}>Tap the grid to add a block · hold a block to pick it up · drag its edge to resize</div>}
         </div>
       </div>
       </div>
-      {editing && (()=>{ const b=blocks.find(x=>x.id===editing); if(!b) return null; return (
-        <>
-          <div onClick={()=>setEditing(null)} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,.55)", zIndex:190 }}/>
-          <div style={{ position:"fixed", left:"50%", top:"50%", transform:"translate(-50%,-50%)", width:"min(380px,92vw)", maxHeight:"88vh", overflowY:"auto", background:C.panel2, border:`1px solid ${C.line}`, borderRadius:14, padding:16, zIndex:200, boxShadow:"0 8px 30px rgba(0,0,0,.6)" }}>
-            <Label>What is it?</Label>
-            <input value={b.label} onChange={e=>updBlock(b.id,{label:e.target.value})} placeholder="Tap to type a name…" style={{ ...inp, width:"100%", marginBottom:10, fontSize:17, fontWeight:600, padding:"12px 12px" }}/>
-            <div style={{ display:"flex", flexWrap:"wrap", gap:5, marginBottom:12 }}>
-              {QUICK_LABELS.map(l=> <button key={l} onClick={()=>updBlock(b.id,{label:l})} style={{ fontSize:11, padding:"5px 9px", borderRadius:14, cursor:"pointer", border:`1px solid ${b.label===l?C.teal:C.line}`, background:b.label===l?C.teal:"transparent", color:b.label===l?"#001014":C.dim, fontWeight:b.label===l?700:400 }}>{l}</button>)}
-            </div>
-            <Label>Notes / extra info</Label>
-            <textarea value={b.note||""} onChange={e=>updBlock(b.id,{note:e.target.value})} placeholder="Anything extra — what to bring, who with, details…" style={{ ...inp, width:"100%", minHeight:64, resize:"vertical", marginBottom:12 }}/>
-            {elapsed(b) && <button onClick={()=>updBlock(b.id,{status:b.status==="missed"?undefined:"missed"})} style={{ ...addBtn, marginBottom:12, borderColor:b.status==="missed"?C.red:C.green, color:b.status==="missed"?C.red:C.green }}>{b.status==="missed"?"✗ Didn't happen (tap to undo)":"✓ Did it — tap if you didn't"}</button>}
-            <Label>Category</Label>
-            <div style={{ display:"flex", flexWrap:"wrap", gap:5, marginBottom:12 }}>
-              {CAT_KEYS.map(c=> <button key={c} onClick={()=>updBlock(b.id,{cat:c})} style={{ fontSize:12, padding:"6px 10px", borderRadius:14, cursor:"pointer", border:`1px solid ${b.cat===c?CATS[c]:C.line}`, background:b.cat===c?CATS[c]:"transparent", color:b.cat===c?"#0b0b0b":C.dim, fontWeight:b.cat===c?700:400 }}>{c}</button>)}
-            </div>
-            <div style={{ display:"flex", gap:8, marginBottom:12 }}>
-              <div style={{ flex:1 }}><Label>Start</Label><input type="time" value={hhmm(b.t)} onChange={e=>{ const [H,M]=e.target.value.split(":").map(Number); updBlock(b.id,{t:H+M/60}); }} style={{ ...inp, width:"100%" }}/></div>
-              <div style={{ flex:1 }}><Label>End</Label><input type="time" value={hhmm(b.e)} onChange={e=>{ const [H,M]=e.target.value.split(":").map(Number); updBlock(b.id,{e:H+M/60}); }} style={{ ...inp, width:"100%" }}/></div>
-            </div>
-            <div style={{ display:"flex", gap:8 }}>
-              <button onClick={()=>delBlock(b.id)} style={{ ...delBtn, flex:1, width:"auto" }}>Delete</button>
-              <button onClick={()=>setEditing(null)} style={{ ...addBtn, flex:2, borderColor:C.teal, color:C.teal }}>Done</button>
-            </div>
+      {editing && (()=>{ const b=blocks.find(x=>x.id===editing); if(!b) return null; const col=CATS[b.cat]||C.dim; return (
+        <Sheet close={()=>setEditing(null)} title={null}>
+          <input value={b.label} onChange={e=>updBlock(b.id,{label:e.target.value})} placeholder="What is it?" autoFocus={!b.label}
+            style={{ ...inp, width:"100%", marginBottom:10, fontSize:19, fontWeight:700, padding:"12px 12px", borderLeft:`4px solid ${col}` }}/>
+          <div className="lo-tabs" style={{ display:"flex", gap:5, marginBottom:14, overflowX:"auto", paddingBottom:2 }}>
+            {QUICK_LABELS.map(l=> <button key={l} onClick={()=>updBlock(b.id,{label:l})} style={{ flexShrink:0, fontSize:12, padding:"6px 10px", borderRadius:14, cursor:"pointer", border:`1px solid ${b.label===l?C.teal:C.line}`, background:b.label===l?C.teal:"transparent", color:b.label===l?"#001014":C.dim, fontWeight:b.label===l?700:400, whiteSpace:"nowrap" }}>{l}</button>)}
           </div>
-        </>
+          <div style={{ display:"flex", gap:8, marginBottom:10 }}>
+            <div style={{ flex:1 }}><Label>Start</Label><input type="time" step="900" value={hhmm(b.t)} onChange={e=>{ if(!e.target.value) return; const [H,M]=e.target.value.split(":").map(Number); const t=H+M/60; const dur=b.e-b.t; updBlock(b.id,{ t, e:Math.min(DAY_END,t+dur) }); }} style={{ ...inp, width:"100%", fontSize:16 }}/></div>
+            <div style={{ flex:1 }}><Label>End</Label><input type="time" step="900" value={hhmm(b.e)} onChange={e=>{ if(!e.target.value) return; const [H,M]=e.target.value.split(":").map(Number); const v=H+M/60; if(v>b.t) updBlock(b.id,{e:v}); }} style={{ ...inp, width:"100%", fontSize:16 }}/></div>
+          </div>
+          <div style={{ display:"flex", gap:5, marginBottom:14, flexWrap:"wrap" }}>
+            {DURATIONS.map(([d,l])=>{ const on=Math.abs((b.e-b.t)-d)<0.01; return <button key={l} onClick={()=>updBlock(b.id,{ e:Math.min(DAY_END,b.t+d) })} style={{ flex:1, minWidth:44, fontSize:12, padding:"7px 0", borderRadius:8, cursor:"pointer", border:`1px solid ${on?col:C.line}`, background:on?`${col}33`:"transparent", color:on?C.ink:C.dim, fontWeight:600 }}>{l}</button>; })}
+          </div>
+          <Label>Category</Label>
+          <div style={{ display:"flex", flexWrap:"wrap", gap:5, marginBottom:14 }}>
+            {CAT_KEYS.map(c=> <button key={c} onClick={()=>updBlock(b.id,{cat:c})} style={{ fontSize:12, padding:"7px 11px", borderRadius:14, cursor:"pointer", border:`1px solid ${b.cat===c?CATS[c]:C.line}`, background:b.cat===c?CATS[c]:"transparent", color:b.cat===c?"#0b0b0b":C.dim, fontWeight:b.cat===c?700:400 }}>{c}</button>)}
+          </div>
+          <Label>Notes</Label>
+          <textarea value={b.note||""} onChange={e=>updBlock(b.id,{note:e.target.value})} placeholder="What to bring, who with, details…" style={{ ...inp, width:"100%", minHeight:60, resize:"vertical", marginBottom:12 }}/>
+          {isPlanned(b) && <div style={{ fontSize:11, color:C.faint, marginBottom:12 }}>✦ Placed by the Sunday plan. Move or rename it and it's yours — next week's plan won't touch it.</div>}
+          {elapsed(b) && <button onClick={()=>updBlock(b.id,{status:b.status==="missed"?undefined:"missed"})} style={{ ...addBtn, marginBottom:12, borderColor:b.status==="missed"?C.red:C.green, color:b.status==="missed"?C.red:C.green }}>{b.status==="missed"?"✗ Didn't happen (tap to undo)":"✓ Did it — tap if you didn't"}</button>}
+          <div style={{ display:"flex", gap:8 }}>
+            <button onClick={()=>{ buzz(); delBlock(b.id); }} style={{ ...addBtn, flex:1, borderStyle:"solid", borderColor:`${C.red}66`, color:C.red }}>Delete</button>
+            <button onClick={()=>dupBlock(b)} style={{ ...addBtn, flex:1, borderStyle:"solid" }}>Duplicate</button>
+            <button onClick={()=>setEditing(null)} style={{ ...addBtn, flex:1.4, borderStyle:"solid", borderColor:C.teal, background:C.teal, color:"#001014", fontWeight:700 }}>Done</button>
+          </div>
+        </Sheet>
       ); })()}
     </div>
   );
@@ -952,9 +1122,7 @@ function DeadlineRadar({ dates,save,setDate }){
       </div>
 
       {edit && (
-        <div onClick={()=>setEdit(false)} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,.6)", zIndex:200, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
-          <div onClick={e=>e.stopPropagation()} style={{ background:C.panel, border:`1px solid ${C.line}`, borderRadius:14, padding:20, width:"100%", maxWidth:400, maxHeight:"84vh", overflowY:"auto" }}>
-            <div style={{ fontFamily:"'Caveat',cursive", fontSize:26, color:C.teal, marginBottom:4 }}>Deadline radar</div>
+        <Sheet close={()=>setEdit(false)} title="Deadline radar" maxWidth={400}>
             <div style={{ fontSize:12, color:C.dim, marginBottom:16, lineHeight:1.5 }}>The dates that decide things. They count down on Today and drop off on their own once they've passed.</div>
             {list.sort((a,b)=>a.date.localeCompare(b.date)).map((d,i)=>(
               <div key={i} style={{ display:"flex", gap:6, alignItems:"center", marginBottom:8 }}>
@@ -970,8 +1138,7 @@ function DeadlineRadar({ dates,save,setDate }){
               <button onClick={add} style={{ ...addBtn, width:"auto", padding:"0 14px", borderColor:C.green, color:C.green }}>Add</button>
             </div>
             <button onClick={()=>setEdit(false)} style={addBtn}>Done</button>
-          </div>
-        </div>
+        </Sheet>
       )}
     </div>
   );
@@ -1075,7 +1242,7 @@ function TodayView({ day,date,setDate,upd,dayTypes,applyDayType,links,allDays,fl
       <Panel accent={C.pink} title="Day" right={
         <div style={{ display:"flex", alignItems:"center", gap:10 }}>
           {bin.length>0 && <button onClick={()=>setShowBin(true)} style={{ background:"none", border:`1px solid ${C.line}`, borderRadius:8, padding:"3px 9px", color:C.dim, cursor:"pointer", fontSize:11 }}>🗑 {bin.length}</button>}
-          <span style={{ fontSize:11, color:C.faint }}>tap to add · swipe to skip</span>
+          <span style={{ fontSize:11, color:C.faint }}>tap to add · hold to move · swipe to skip</span>
         </div>}>
         <div data-timeline>
           <Timeline blocks={day.blocks} onChange={setBlocks} isToday={isToday} isPast={isPast} sketch={day.sketch} onSketch={setSketch} onDeleteId={deleteToBin} />
@@ -1083,12 +1250,8 @@ function TodayView({ day,date,setDate,upd,dayTypes,applyDayType,links,allDays,fl
       </Panel>
 
       {showBin && (
-        <div onClick={()=>setShowBin(false)} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,.6)", zIndex:200, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
-          <div onClick={e=>e.stopPropagation()} style={{ background:C.panel, border:`1px solid ${C.line}`, borderRadius:14, padding:20, width:"100%", maxWidth:380, maxHeight:"80vh", overflowY:"auto" }}>
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
-              <div style={{ fontFamily:"'Caveat',cursive", fontSize:26, color:C.teal }}>Bin · {fmt(date)}</div>
-              {bin.length>0 && <button onClick={()=>{ if(confirmDel("everything in the bin")){ clearBin(); setShowBin(false); } }} style={{ background:"none", border:"none", color:C.red, cursor:"pointer", fontSize:12 }}>Empty bin</button>}
-            </div>
+        <Sheet close={()=>setShowBin(false)} title={`Bin · ${fmt(date)}`} maxWidth={380}
+          right={bin.length>0 && <button onClick={()=>{ if(confirmDel("everything in the bin")){ clearBin(); setShowBin(false); } }} style={{ background:"none", border:"none", color:C.red, cursor:"pointer", fontSize:12 }}>Empty bin</button>}>
             {bin.length===0 ? <Empty>Deleted blocks land here so you can put them back.</Empty> :
               bin.map((b,i)=>{ const col=CATS[b.cat]||C.dim; return (
                 <div key={i} style={{ display:"flex", alignItems:"center", gap:10, padding:"9px 0", borderBottom:`1px solid ${C.line}` }}>
@@ -1098,8 +1261,7 @@ function TodayView({ day,date,setDate,upd,dayTypes,applyDayType,links,allDays,fl
                 </div>
               ); })}
             <button onClick={()=>setShowBin(false)} style={{ ...addBtn, marginTop:14 }}>Close</button>
-          </div>
-        </div>
+        </Sheet>
       )}
 
       <button onClick={()=>setShowLog(s=>!s)} style={{ ...addBtn, marginTop:16 }}>{showLog?"Hide day log ▴":"Open day log (reps · habits · to-dos · review) ▾"}</button>
@@ -1198,6 +1360,74 @@ function TodoBucket({ label,color,items,bucket,toggle,del }){
   );
 }
 
+// ============ WEEK PLAN — the timetable the Sunday planner builds, seven days at a glance ============
+// Dan, 29 Oct: "a full and accurate timetable with little effort." Days he hasn't opened yet are
+// previewed (A/B lessons + whatever the vault planned) without being created. School collapses to
+// one line so the evening — the part that actually varies — is what you read.
+const SCHOOL_LABELS = /^(form|private study|free period)/i;
+function WeekPlanView({ date,setDate,setTab,allDays,ctx }){
+  const isMobile = useIsMobile();
+  const wk = weekKeyOf(date);
+  const [open,setOpen] = useState({});
+  const today = todayISO();
+  const days = useMemo(()=>Array.from({length:7},(_,i)=>{ const iso=addDays(wk,i);
+    const d=materialiseDay(iso, allDays[iso]||readLS("day:"+iso,null), ctx);
+    const evs=evArrOf(readLS("monthEvents:"+iso.slice(0,7),{})[iso]);
+    return { iso, d, evs, kinds:kindsAt(iso,ctx.hols) }; }),[wk,allDays,ctx.dayTypes,ctx.hols,ctx.weekAnchorA]); // eslint-disable-line
+  const planned = days.reduce((s,x)=>s+(x.d.blocks||[]).filter(isPlanned).length,0);
+  const isB = weekIsB(wk, ctx.weekAnchorA);
+  const go = (iso)=>{ setDate(iso); setTab("today"); };
+
+  return (
+    <div>
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:18, marginBottom:18 }}>
+        <Nav onClick={()=>setDate(addDays(wk,-7))}>‹</Nav>
+        <div style={{ textAlign:"center", minWidth:200 }}>
+          <div style={{ fontFamily:"'Caveat',cursive", fontSize:40, color:C.teal, lineHeight:0.9 }}>Week of {pd(wk).getDate()} {MONTHS[pd(wk).getMonth()].slice(0,3)}</div>
+          <div style={{ fontSize:12, color:C.dim, marginTop:4 }}>Week {isB?"B":"A"} · {planned ? `${planned} blocks from the Sunday plan` : "no Sunday plan yet"}</div>
+        </div>
+        <Nav onClick={()=>setDate(addDays(wk,7))}>›</Nav>
+      </div>
+      <div style={{ display:"grid", gridTemplateColumns:isMobile?"1fr":"repeat(auto-fill,minmax(250px,1fr))", gap:12 }}>
+        {days.map(({ iso,d,evs,kinds })=>{
+          const blocks=[...(d.blocks||[])].sort((a,b)=>a.t-b.t);
+          const school=blocks.filter(b=>b.cat==="School"||(!isPlanned(b)&&SCHOOL_LABELS.test(b.label||"")));
+          const rest=blocks.filter(b=>!school.includes(b));
+          const isT=iso===today, past=iso<today, exp=!!open[iso];
+          const row=(b)=>{ const col=CATS[b.cat]||C.dim; return (
+            <div key={b.id} style={{ display:"flex", alignItems:"center", gap:9, padding:"6px 0", opacity:b.status==="missed"?0.4:1 }}>
+              <span style={{ width:76, fontSize:11.5, color:C.dim, fontVariantNumeric:"tabular-nums", flexShrink:0 }}>{hhmm(b.t)}–{hhmm(b.e)}</span>
+              <span style={{ width:3, alignSelf:"stretch", minHeight:16, borderRadius:2, background:col, flexShrink:0 }}/>
+              <span style={{ flex:1, minWidth:0, fontSize:13.5, color:C.ink, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis", textDecoration:b.status==="missed"?"line-through":"none" }}>{b.label||"Untitled"}</span>
+              {isPlanned(b) && <span style={{ fontSize:10, color:C.teal }}>✦</span>}
+            </div>); };
+          return (
+            <div key={iso} style={{ background:isT?C.panel2:C.panel, border:`1px solid ${isT?C.teal:C.line}`, borderRadius:14, padding:"12px 14px", position:"relative", overflow:"hidden", opacity:past?0.7:1 }}>
+              {kinds.length>0 && <div style={{ position:"absolute", top:0, left:0, right:0, height:3, display:"flex" }}>{kinds.map(k=> <div key={k} style={{ flex:1, background:DAY_KINDS[k].bar }}/>)}</div>}
+              <button onClick={()=>go(iso)} style={{ display:"flex", alignItems:"baseline", gap:8, width:"100%", background:"none", border:"none", padding:0, cursor:"pointer", textAlign:"left", marginBottom:6 }}>
+                <span style={{ fontFamily:"'Caveat',cursive", fontSize:26, color:isT?C.teal:C.ink, lineHeight:1 }}>{dayNameOf(iso)}</span>
+                <span style={{ fontSize:12, color:C.dim }}>{pd(iso).getDate()} {MONTHS[pd(iso).getMonth()].slice(0,3)}</span>
+                {isT && <span style={{ fontSize:10, color:C.green, fontWeight:700 }}>TODAY</span>}
+                <span style={{ marginLeft:"auto", fontSize:12, color:C.faint }}>open ›</span>
+              </button>
+              {evs.map((e,j)=> <div key={j} style={{ fontSize:12, color:C.pink, fontWeight:600, marginBottom:3 }}>● {e}</div>)}
+              {(exp ? blocks : [...rest, ...(school.length?[{ id:"school", t:school[0].t, summary:true }]:[])].sort((x,y)=>x.t-y.t)).map(b=> b.summary ?
+                <React.Fragment key="school"><button key="school" onClick={()=>setOpen(o=>({ ...o,[iso]:true }))} style={{ display:"flex", alignItems:"center", gap:9, width:"100%", padding:"6px 0", background:"none", border:"none", cursor:"pointer", textAlign:"left" }}>
+                  <span style={{ width:76, fontSize:11.5, color:C.dim, fontVariantNumeric:"tabular-nums" }}>{hhmm(school[0].t)}–{hhmm(Math.max(...school.map(b=>b.e)))}</span>
+                  <span style={{ width:3, alignSelf:"stretch", minHeight:16, borderRadius:2, background:C.pink }}/>
+                  <span style={{ flex:1, fontSize:13.5, color:C.dim }}>School · {school.filter(b=>b.cat==="School").length} lessons{school.some(b=>/free|study/i.test(b.label||""))?` · ${school.filter(b=>/free|study/i.test(b.label||"")).length} free`:""}</span>
+                  <span style={{ fontSize:11, color:C.faint }}>▾</span>
+                </button></React.Fragment> : row(b))}
+              {blocks.length===0 && evs.length===0 && <div style={{ fontSize:12, color:C.faint, padding:"6px 0" }}>Nothing planned.</div>}
+            </div>
+          );
+        })}
+      </div>
+      <Mini>✦ = placed by the Sunday plan · tap a day to open it · school folds into one line</Mini>
+    </div>
+  );
+}
+
 // ============ MONTH VIEW ============
 function MonthView({ date,setDate,setTab,allDays,dayTypes,flash,weekAnchorA }){
   const isMobile = useIsMobile();
@@ -1275,12 +1505,8 @@ function MonthView({ date,setDate,setTab,allDays,dayTypes,flash,weekAnchorA }){
       </div>
 
       {editCell && (()=>{ const iso=editCell; const evArr=evList(events[iso]); return (
-        <div onClick={()=>{ setEditCell(null); setNewEv(""); }} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,.6)", zIndex:200, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
-          <div onClick={e=>e.stopPropagation()} style={{ background:C.panel, border:`1px solid ${C.line}`, borderRadius:14, padding:18, width:"100%", maxWidth:360, maxHeight:"82vh", overflowY:"auto" }}>
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
-              <div style={{ fontFamily:"'Caveat',cursive", fontSize:24, color:C.teal }}>{fmt(iso)}</div>
-              <button onClick={()=>{ setDate(iso); setTab("today"); }} style={{ ...addBtn, width:"auto", padding:"5px 12px", fontSize:12 }}>Open day →</button>
-            </div>
+        <Sheet close={()=>{ setEditCell(null); setNewEv(""); }} title={fmt(iso)} maxWidth={360}
+          right={<button onClick={()=>{ setDate(iso); setTab("today"); }} style={{ ...addBtn, width:"auto", padding:"5px 12px", fontSize:12 }}>Open day →</button>}>
             {evArr.length===0 && <div style={{ fontSize:12, color:C.faint, marginBottom:10 }}>No events yet — add as many as you like.</div>}
             {evArr.map((e,j)=> <div key={j} style={{ display:"flex", gap:6, marginBottom:7, alignItems:"center" }}>
               <span style={{ width:7,height:7,borderRadius:"50%",background:C.pink,flexShrink:0 }}/>
@@ -1292,8 +1518,7 @@ function MonthView({ date,setDate,setTab,allDays,dayTypes,flash,weekAnchorA }){
               <button onClick={()=>{ addEvent(iso,newEv); setNewEv(""); }} style={{ ...addBtn, width:"auto", padding:"0 16px", borderColor:C.green, color:C.green }}>Add</button>
             </div>
             <button onClick={()=>{ setEditCell(null); setNewEv(""); }} style={addBtn}>Done</button>
-          </div>
-        </div>
+        </Sheet>
       ); })()}
       <Mini>Tap a day to open & plan it · tap + to add events · BS and day-score show once logged · top bar: <span style={{ color:DAY_KINDS.off.bar }}>▬ off school</span> <span style={{ color:DAY_KINDS.away.bar }}>▬ away</span></Mini>
     </div>
