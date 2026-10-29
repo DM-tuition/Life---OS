@@ -521,4 +521,14 @@ export const VAULT_PLAN = [
   // --- appended 2026-10-29 · session A done (time approximate: Dan said "3-4") -------------
   { key: "wo-2026-10-29-gym-a", kind: "workout", date: "2026-10-29", t: 15, e: 16, cat: "Gym",
     label: "Gym A (upper)", note: "Weighted pull-up 15kg x9, dips +10kg x13, muscle-ups. Times approximate." },
+  // --- appended 2026-10-29 · Fri 30 Oct filled in -----------------------------
+  // Booking email: the Blue Education mock is 17:00–17:45 on Zoom, not 16:30 (Dan's 24 Oct
+  // dictation). The keyDate carries no time, so it stays. The practice-mock row said
+  // "before the 16:30", so it is retracted and re-shipped. No Zoom code or password here.
+  { key: "fix-mock-blue-1630", kind: "event-remove", date: "2026-10-30", text: "Mock interview · Blue Education 16:30" },
+  { key: "ev-mock-blue-30oct-1700", kind: "event", date: "2026-10-30",
+    text: "★ Mock interview · Blue Education · Zoom 17:00–17:45 (link opens 16:45)" },
+  { key: "rm-td-practice-mock-fri", kind: "todo-remove", target: "td-practice-mock-fri" },
+  { key: "td-practice-mock-fri-1700", kind: "todo", due: "2026-10-30", star: true,
+    text: "Practice mock with Claude, 45 min, before the 17:00 mock" },
 ];
