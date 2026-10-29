@@ -518,4 +518,7 @@ export const VAULT_PLAN = [
   // --- appended 2026-10-29 · gym routine set (vault: Personal/wiki/Knowledge/Gym routine.md) ---
   { key: "td-dips-test-29oct", kind: "todo", due: "2026-10-29",
     text: "Test max strict dips in today's gym session; tell Claude the number" },
+  // --- appended 2026-10-29 · session A done (time approximate: Dan said "3-4") -------------
+  { key: "wo-2026-10-29-gym-a", kind: "workout", date: "2026-10-29", t: 15, e: 16, cat: "Gym",
+    label: "Gym A (upper)", note: "Weighted pull-up 15kg x9, dips +10kg x13, muscle-ups. Times approximate." },
 ];
