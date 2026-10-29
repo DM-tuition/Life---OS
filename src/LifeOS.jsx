@@ -514,17 +514,14 @@ const ICON_PATHS = {
   todo:   "M9 6h11M9 12h11M9 18h11M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2",
   habits: "M12 21s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 11c0 5.6-7 10-7 10z",
   more:   "M5 12h.01M12 12h.01M19 12h.01",
-  finance:"M3 17l6-6 4 4 8-8M15 7h6v6",
-  week:   "M4 19V9M10 19V5M16 19v-7M22 19H2",
   trends: "M3 3v18h18M7 14l4-4 3 3 5-6",
-  journal:"M6 3h11a2 2 0 0 1 2 2v16l-3-2-3 2-3-2-3 2V5a2 2 0 0 1 2-2zM9 8h6M9 12h6",
   types:  "M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z",
 };
 const TabIcon = ({ k,on })=> <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={on?2.2:1.8} strokeLinecap="round" strokeLinejoin="round"><path d={ICON_PATHS[k]||ICON_PATHS.more}/></svg>;
 
 // ============ APP ============
 export default function LifeOS(){
-  const [tab,setTabRaw] = useState(()=>{ try{ return localStorage.getItem("lifeos:lastTab")||"today"; }catch{ return "today"; } });
+  const [tab,setTabRaw] = useState(()=>{ try{ const t=localStorage.getItem("lifeos:lastTab"); return ["week","journal","finance"].includes(t)||!t ? "today" : t; }catch{ return "today"; } });
   const setTab = (t)=>{ setTabRaw(t); try{ localStorage.setItem("lifeos:lastTab", t); }catch{} };
   const [date,setDate] = useState(todayISO());
   const [day,setDay] = useState(null);
@@ -542,7 +539,6 @@ export default function LifeOS(){
   const [masterTodos,setMasterTodos] = useState([]);       // long-term to-do list
   const [keyDates,setKeyDates] = useState([]);             // deadline radar
   const [allDays,setAllDays] = useState({});
-  const [finance,setFinance] = useState(null);
   const [toast,setToast] = useState("");
   const [showBackup,setShowBackup] = useState(false);
   const [showSync,setShowSync] = useState(false);
@@ -550,9 +546,11 @@ export default function LifeOS(){
   const [canUndo,setCanUndo] = useState(false);
   const undoStack = useRef([]);
   const moreRef = useRef(null);
-  const MORE = [["week","Weekly Review"],["trends","Reports"],["journal","Journal"],["types","Day Types"]];
-  const MAIN_TABS = [["today","Today"],["plan","Week"],["month","Month"],["todo","To Do"],["habits","Habits"],["finance","Finance"]];
-  const MORE_MOBILE = [["finance","Finance"], ...MORE];
+  // Dan, 29 Oct: Weekly Review, Journal and Finance removed — "I never use them". Their saved
+  // data (review:*, finance:v2) is left in storage untouched, so nothing is lost.
+  const MORE = [["trends","Reports"],["types","Day Types"]];
+  const MAIN_TABS = [["today","Today"],["plan","Week"],["month","Month"],["todo","To Do"],["habits","Habits"]];
+  const MORE_MOBILE = MORE;
   const isMobile = useIsMobile();
 
   useEffect(()=>{ (async()=>{
@@ -575,14 +573,6 @@ export default function LifeOS(){
     const idx = await sGet("index:days", []);
     const map={}; for(const iso of idx) map[iso]=await sGet(`day:${iso}`, null);
     setAllDays(map);
-    setFinance(await sGet("finance:v2", {
-      accounts:[{ id:1,name:"Current Account",balance:200 }], netWorthLog:[],
-      clients:[{ id:1,name:"First GCSE Client (w/ Mazin)",rate:0,lessonsThisMonth:0,status:"Free trial" }], lessonLog:[],
-      lump:{ amount:10000, received:false, allocations:[
-        { id:1,name:"S&S ISA — Index funds",pct:60 }, { id:2,name:"Emergency cash buffer",pct:15 },
-        { id:3,name:"Tools (sleep tracker, electronics)",pct:10 }, { id:4,name:"Business reinvestment",pct:15 }],
-        expectedReturn:7, years:3 },
-    }));
     setLoading(false);
   })(); },[]);
 
@@ -601,7 +591,6 @@ export default function LifeOS(){
   const undo = async ()=>{ const prev=undoStack.current.pop(); setCanUndo(undoStack.current.length>0); if(!prev) return;
     await sSet(`day:${prev.date}`, prev); setAllDays(p=>({ ...p, [prev.date]:prev }));
     if(prev.date!==date) setDate(prev.date); setDay(prev); buzz(); setToast("Undid last change"); setTimeout(()=>setToast(""),1400); };
-  const persistFinance = async (f)=>{ setFinance(f); await sSet("finance:v2", f); };
   const persistDayTypes = async (dt)=>{ setDayTypes(dt); await sSet("dayTypes:v2", dt); };
   const persistWeekMap = async (wm)=>{ setWeekMap(wm); await sSet("weekMap:v2", wm); };
   const persistWeekMapB = async (wm)=>{ setWeekMapB(wm); await sSet("weekMapB:v1", wm); };
@@ -617,7 +606,7 @@ export default function LifeOS(){
   const applyDayType = (typeId)=>{ const dt=dayTypes[typeId]; if(!dt) return;
     persistDay({ ...day, dayTypeId:typeId, blocks:cloneBlocks(dt.blocks) }); flash(`Applied: ${dt.name}`); };
 
-  if(loading || !day || !finance) return (
+  if(loading || !day) return (
     <div style={{ background:C.bg, minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center", color:C.dim, fontFamily:"system-ui" }}>Loading your system…</div>
   );
 
@@ -685,10 +674,7 @@ export default function LifeOS(){
         {tab==="todo" && <TodoListView todos={masterTodos} save={persistMasterTodos} flash={flash} />}
         {tab==="month" && <MonthView date={date} setDate={setDate} setTab={setTab} allDays={allDays} dayTypes={dayTypes} flash={flash} weekAnchorA={weekAnchorA} />}
         {tab==="habits" && <HabitsView allDays={allDays} links={habitLinks} saveLinks={persistHabitLinks} cfg={habitCfg} saveCfg={persistHabitCfg} bad={badHabits} saveBad={persistBadHabits} letter={letter} saveLetter={persistLetter} letters={letters} saveLetters={persistLetters} />}
-        {tab==="week" && <WeekView allDays={allDays} date={date} setDate={setDate} links={habitLinks} />}
         {tab==="trends" && <TrendsView allDays={allDays} links={habitLinks} cfg={habitCfg} />}
-        {tab==="journal" && <JournalView allDays={allDays} setDate={setDate} setTab={setTab} />}
-        {tab==="finance" && <FinanceView finance={finance} save={persistFinance} flash={flash} />}
         {tab==="types" && <DayTypesView dayTypes={dayTypes} save={persistDayTypes} weekMap={weekMap} saveWeekMap={persistWeekMap} weekMapB={weekMapB} saveWeekMapB={persistWeekMapB} weekAnchorA={weekAnchorA} saveWeekAnchor={persistWeekAnchor} flash={flash} />}
       </div>
 
@@ -1525,135 +1511,6 @@ function MonthView({ date,setDate,setTab,allDays,dayTypes,flash,weekAnchorA }){
   );
 }
 
-// ============ WEEKLY REVIEW ============
-function WeekView({ allDays,date,setDate,links }){
-  const isMobile = useIsMobile();
-  const wk = weekKeyOf(date);
-  const weekDays = useMemo(()=>Array.from({length:7},(_,i)=> allDays[addDays(wk,i)]||null),[wk,allDays]);
-  const filled = weekDays.filter(Boolean);
-  const habitConsistency = HABITS.map(h=>({ ...h, count:filled.filter(d=>habitDone(d,h.key,links)).length, total:filled.length }));
-  const avgRating = filled.length ? (filled.reduce((s,d)=>s+d.rating,0)/filled.length).toFixed(1) : "—";
-  const totalProd = filled.reduce((s,d)=>s+(+d.prodHours||0),0);
-  const totalUnprod = filled.reduce((s,d)=>s+(+d.unprodHours||0),0);
-  const bsCount = filled.filter(d=>d.bs).length;
-  const repsHit = filled.filter(d=>d.reps?.done).length;
-  const adhDays = filled.map(d=>({ total:(d.blocks||[]).length, done:(d.blocks||[]).filter(b=>b.status!=="missed").length })).filter(x=>x.total>0);
-  const adhT = adhDays.reduce((s,x)=>s+x.total,0), adhD = adhDays.reduce((s,x)=>s+x.done,0);
-  const adhPct = adhT ? Math.round(adhD/adhT*100) : "—";
-  const bdTotals = BREAKDOWN.map(k=>({ k, hrs:filled.reduce((s,d)=>s+(d.breakdown[k]||0),0) }));
-  const maxBd = Math.max(1, ...bdTotals.map(b=>b.hrs));
-
-  // ---- six-week patterns: what actually gets skipped, and on which day ----
-  const patterns = useMemo(()=>{
-    const today=todayISO(), cutoff=addDays(today,-42);
-    const days=Object.values(allDays).filter(d=>d&&d.date>=cutoff&&d.date<=today&&!d.frozen&&(d.blocks||[]).length);
-    if(days.length<7) return { short:days.length };
-    const byDow={}, skips={}, skipsByDow={};
-    for(const d of days){
-      const el=(d.blocks||[]).filter(b=> d.date<today || b.e<=nowDec());
-      if(!el.length) continue;
-      const dn=dayNameOf(d.date);
-      const row=byDow[dn]||(byDow[dn]={ t:0,k:0,bs:0,n:0 });
-      row.t+=el.length; row.k+=el.filter(b=>b.status!=="missed").length; row.n++; if(d.bs) row.bs++;
-      for(const b of el) if(b.status==="missed"){ const l=b.label||"(untitled)";
-        skips[l]=(skips[l]||0)+1;
-        (skipsByDow[dn]=skipsByDow[dn]||{})[l]=((skipsByDow[dn]||{})[l]||0)+1; }
-    }
-    const rows=DAYS.filter(dn=>byDow[dn]&&byDow[dn].t>0).map(dn=>({ dn, ...byDow[dn], pct:Math.round(byDow[dn].k/byDow[dn].t*100) }));
-    if(!rows.length) return { short:days.length };
-    const worst=[...rows].sort((a,b)=>a.pct-b.pct)[0];
-    const best=[...rows].sort((a,b)=>b.pct-a.pct)[0];
-    const top=Object.entries(skips).sort((a,b)=>b[1]-a[1]).slice(0,3);
-    const bsDow=[...rows].sort((a,b)=>b.bs-a.bs)[0];
-    // what gets dropped ON the worst day — that's the block worth moving, not the global winner
-    const worstTop=Object.entries(skipsByDow[worst.dn]||{}).sort((a,b)=>b[1]-a[1])[0];
-    return { rows, worst, best, top, bsDow, worstTop, n:days.length };
-  },[allDays]);
-
-  const [review,setReview] = useState({ feedback:"",adapt1:"",adapt2:"",target1:"",target2:"" });
-  useEffect(()=>{ (async()=>{ setReview(await sGet(`review:${wk}`, { feedback:"",adapt1:"",adapt2:"",target1:"",target2:"" })); })(); },[wk]);
-  const saveReview = async (patch)=>{ const r={...review,...patch}; setReview(r); await sSet(`review:${wk}`, r); };
-
-  return (
-    <div>
-      <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:18, marginBottom:22 }}>
-        <Nav onClick={()=>setDate(addDays(wk,-7))}>‹</Nav>
-        <div style={{ textAlign:"center", minWidth:220 }}>
-          <div style={{ fontFamily:"'Caveat',cursive", fontSize:40, color:C.teal, lineHeight:0.9 }}>Weekly Review</div>
-          <div style={{ fontSize:12, color:C.dim }}>Week of {fmt(wk)} · {filled.length}/7 days logged</div>
-        </div>
-        <Nav onClick={()=>setDate(addDays(wk,7))}>›</Nav>
-      </div>
-      <div style={{ display:"grid", gridTemplateColumns:isMobile?"1fr":"1fr 1fr", gap:18 }}>
-        <Panel accent={C.teal} title="At a Glance" style={{ gridColumn:"1 / -1" }}>
-          <div style={{ display:"grid", gridTemplateColumns:isMobile?"repeat(2,1fr)":"repeat(3,1fr)", gap:14 }}>
-            <Stat label="Plan adherence" value={adhPct} sub={adhPct==="—"?"":"%"} color={C.teal}/>
-            <Stat label="Avg day score" value={avgRating} sub="/10" color={C.red}/>
-            <Stat label="Reps hit" value={repsHit} sub={`/${filled.length||7}`} color={C.green}/>
-            <Stat label="BS days" value={bsCount} sub="/7" color={C.red}/>
-            <Stat label="Productive hrs" value={totalProd} color={C.green}/>
-            <Stat label="Unproductive hrs" value={totalUnprod} color={C.red}/>
-          </div>
-        </Panel>
-        <Panel accent={C.purple} title="Habit Consistency">
-          {habitConsistency.map(h=> <div key={h.key} style={{ marginBottom:12 }}><div style={{ display:"flex", justifyContent:"space-between", fontSize:13, marginBottom:5 }}><span style={{ color:C.dim }}>{h.label}</span><span style={{ color:h.color, fontWeight:600 }}>{h.count}/{h.total||7}</span></div><div style={{ height:8, background:C.panel2, borderRadius:4, overflow:"hidden" }}><div style={{ width:`${h.total?(h.count/h.total)*100:0}%`, height:"100%", background:h.color }}/></div></div>)}
-        </Panel>
-        <Panel accent={C.sleep} title="Where Time Went">
-          {bdTotals.map(b=> <div key={b.k} style={{ display:"flex", alignItems:"center", gap:10, marginBottom:11 }}><span style={{ width:70, fontSize:13, color:C.dim }}>{b.k}</span><div style={{ flex:1, height:10, background:C.panel2, borderRadius:5, overflow:"hidden" }}><div style={{ width:`${(b.hrs/maxBd)*100}%`, height:"100%", background:C.sleep }}/></div><span style={{ width:42, textAlign:"right", fontSize:13, color:C.ink }}>{b.hrs}h</span></div>)}
-        </Panel>
-        <Panel accent={C.gold} title="Patterns · last 6 weeks" style={{ gridColumn:"1 / -1" }} right={<span style={{ fontSize:11, color:C.faint }}>{patterns.rows?`${patterns.n} days`:""}</span>}>
-          {!patterns.rows ? <Empty>Log a few more planned days and this fills in — it needs about a week of timelines before the pattern means anything.</Empty> : (
-            <>
-              <Label>Plan adherence by day of the week</Label>
-              {patterns.rows.map(r=>(
-                <div key={r.dn} style={{ display:"flex", alignItems:"center", gap:10, marginBottom:8 }}>
-                  <span style={{ width:34, fontSize:12, color:C.dim }}>{r.dn.slice(0,3)}</span>
-                  <div style={{ flex:1, height:9, background:C.panel2, borderRadius:5, overflow:"hidden" }}>
-                    <div style={{ width:`${r.pct}%`, height:"100%", background: r.pct>=70?C.green : r.pct>=40?C.gold : C.red }}/>
-                  </div>
-                  <span style={{ width:38, textAlign:"right", fontSize:12, color:C.ink, fontVariantNumeric:"tabular-nums" }}>{r.pct}%</span>
-                  <span style={{ width:52, textAlign:"right", fontSize:10, color:C.faint }}>{r.n} {r.n===1?"day":"days"}</span>
-                </div>
-              ))}
-              {patterns.top.length>0 && (
-                <div style={{ marginTop:16 }}>
-                  <Label>Blocks you swipe away most</Label>
-                  {patterns.top.map(([label,n])=>(
-                    <div key={label} style={{ display:"flex", justifyContent:"space-between", gap:10, padding:"6px 0", borderBottom:`1px solid ${C.line}` }}>
-                      <span style={{ fontSize:13, color:C.ink, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{label}</span>
-                      <span style={{ fontSize:12, color:C.red, flexShrink:0 }}>skipped {n}×</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-              <div style={{ marginTop:16, padding:14, background:C.panel2, borderRadius:10, fontSize:13, color:C.ink, lineHeight:1.55 }}>
-                {patterns.worst.pct<70
-                  ? <><b>{patterns.worst.dn}</b> is your weakest day at <b style={{color:C.red}}>{patterns.worst.pct}%</b>{patterns.best.pct-patterns.worst.pct>=15?<> — against {patterns.best.pct}% on {patterns.best.dn}</>:null}. That's a timetable problem, not a willpower one: move {patterns.worstTop?<b>{patterns.worstTop[0]}</b>:"the block you keep skipping"} to a time you actually turn up, then change the day type so next {patterns.worst.dn} starts right.</>
-                  : <>Adherence is holding above 70% every day — the plan you write is roughly the plan you live. Push the next block harder rather than tidying the schedule.</>}
-                {patterns.bsDow&&patterns.bsDow.bs>1 ? <> Also: <b>{patterns.bsDow.bs}</b> BS days landed on a <b>{patterns.bsDow.dn}</b>.</> : null}
-              </div>
-            </>
-          )}
-        </Panel>
-
-        <Panel accent={C.cyan} title="Events / Learned / Thoughts" style={{ gridColumn:"1 / -1" }}>
-          <textarea value={review.feedback} onChange={e=>saveReview({feedback:e.target.value})} placeholder="What happened this week? What did you learn?" style={{ ...inp, width:"100%", minHeight:80, resize:"vertical" }}/>
-        </Panel>
-        <Panel accent={C.cyan} title="Adaptations">
-          <Label>Changes I'm going to make to improve</Label>
-          <input value={review.adapt1} onChange={e=>saveReview({adapt1:e.target.value})} placeholder="1." style={{ ...inp, width:"100%", marginBottom:8 }}/>
-          <input value={review.adapt2} onChange={e=>saveReview({adapt2:e.target.value})} placeholder="2." style={{ ...inp, width:"100%" }}/>
-        </Panel>
-        <Panel accent={C.pink} title="Next Targets">
-          <Label>Focus for next week</Label>
-          <input value={review.target1} onChange={e=>saveReview({target1:e.target.value})} placeholder="1." style={{ ...inp, width:"100%", marginBottom:8 }}/>
-          <input value={review.target2} onChange={e=>saveReview({target2:e.target.value})} placeholder="2." style={{ ...inp, width:"100%" }}/>
-        </Panel>
-      </div>
-    </div>
-  );
-}
-
 // ============ TRENDS ============
 function TrendsView({ allDays,links,cfg }){
   const isMobile = useIsMobile();
@@ -2063,234 +1920,6 @@ function TodoListView({ todos,save,flash }){
             {done.map(t=> <Row key={t.id} t={t}/>)}
             <button onClick={clearDone} style={{ ...addBtn, marginTop:10, borderColor:C.red, color:C.red }}>Clear all completed</button>
           </Panel>}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ============ JOURNAL (daily reflections + weekly reviews, newest first) ============
-function JournalView({ allDays, setDate, setTab }){
-  const [reviews,setReviews] = useState([]);
-  useEffect(()=>{ const out=[]; for(let i=0;i<localStorage.length;i++){ const k=localStorage.key(i); if(k&&k.startsWith("lifeos:review:")){ try{ const r=JSON.parse(localStorage.getItem(k)); if(r&&(r.feedback||r.adapt1||r.adapt2||r.target1||r.target2)) out.push({ wk:k.replace("lifeos:review:",""), ...r }); }catch{} } } setReviews(out); },[allDays]);
-  const entries = useMemo(()=>{
-    const days = Object.values(allDays).filter(d=>d&&(d.feedback||d.rating>0)).map(d=>({ type:"day", date:d.date, rating:d.rating, bs:d.bs, text:d.feedback }));
-    const wks = reviews.map(r=>({ type:"week", date:r.wk, ...r }));
-    return [...days,...wks].sort((a,b)=> b.date.localeCompare(a.date));
-  },[allDays,reviews]);
-
-  return (
-    <div>
-      <div style={{ textAlign:"center", marginBottom:20 }}>
-        <div style={{ fontFamily:"'Caveat',cursive", fontSize:40, color:C.teal }}>Journal</div>
-        <div style={{ fontSize:12, color:C.dim }}>{entries.length} entr{entries.length===1?"y":"ies"} · your year, written down</div>
-      </div>
-      {entries.length===0 && <Empty big>Rate a day or leave feedback on the Today tab, or write a Weekly Review — they collect here as a scrollable journal.</Empty>}
-      <div style={{ display:"flex", flexDirection:"column", gap:12, maxWidth:760, margin:"0 auto" }}>
-        {entries.map((e,i)=> e.type==="day" ? (
-          <div key={"d"+i} onClick={()=>{ setDate(e.date); setTab("today"); }} style={{ background:C.panel, border:`1px solid ${C.line}`, borderRadius:12, padding:16, cursor:"pointer" }}>
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6 }}>
-              <span style={{ fontSize:13, color:C.teal, fontWeight:600 }}>{fmt(e.date)}</span>
-              <div style={{ display:"flex", gap:6, alignItems:"center" }}>
-                {e.bs && <span style={{ fontSize:9, fontWeight:700, color:"#fff", background:C.red, borderRadius:4, padding:"1px 5px" }}>BS</span>}
-                {e.rating>0 && <span style={{ fontSize:12, color:C.red, fontWeight:700 }}>{e.rating}/10</span>}
-              </div>
-            </div>
-            {e.text && <div style={{ fontSize:13, color:C.dim, lineHeight:1.5, whiteSpace:"pre-wrap" }}>{e.text}</div>}
-          </div>
-        ) : (
-          <div key={"w"+i} style={{ background:C.panel, border:`1px solid ${C.cyan}55`, borderRadius:12, padding:16 }}>
-            <div style={{ fontSize:13, color:C.cyan, fontWeight:600, marginBottom:8 }}>Weekly Review · week of {fmt(e.date)}</div>
-            {e.feedback && <div style={{ fontSize:13, color:C.dim, lineHeight:1.5, whiteSpace:"pre-wrap", marginBottom:8 }}>{e.feedback}</div>}
-            {(e.adapt1||e.adapt2) && <div style={{ fontSize:12, color:C.faint, marginBottom:4 }}><b style={{ color:C.cyan }}>Adapt:</b> {[e.adapt1,e.adapt2].filter(Boolean).join(" · ")}</div>}
-            {(e.target1||e.target2) && <div style={{ fontSize:12, color:C.faint }}><b style={{ color:C.pink }}>Targets:</b> {[e.target1,e.target2].filter(Boolean).join(" · ")}</div>}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// ============ FINANCE ============
-const FIN_OUT_CATS = ["Food","Transport","Fun","Shopping","Subscriptions","Business","Other"];
-const FIN_IN_CATS = ["Tuition","Gift","Pocket","Other"];
-const FIN_CAT_COLOR = { Food:C.gold, Transport:C.blue, Fun:C.pink, Shopping:C.purple, Subscriptions:C.cyan, Business:C.teal, Other:C.dim, Tuition:C.green, Gift:C.green, Pocket:C.green };
-const NW_MILESTONES = [100,500,1000,2500,5000,10000,25000,50000,100000];
-function FinanceView({ finance,save,flash }){
-  const isMobile = useIsMobile();
-  const [sub,setSub] = useState("networth");
-  const [form,setForm] = useState({ dir:"out", amount:"", cat:"Food", label:"", recurring:false });
-  const totalNW = finance.accounts.reduce((s,a)=>s+(+a.balance||0),0);
-  const addAccount=()=> save({ ...finance, accounts:[...finance.accounts,{ id:Date.now(),name:"New account",balance:0 }] });
-  const updAccount=(id,p)=> save({ ...finance, accounts:finance.accounts.map(a=>a.id===id?{...a,...p}:a) });
-  const delAccount=(id)=>{ if(!confirmDel("this account")) return; save({ ...finance, accounts:finance.accounts.filter(a=>a.id!==id) }); };
-  const snapshot=()=>{ save({ ...finance, netWorthLog:[...finance.netWorthLog,{ date:todayISO(),value:totalNW }] }); flash("Snapshot saved"); };
-  const addClient=()=> save({ ...finance, clients:[...finance.clients,{ id:Date.now(),name:"New client",rate:25,lessonsThisMonth:0,status:"Active" }] });
-  const updClient=(id,p)=> save({ ...finance, clients:finance.clients.map(c=>c.id===id?{...c,...p}:c) });
-  const delClient=(id)=>{ if(!confirmDel("this client")) return; save({ ...finance, clients:finance.clients.filter(c=>c.id!==id) }); };
-  const monthlyRevenue = finance.clients.reduce((s,c)=>s+(+c.rate||0)*(+c.lessonsThisMonth||0),0);
-  const logMonth=()=>{ save({ ...finance, lessonLog:[...finance.lessonLog,{ month:new Date().toLocaleDateString("en-GB",{month:"short",year:"2-digit"}),revenue:monthlyRevenue }] }); flash("Month logged"); };
-  const L=finance.lump;
-  const updLump=(p)=> save({ ...finance, lump:{ ...L, ...p } });
-  const updAlloc=(id,p)=> updLump({ allocations:L.allocations.map(a=>a.id===id?{...a,...p}:a) });
-  const totalPct = L.allocations.reduce((s,a)=>s+(+a.pct||0),0);
-  const fv=(L.amount*Math.pow(1+(+L.expectedReturn/100),+L.years)).toFixed(0);
-  const isaAmount = L.allocations.filter(a=>/isa|index|invest/i.test(a.name)).reduce((s,a)=>s+L.amount*a.pct/100,0);
-
-  // ----- money in/out + goals -----
-  const tx = finance.transactions||[];
-  const goals = finance.goals||[];
-  const thisMonth = todayISO().slice(0,7);
-  const monthTx = tx.filter(t=>String(t.date).slice(0,7)===thisMonth);
-  const inSum = monthTx.filter(t=>t.dir==="in").reduce((s,t)=>s+(+t.amount||0),0);
-  const outSum = monthTx.filter(t=>t.dir==="out").reduce((s,t)=>s+(+t.amount||0),0);
-  const net = inSum-outSum;
-  const byCat = {}; monthTx.filter(t=>t.dir==="out").forEach(t=>{ byCat[t.cat]=(byCat[t.cat]||0)+(+t.amount||0); });
-  const catRows = Object.entries(byCat).sort((a,b)=>b[1]-a[1]);
-  const maxCat = Math.max(1,...catRows.map(r=>r[1]));
-  const recurring = tx.filter(t=>t.recurring);
-  const recurringOut = recurring.filter(t=>t.dir==="out").reduce((s,t)=>s+(+t.amount||0),0);
-  const addTx=(t)=> save({ ...finance, transactions:[...tx, { id:Date.now(), ...t }] });
-  const delTx=(id)=> save({ ...finance, transactions:tx.filter(t=>t.id!==id) });
-  const submitTx=()=>{ const amt=+form.amount; if(!amt){ flash("Enter an amount"); return; } addTx({ date:todayISO(), dir:form.dir, amount:amt, cat:form.cat, label:form.label.trim(), recurring:form.recurring }); setForm({ ...form, amount:"", label:"", recurring:false }); flash("Logged"); };
-  const addGoal=()=> save({ ...finance, goals:[...goals, { id:Date.now(), name:"New goal", target:200, saved:0, color:C.gold }] });
-  const updGoal=(id,p)=> save({ ...finance, goals:goals.map(g=>g.id===id?{...g,...p}:g) });
-  const delGoal=(id)=>{ if(!confirmDel("this goal")) return; save({ ...finance, goals:goals.filter(g=>g.id!==id) }); };
-  const nextMile = NW_MILESTONES.find(m=>m>totalNW) || (Math.ceil(totalNW/50000)*50000+50000);
-  const prevMile = [...NW_MILESTONES].reverse().find(m=>m<=totalNW) || 0;
-  const milePct = (totalNW-prevMile)/(nextMile-prevMile);
-
-  return (
-    <div>
-      <div style={{ textAlign:"center", marginBottom:18 }}><div style={{ fontFamily:"'Caveat',cursive", fontSize:40, color:C.teal }}>Finance</div></div>
-      <div style={{ display:"flex", gap:6, justifyContent:"center", marginBottom:20, flexWrap:"wrap" }}>
-        {[["networth","Net Worth"],["cashflow","Money In/Out"],["goals","Goals"],["business","Tuition"],["lump","£10k Plan"]].map(([k,l])=> <button key={k} onClick={()=>setSub(k)} style={{ padding:"8px 16px", borderRadius:20, cursor:"pointer", fontSize:13, fontWeight:600, border:`1px solid ${sub===k?C.teal:C.line}`, background:sub===k?C.teal:"transparent", color:sub===k?"#001014":C.dim }}>{l}</button>)}
-      </div>
-
-      {sub==="networth" && (
-        <div style={{ display:"grid", gridTemplateColumns:isMobile?"1fr":"1fr 1fr", gap:18 }}>
-          <Panel accent={C.green} title="Accounts & Balances">
-            {finance.accounts.map(a=> <div key={a.id} style={{ display:"flex", gap:8, marginBottom:10, alignItems:"center" }}><input value={a.name} onChange={e=>updAccount(a.id,{name:e.target.value})} style={{ ...inp, flex:1 }}/><span style={{ color:C.faint }}>£</span><input type="number" value={a.balance} onChange={e=>updAccount(a.id,{balance:e.target.value})} style={{ ...inp, width:90 }}/><button onClick={()=>delAccount(a.id)} style={delBtn}>×</button></div>)}
-            <button onClick={addAccount} style={addBtn}>+ Add account</button>
-            <div style={{ marginTop:16, padding:14, background:C.panel2, borderRadius:10, display:"flex", justifyContent:"space-between", alignItems:"center" }}><span style={{ color:C.dim, fontSize:13 }}>Total net worth</span><span style={{ fontSize:24, fontWeight:700, color:C.green }}>£{totalNW.toLocaleString()}</span></div>
-            <button onClick={snapshot} style={{ ...addBtn, marginTop:12, borderColor:C.green, color:C.green }}>📸 Save snapshot to history</button>
-          </Panel>
-          <Panel accent={C.teal} title="Net Worth Over Time">
-            {finance.netWorthLog.length<2 ? <Empty>Save snapshots over time to track growth. The £10k at 18 will show here.</Empty> : <div style={{ display:"flex", alignItems:"flex-end", gap:6, height:160, marginTop:10 }}>{finance.netWorthLog.map((p,i)=>{ const max=Math.max(...finance.netWorthLog.map(x=>x.value)); return <div key={i} style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:4 }}><div style={{ fontSize:9, color:C.dim }}>£{(p.value/1000).toFixed(1)}k</div><div style={{ width:"100%", height:`${p.value/max*120}px`, background:C.teal, borderRadius:"4px 4px 0 0" }}/><div style={{ fontSize:9, color:C.faint }}>{p.date.slice(5)}</div></div>; })}</div>}
-          </Panel>
-          <Panel accent={C.gold} title="Next Milestone" style={{ gridColumn:isMobile?"auto":"1 / -1" }}>
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"baseline", marginBottom:8 }}>
-              <span style={{ fontSize:13, color:C.dim }}>£{totalNW.toLocaleString()} → next: <b style={{ color:C.gold }}>£{nextMile.toLocaleString()}</b></span>
-              <span style={{ fontSize:12, color:C.faint }}>£{Math.max(0,nextMile-totalNW).toLocaleString()} to go</span>
-            </div>
-            <div style={{ height:12, background:C.panel2, borderRadius:6, overflow:"hidden" }}><div style={{ width:`${Math.min(100,Math.max(0,milePct*100))}%`, height:"100%", background:C.gold }}/></div>
-            <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginTop:12 }}>
-              {NW_MILESTONES.map(m=> <span key={m} style={{ fontSize:11, padding:"3px 8px", borderRadius:10, background:totalNW>=m?C.gold:C.panel2, color:totalNW>=m?"#0b0b0b":C.faint, fontWeight:totalNW>=m?700:400 }}>{totalNW>=m?"✓ ":""}£{m>=1000?`${m/1000}k`:m}</span>)}
-            </div>
-          </Panel>
-        </div>
-      )}
-
-      {sub==="cashflow" && (
-        <div style={{ display:"grid", gridTemplateColumns:isMobile?"1fr":"1fr 1fr", gap:18 }}>
-          <Panel accent={C.green} title="Log money in / out">
-            <div style={{ display:"flex", gap:6, marginBottom:12 }}>
-              {[["out","Spent",C.red],["in","Received",C.green]].map(([d,l,col])=> <button key={d} onClick={()=>setForm({ ...form, dir:d, cat: d==="out"?"Food":"Tuition" })} style={{ flex:1, padding:"9px", borderRadius:8, cursor:"pointer", fontWeight:700, fontSize:13, border:`1px solid ${form.dir===d?col:C.line}`, background:form.dir===d?col:"transparent", color:form.dir===d?"#fff":C.dim }}>{l}</button>)}
-            </div>
-            <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:12 }}>
-              <span style={{ fontSize:20, color:C.dim }}>£</span>
-              <input type="number" inputMode="decimal" value={form.amount} onChange={e=>setForm({ ...form, amount:e.target.value })} placeholder="0" style={{ ...inp, flex:1, fontSize:22, fontWeight:700 }}/>
-            </div>
-            <Label>Category</Label>
-            <div style={{ display:"flex", flexWrap:"wrap", gap:5, marginBottom:12 }}>
-              {(form.dir==="out"?FIN_OUT_CATS:FIN_IN_CATS).map(c=> <button key={c} onClick={()=>setForm({ ...form, cat:c })} style={{ fontSize:12, padding:"6px 10px", borderRadius:14, cursor:"pointer", border:`1px solid ${form.cat===c?(FIN_CAT_COLOR[c]||C.teal):C.line}`, background:form.cat===c?(FIN_CAT_COLOR[c]||C.teal):"transparent", color:form.cat===c?"#0b0b0b":C.dim, fontWeight:form.cat===c?700:400 }}>{c}</button>)}
-            </div>
-            <input value={form.label} onChange={e=>setForm({ ...form, label:e.target.value })} placeholder="Note (optional) e.g. Spotify, lesson w/ Sam" style={{ ...inp, width:"100%", marginBottom:12 }}/>
-            <label style={{ display:"flex", alignItems:"center", gap:8, fontSize:12, color:C.dim, marginBottom:12, cursor:"pointer" }}><Check on={form.recurring} color={C.cyan} onClick={()=>setForm({ ...form, recurring:!form.recurring })} size={18}/> Repeats every month (subscription / regular)</label>
-            <button onClick={submitTx} style={{ ...addBtn, borderColor:C.green, color:C.green }}>+ Add to log</button>
-          </Panel>
-
-          <Panel accent={C.teal} title={`This month · ${MONTHS[new Date().getMonth()].slice(0,3)}`}>
-            <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10, marginBottom:16 }}>
-              <Stat label="In" value={`£${inSum}`} color={C.green}/>
-              <Stat label="Out" value={`£${outSum}`} color={C.red}/>
-              <Stat label="Net" value={`${net<0?"-":""}£${Math.abs(net)}`} color={net>=0?C.green:C.red}/>
-            </div>
-            <Label>Where it went</Label>
-            {catRows.length===0 ? <Empty>No spending logged this month yet.</Empty> : catRows.map(([c,v])=> <div key={c} style={{ display:"flex", alignItems:"center", gap:10, marginBottom:8 }}><span style={{ width:84, fontSize:12, color:C.dim }}>{c}</span><div style={{ flex:1, height:9, background:C.panel2, borderRadius:5, overflow:"hidden" }}><div style={{ width:`${(v/maxCat)*100}%`, height:"100%", background:FIN_CAT_COLOR[c]||C.dim }}/></div><span style={{ width:48, textAlign:"right", fontSize:12, color:C.ink }}>£{v}</span></div>)}
-          </Panel>
-
-          <Panel accent={C.cyan} title="Monthly commitments" right={<span style={{ fontSize:13, fontWeight:700, color:C.cyan }}>£{recurringOut}/mo</span>}>
-            {recurring.length===0 ? <Empty>Mark a payment as "repeats every month" to track subscriptions and regular costs here.</Empty> : recurring.map(t=> <div key={t.id} style={{ display:"flex", alignItems:"center", gap:8, marginBottom:8 }}><span style={{ width:8,height:8,borderRadius:"50%",background:FIN_CAT_COLOR[t.cat]||C.dim }}/><span style={{ flex:1, fontSize:13, color:C.ink }}>{t.label||t.cat}</span><span style={{ fontSize:13, color:t.dir==="out"?C.red:C.green }}>{t.dir==="out"?"-":"+"}£{t.amount}</span><button onClick={()=>delTx(t.id)} style={{ background:"none", border:"none", color:C.faint, cursor:"pointer", fontSize:16 }}>×</button></div>)}
-          </Panel>
-
-          <Panel accent={C.gold} title="Recent" style={{ gridColumn:isMobile?"auto":"1 / -1" }}>
-            {tx.length===0 ? <Empty big>Log your tuition income and your spending above. Seeing the flow — not just the balance — is how every money app starts.</Empty> :
-              [...tx].sort((a,b)=>String(b.date).localeCompare(String(a.date))||b.id-a.id).slice(0,40).map(t=> <div key={t.id} style={{ display:"flex", alignItems:"center", gap:10, padding:"8px 0", borderBottom:`1px solid ${C.line}` }}><span style={{ width:8,height:8,borderRadius:"50%",background:FIN_CAT_COLOR[t.cat]||C.dim,flexShrink:0 }}/><div style={{ flex:1, minWidth:0 }}><div style={{ fontSize:13, color:C.ink, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{t.label||t.cat}{t.recurring?" ↻":""}</div><div style={{ fontSize:10, color:C.faint }}>{t.cat} · {fmt(t.date)}</div></div><span style={{ fontSize:14, fontWeight:600, color:t.dir==="out"?C.red:C.green }}>{t.dir==="out"?"-":"+"}£{t.amount}</span><button onClick={()=>delTx(t.id)} style={{ background:"none", border:"none", color:C.faint, cursor:"pointer", fontSize:16 }}>×</button></div>)}
-          </Panel>
-        </div>
-      )}
-
-      {sub==="goals" && (
-        <div style={{ display:"grid", gridTemplateColumns:isMobile?"1fr":"1fr 1fr", gap:18 }}>
-          {goals.length===0 && <Panel accent={C.gold} title="Savings goals" style={{ gridColumn:"1 / -1" }}><Empty big>Set goals like "First car", "Uni fund" or "New laptop" with a target — then watch the bar fill as your tuition income stacks up.</Empty></Panel>}
-          {goals.map(g=>{ const pct=g.target>0?Math.min(100,(g.saved/g.target)*100):0; const eta = net>0 && g.saved<g.target ? Math.ceil((g.target-g.saved)/net) : null;
-            return (
-              <Panel key={g.id} accent={g.color} title={null}>
-                <div style={{ display:"flex", gap:8, marginBottom:10, alignItems:"center" }}>
-                  <input value={g.name} onChange={e=>updGoal(g.id,{name:e.target.value})} style={{ ...inp, flex:1, fontSize:15, fontWeight:600 }}/>
-                  <div style={{ display:"flex", gap:4 }}>{[C.gold,C.green,C.blue,C.pink,C.purple,C.teal].map(col=> <button key={col} onClick={()=>updGoal(g.id,{color:col})} style={{ width:18,height:18,borderRadius:"50%",background:col,cursor:"pointer",border:g.color===col?"2px solid #fff":"2px solid transparent",padding:0 }}/>)}</div>
-                  <button onClick={()=>delGoal(g.id)} style={delBtn}>×</button>
-                </div>
-                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"baseline", marginBottom:6 }}>
-                  <span style={{ fontSize:22, fontWeight:700, color:g.color }}>£{(+g.saved||0).toLocaleString()}</span>
-                  <span style={{ fontSize:13, color:C.faint }}>of £{(+g.target||0).toLocaleString()} · {Math.round(pct)}%</span>
-                </div>
-                <div style={{ height:12, background:C.panel2, borderRadius:6, overflow:"hidden", marginBottom:12 }}><div style={{ width:`${pct}%`, height:"100%", background:g.color }}/></div>
-                <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
-                  <span style={{ fontSize:11, color:C.faint }}>Saved £</span>
-                  <input type="number" value={g.saved} onChange={e=>updGoal(g.id,{saved:+e.target.value})} style={{ ...inp, width:80 }}/>
-                  <span style={{ fontSize:11, color:C.faint }}>Target £</span>
-                  <input type="number" value={g.target} onChange={e=>updGoal(g.id,{target:+e.target.value})} style={{ ...inp, width:80 }}/>
-                  {[10,25,50].map(n=> <button key={n} onClick={()=>updGoal(g.id,{saved:(+g.saved||0)+n})} style={{ ...stepBtn, width:"auto", padding:"0 8px", fontSize:12 }}>+{n}</button>)}
-                </div>
-                {pct>=100 ? <div style={{ marginTop:10, fontSize:12, color:C.green, fontWeight:600 }}>🎉 Goal reached!</div> : eta!==null && <div style={{ marginTop:10, fontSize:11, color:C.faint }}>At this month's saving rate (£{net}/mo): ~{eta} month{eta!==1?"s":""} to go</div>}
-              </Panel>
-            );
-          })}
-          <button onClick={addGoal} style={{ ...addBtn, gridColumn:"1 / -1" }}>+ New savings goal</button>
-        </div>
-      )}
-
-      {sub==="business" && (
-        <div style={{ display:"grid", gridTemplateColumns:isMobile?"1fr":"1fr 1fr", gap:18 }}>
-          <Panel accent={C.pink} title="DM Tuition — Clients">
-            <div style={{ fontSize:11, color:C.faint, marginBottom:12 }}>With Mazin · rate × lessons this month</div>
-            {finance.clients.map(c=> <div key={c.id} style={{ background:C.panel2, borderRadius:10, padding:12, marginBottom:10 }}><div style={{ display:"flex", gap:8, marginBottom:8 }}><input value={c.name} onChange={e=>updClient(c.id,{name:e.target.value})} style={{ ...inp, flex:1 }}/><button onClick={()=>delClient(c.id)} style={delBtn}>×</button></div><div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}><span style={{ fontSize:11, color:C.faint }}>£/lesson</span><input type="number" value={c.rate} onChange={e=>updClient(c.id,{rate:e.target.value})} style={{ ...inp, width:64 }}/><span style={{ fontSize:11, color:C.faint }}>lessons/mo</span><input type="number" value={c.lessonsThisMonth} onChange={e=>updClient(c.id,{lessonsThisMonth:e.target.value})} style={{ ...inp, width:54 }}/><input value={c.status} onChange={e=>updClient(c.id,{status:e.target.value})} style={{ ...inp, flex:1, minWidth:90, fontSize:12 }}/></div><div style={{ textAlign:"right", marginTop:6, fontSize:13, color:C.green }}>£{((+c.rate||0)*(+c.lessonsThisMonth||0)).toFixed(0)}/mo</div></div>)}
-            <button onClick={addClient} style={addBtn}>+ Add client</button>
-          </Panel>
-          <Panel accent={C.green} title="Revenue">
-            <div style={{ padding:18, background:C.panel2, borderRadius:12, textAlign:"center", marginBottom:14 }}><div style={{ fontSize:12, color:C.dim }}>Projected this month</div><div style={{ fontSize:34, fontWeight:700, color:C.green }}>£{monthlyRevenue.toFixed(0)}</div><div style={{ fontSize:11, color:C.faint }}>{finance.clients.length} client{finance.clients.length!==1?"s":""} · annualised ≈ £{(monthlyRevenue*12).toFixed(0)}</div></div>
-            <button onClick={logMonth} style={{ ...addBtn, borderColor:C.green, color:C.green, marginBottom:14 }}>Log this month to history</button>
-            {finance.lessonLog.length>0 && <div style={{ display:"flex", alignItems:"flex-end", gap:6, height:110 }}>{finance.lessonLog.map((m,i)=>{ const max=Math.max(...finance.lessonLog.map(x=>x.revenue),1); return <div key={i} style={{ flex:1, textAlign:"center" }}><div style={{ fontSize:9, color:C.dim, marginBottom:3 }}>£{m.revenue}</div><div style={{ width:"100%", height:`${m.revenue/max*70}px`, background:C.green, borderRadius:"3px 3px 0 0" }}/><div style={{ fontSize:9, color:C.faint, marginTop:3 }}>{m.month}</div></div>; })}</div>}
-          </Panel>
-        </div>
-      )}
-
-      {sub==="lump" && (
-        <div style={{ display:"grid", gridTemplateColumns:isMobile?"1fr":"1fr 1fr", gap:18 }}>
-          <Panel accent={C.gold} title="£10k Allocation Plan">
-            <div style={{ display:"flex", gap:10, alignItems:"center", marginBottom:14 }}><span style={{ fontSize:13, color:C.dim }}>Lump sum £</span><input type="number" value={L.amount} onChange={e=>updLump({amount:+e.target.value})} style={{ ...inp, width:110 }}/><label style={{ display:"flex", alignItems:"center", gap:6, fontSize:12, color:C.dim, marginLeft:"auto" }}><Check on={L.received} color={C.green} onClick={()=>updLump({received:!L.received})} size={18}/> Received</label></div>
-            {L.allocations.map(a=> <div key={a.id} style={{ marginBottom:12 }}><div style={{ display:"flex", gap:8, alignItems:"center", marginBottom:5 }}><input value={a.name} onChange={e=>updAlloc(a.id,{name:e.target.value})} style={{ ...inp, flex:1, fontSize:13 }}/><input type="number" value={a.pct} onChange={e=>updAlloc(a.id,{pct:+e.target.value})} style={{ ...inp, width:54 }}/><span style={{ color:C.faint, fontSize:13 }}>%</span></div><div style={{ display:"flex", alignItems:"center", gap:8 }}><div style={{ flex:1, height:7, background:C.panel2, borderRadius:4, overflow:"hidden" }}><div style={{ width:`${a.pct}%`, height:"100%", background:C.gold }}/></div><span style={{ fontSize:12, color:C.ink, width:64, textAlign:"right" }}>£{(L.amount*a.pct/100).toFixed(0)}</span></div></div>)}
-            <div style={{ marginTop:10, fontSize:12, color:totalPct===100?C.green:C.red, textAlign:"right" }}>Allocated: {totalPct}% {totalPct!==100 && `(${totalPct>100?"over":"under"} by ${Math.abs(100-totalPct)}%)`}</div>
-          </Panel>
-          <Panel accent={C.blue} title="Growth Projection">
-            <div style={{ fontSize:11, color:C.faint, marginBottom:12 }}>If invested portion compounds (illustrative, not advice)</div>
-            <div style={{ display:"flex", gap:10, alignItems:"center", marginBottom:10 }}><span style={{ fontSize:12, color:C.dim, width:90 }}>Return %/yr</span><input type="number" value={L.expectedReturn} onChange={e=>updLump({expectedReturn:+e.target.value})} style={{ ...inp, width:64 }}/></div>
-            <div style={{ display:"flex", gap:10, alignItems:"center", marginBottom:16 }}><span style={{ fontSize:12, color:C.dim, width:90 }}>Years</span><input type="number" value={L.years} onChange={e=>updLump({years:+e.target.value})} style={{ ...inp, width:64 }}/></div>
-            <div style={{ padding:16, background:C.panel2, borderRadius:12, marginBottom:12 }}><div style={{ display:"flex", justifyContent:"space-between", marginBottom:8 }}><span style={{ fontSize:13, color:C.dim }}>Full £{L.amount.toLocaleString()} in {L.years}y</span><span style={{ fontSize:18, fontWeight:700, color:C.blue }}>£{(+fv).toLocaleString()}</span></div><div style={{ display:"flex", justifyContent:"space-between" }}><span style={{ fontSize:13, color:C.dim }}>Invested portion (£{isaAmount.toFixed(0)})</span><span style={{ fontSize:18, fontWeight:700, color:C.green }}>£{(isaAmount*Math.pow(1+L.expectedReturn/100,L.years)).toFixed(0)}</span></div></div>
-            <div style={{ fontSize:11, color:C.faint, lineHeight:1.6, background:"rgba(224,184,0,0.06)", border:`1px solid rgba(224,184,0,0.2)`, borderRadius:8, padding:12 }}><b style={{ color:C.gold }}>Note:</b> A Stocks & Shares ISA shelters gains from tax (£20k/yr allowance). Low-cost global index funds are the standard starting point. This models maths only — not financial advice. Do your own research before committing the £10k.</div>
-          </Panel>
         </div>
       )}
     </div>
