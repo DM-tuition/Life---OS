@@ -204,6 +204,10 @@ function applyEntry(e){
       writeLS("dayTypes:v2",next); return;
     }
     case "weekAnchor": writeLS("weekAnchorA:v1", e.monday); return;
+    case "dayType-set": {                 // a day already opened under the wrong format (2 Nov: A/B was a week out)
+      const d=readLS("day:"+e.date,null); if(!d || d.stub) return;   // unopened days pick it up from the anchor
+      writeLS("day:"+e.date, swapDayType(d, readLS("dayTypes:v2",SEED_DAYTYPES), e.type)); return;
+    }
     case "habitLog": {                    // the daily check-in: Dan's account of a day's habits
       // Ticks only ever turn ON — a habit he already ticked in the app is never unticked by
       // this file. A day he hasn't opened yet is created as a `stub`, so the timetable still
@@ -257,8 +261,9 @@ function applyEntry(e){
       writeLS("day:"+e.date,{ ...d, blocks:[...blocks,...add] }); return;
     }
     case "plan-remove": {                 // retract a plan's blocks for one day; edited ones survive
-      const d=readLS("day:"+e.date,null); if(!d) return;
-      const next=(d.blocks||[]).filter(b=>!(b && b.seed===e.target && b.sig===sigOf(b)));
+      const d=readLS("day:"+e.date,null); if(!d) return;   // `labels` (optional) narrows it to those blocks
+      const hit=(b)=> b && b.seed===e.target && b.sig===sigOf(b) && (!e.labels || e.labels.some(l=>sameText(l,b.label||"")));
+      const next=(d.blocks||[]).filter(b=>!hit(b));
       if(next.length!==(d.blocks||[]).length) writeLS("day:"+e.date,{ ...d, blocks:next });
       return;
     }
@@ -320,6 +325,14 @@ const blankDay = (iso)=>({
   rating:0, feedback:"", prodHours:0, unprodHours:0,
 });
 const cloneBlocks = (blocks)=> blocks.map((b,i)=>({ id:Date.now()+i, done:false, ...b }));
+// Switch a day's format without wiping it (2 Nov): only the old format's own blocks (matched by
+// label + start, never anything the vault seeded) are swapped for the new format's. The Sunday
+// plan, check-in workouts and anything Dan added himself stay where they are.
+function swapDayType(d, types, newId){
+  const old=types[d.dayTypeId], nu=types[newId]; if(!nu) return d;
+  const fromOld=(b)=> !b.seed && !!old && (old.blocks||[]).some(o=>sameText(o.label||"",b.label||"") && Math.abs(o.t-b.t)<0.01);
+  return { ...d, dayTypeId:newId, blocks:[...cloneBlocks(nu.blocks||[]), ...(d.blocks||[]).filter(b=>!fromOld(b))] };
+}
 
 // What a day looks like when opened: the saved record, or — for a day never opened — its A/B
 // timetable plus anything the vault already put on it. Pure, so the Week view can preview days
@@ -631,7 +644,8 @@ export default function LifeOS(){
   const persistKeyDates = async (k)=>{ setKeyDates(k); await sSet("keyDates:v1", k); };
   const toggleMasterTodo = (id)=> persistMasterTodos(masterTodos.map(t=>t.id===id?{...t,done:!t.done}:t));
   const applyDayType = (typeId)=>{ const dt=dayTypes[typeId]; if(!dt) return;
-    persistDay({ ...day, dayTypeId:typeId, blocks:cloneBlocks(dt.blocks) }); flash(`Applied: ${dt.name}`); };
+    const next=swapDayType(day, dayTypes, typeId);
+    persistDay({ ...next, breakdown:withAdj(computeBreakdown(next.blocks), day.breakdownAdj) }); flash(`Applied: ${dt.name}`); };
 
   if(loading || !day) return (
     <div style={{ background:C.bg, minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center", color:C.dim, fontFamily:"system-ui" }}>Loading your system…</div>
@@ -1246,7 +1260,7 @@ function TodayView({ day,date,setDate,upd,dayTypes,applyDayType,links,allDays,fl
         </div>
         {showApply && (
           <div style={{ position:"absolute", top:"100%", marginTop:8, background:C.panel2, border:`1px solid ${C.line}`, borderRadius:12, padding:8, zIndex:30, width:240, maxHeight:300, overflowY:"auto", boxShadow:"0 8px 30px rgba(0,0,0,.6)", left:"50%", transform:"translateX(-50%)" }}>
-            <div style={{ fontSize:10, color:C.faint, padding:"4px 8px 8px" }}>Apply a format to this day (replaces blocks)</div>
+            <div style={{ fontSize:10, color:C.faint, padding:"4px 8px 8px" }}>Switch this day's format — your own and planned blocks stay</div>
             {Object.entries(dayTypes).map(([id,t])=> <button key={id} onClick={()=>{ applyDayType(id); setShowApply(false); }} style={{ display:"flex", alignItems:"center", gap:8, width:"100%", padding:"8px 10px", borderRadius:8, border:"none", background:"transparent", color:C.ink, cursor:"pointer", fontSize:13, textAlign:"left" }}><span style={{ width:8,height:8,borderRadius:"50%",background:t.color }}/>{t.name}</button>)}
           </div>
         )}

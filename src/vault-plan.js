@@ -599,4 +599,23 @@ export const VAULT_PLAN = [
     { t: 18, e: 18.5, label: "School-week setup", cat: "Other", note: "Bag, kit, gym clothes for Mon + Wed." },
     { t: 22, e: 22.5, label: "Wind-down · phone out of the room", cat: "Other" },
   ]},
+
+  // --- appended 2026-11-02 · Week A confirmed (Dan, 2 Nov): half term paused the rota ------------
+  // The straight count from 14 Sep made w/c 2 Nov Week B; it's A. Re-anchor, then fix today, which
+  // was already opened under B (lessons only — planned and own blocks kept).
+  { key: "y13-week-anchor-2nov", kind: "weekAnchor", monday: "2026-11-02",
+    why: "Rota paused over half term — w/c 2 Nov is Week A (Dan, 2 Nov)." },
+  { key: "fix-2026-11-02-week-a", kind: "dayType-set", date: "2026-11-02", type: "school-a-mon" },
+  // Week A clashes: Mon has P5 Physics to 15:20 (travel + gym slide later); Fri ends 14:20 (gym earlier).
+  { key: "rm-wp-2026-11-02-pm", kind: "plan-remove", date: "2026-11-02", target: "wp-2026-11-02",
+    labels: ["Travel · snack", "Gym A (upper)"] },
+  { key: "wp-2026-11-02-v2", kind: "plan", date: "2026-11-02", blocks: [
+    { t: 15 + 20/60, e: 15 + 40/60, label: "Travel · snack", cat: "Other" },
+    { t: 15 + 40/60, e: 16.5, label: "Gym A (upper)", cat: "Gym", note: "Weighted pull-up aim +17.5–20 kg · dip +12.5–15 kg · incline DB press. Week A: P5 Physics runs to 15:20." },
+  ]},
+  { key: "rm-wp-2026-11-06-gym", kind: "plan-remove", date: "2026-11-06", target: "wp-2026-11-06",
+    labels: ["Gym skills (no legs)"] },
+  { key: "wp-2026-11-06-v2", kind: "plan", date: "2026-11-06", blocks: [
+    { t: 14 + 40/60, e: 15.5, label: "Gym skills (no legs)", cat: "Gym", note: "Week A Friday ends 14:20 (P5 free). Weighted muscle-ups first, front lever tucks, handstand holds, pull-up + dip sets, L-sit, prehab." },
+  ]},
 ];
