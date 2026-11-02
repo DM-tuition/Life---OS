@@ -163,8 +163,12 @@ function applyEntry(e){
       const cur=readLS("masterTodos:v1",[]);
       if(cur.some(t=>t&&(t.seed===e.key||sameText(t.text||"",e.text)))) return;
       writeLS("masterTodos:v1",[{ id:Date.now()+Math.floor(Math.random()*1000), text:e.text, done:false,
-        star:!!e.star, due:e.due||null, created:todayISO(), seed:e.key }, ...cur]);
+        star:!!e.star, due:e.due||null, created:todayISO(), seed:e.key, ...(e.list?{ list:e.list }:{}) }, ...cur]);
       return;
+    }
+    case "todo-list": {                   // file a row this file shipped into the Big or Daily list
+      const cur=readLS("masterTodos:v1",[]);
+      writeLS("masterTodos:v1",cur.map(t=> t && t.seed===e.target ? { ...t, list:e.list } : t)); return;
     }
     case "todo-done": {                   // tick off a row this file shipped, keeping it visible
       const cur=readLS("masterTodos:v1",[]);   // `target` is the key of the entry that created it
@@ -1932,40 +1936,55 @@ function HabitsView({ allDays, links, saveLinks, cfg, saveCfg, bad, saveBad, let
 }
 
 // ============ MASTER TO-DO LIST (long-term, Microsoft To Do style) ============
+// Dan, 2 Nov: "an important to-do list and a daily, small things list... it's clouded with small
+// random things. Same place, just separated." Each row carries `list`: "big" (macro — DofE, the
+// interview campaign, the ISA) or "small" (daily odds and ends). Rows from before the split count
+// as small; one tap on ⇅ moves a row across.
+const isBig = (t)=> t && t.list==="big";
 function TodoListView({ todos,save,flash }){
   const [text,setText] = useState("");
   const [due,setDue] = useState("");
   const [star,setStar] = useState(false);
+  const [toBig,setToBig] = useState(false);
   const [showDone,setShowDone] = useState(false);
+  const [editId,setEditId] = useState(null);
   const today = todayISO();
 
   const add=()=>{ const t=text.trim(); if(!t) return;
-    save([{ id:Date.now(), text:t, done:false, star, due:due||null, created:today }, ...todos]);
-    setText(""); setDue(""); setStar(false); flash("Added"); };
+    save([{ id:Date.now(), text:t, done:false, star, due:due||null, created:today, list:toBig?"big":"small" }, ...todos]);
+    setText(""); setDue(""); setStar(false); flash(toBig?"Added to Big picture":"Added to Daily"); };
   const upd=(id,p)=> save(todos.map(t=>t.id===id?{...t,...p}:t));
   const del=(id)=> save(todos.filter(t=>t.id!==id));
+  const move=(t)=>{ upd(t.id,{ list:isBig(t)?"small":"big" }); flash(isBig(t)?"Moved to Daily":"Moved to Big picture"); };
   const clearDone=()=>{ if(confirmDel("all completed tasks")) save(todos.filter(t=>!t.done)); };
 
   const open = todos.filter(t=>!t.done);
   const done = todos.filter(t=>t.done);
   const srt = (a,b)=> (b.star?1:0)-(a.star?1:0) || String(a.due||"9999").localeCompare(String(b.due||"9999")) || b.id-a.id;
-  const sections = [
-    { key:"overdue", title:"Overdue", color:C.red,  items: open.filter(t=>t.due && t.due<today).sort(srt) },
-    { key:"today",   title:"Today",   color:C.teal, items: open.filter(t=>t.due===today).sort(srt) },
-    { key:"upcoming",title:"Upcoming",color:C.gold, items: open.filter(t=>t.due && t.due>today).sort(srt) },
-    { key:"someday", title:"Someday", color:C.dim,  items: open.filter(t=>!t.due).sort(srt) },
+  const big = open.filter(isBig).sort(srt);
+  const small = open.filter(t=>!isBig(t));
+  const smallGroups = [
+    { key:"overdue", title:"Overdue",  color:C.red,  items: small.filter(t=>t.due && t.due<today).sort(srt) },
+    { key:"today",   title:"Today",    color:C.teal, items: small.filter(t=>t.due===today).sort(srt) },
+    { key:"upcoming",title:"Upcoming", color:C.gold, items: small.filter(t=>t.due && t.due>today).sort(srt) },
+    { key:"someday", title:"Any time", color:C.dim,  items: small.filter(t=>!t.due).sort(srt) },
   ];
 
-  const Row = ({ t })=>(
-    <div style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 0", borderBottom:`1px solid ${C.line}` }}>
-      <Check on={t.done} color={t.star?C.gold:C.teal} onClick={()=>{ upd(t.id,{done:!t.done}); }} size={22}/>
+  const Row = ({ t, bigRow })=>(
+    <div style={{ display:"flex", alignItems:"flex-start", gap:10, padding:bigRow?"12px 0":"9px 0", borderBottom:`1px solid ${C.line}` }}>
+      <Check on={t.done} color={bigRow?C.purple:t.star?C.gold:C.teal} onClick={()=>{ upd(t.id,{done:!t.done}); }} size={bigRow?24:20}/>
       <div style={{ flex:1, minWidth:0 }}>
-        <input value={t.text} onChange={e=>upd(t.id,{text:e.target.value})} style={{ background:"transparent", border:"none", outline:"none", width:"100%", fontSize:15, fontWeight:t.star?700:500, color:t.done?C.faint:C.ink, textDecoration:t.done?"line-through":"none", padding:0 }}/>
+        {/* titles wrap so the whole task is readable on a phone; tap the text to edit it */}
+        {editId===t.id
+          ? <textarea autoFocus value={t.text} onChange={e=>upd(t.id,{text:e.target.value})} onBlur={()=>setEditId(null)} onKeyDown={e=>{ if(e.key==="Enter"){ e.preventDefault(); setEditId(null); } }} rows={Math.max(1,Math.ceil(t.text.length/34))}
+              style={{ ...inp, width:"100%", fontSize:bigRow?16:14.5, fontWeight:bigRow||t.star?650:450, padding:"4px 6px", resize:"none", lineHeight:1.35 }}/>
+          : <div onClick={()=>setEditId(t.id)} style={{ fontSize:bigRow?16:14.5, fontWeight:bigRow||t.star?650:450, lineHeight:1.35, color:t.done?C.faint:C.ink, textDecoration:t.done?"line-through":"none", cursor:"text", overflowWrap:"anywhere" }}>{t.text}</div>}
         {t.due && <div style={{ fontSize:11, color: !t.done && t.due<today ? C.red : C.faint, marginTop:2 }}>📅 {fmt(t.due)}{!t.done && t.due<today ? " · overdue":""}</div>}
       </div>
       <input type="date" value={t.due||""} onChange={e=>upd(t.id,{due:e.target.value||null})} style={{ ...inp, padding:"5px 6px", fontSize:11, width:34, color:"transparent", cursor:"pointer" }} title="Set date"/>
-      <button onClick={()=>upd(t.id,{star:!t.star})} style={{ background:"none", border:"none", cursor:"pointer", fontSize:17, color:t.star?C.gold:C.faint, padding:0 }}>{t.star?"★":"☆"}</button>
-      <button onClick={()=>del(t.id)} style={{ background:"none", border:"none", color:C.faint, cursor:"pointer", fontSize:17, padding:0 }}>×</button>
+      <button onClick={()=>upd(t.id,{star:!t.star})} title="Star" style={{ background:"none", border:"none", cursor:"pointer", fontSize:17, color:t.star?C.gold:C.faint, padding:0 }}>{t.star?"★":"☆"}</button>
+      <button onClick={()=>move(t)} title={bigRow?"Move to Daily":"Move to Big picture"} style={{ background:"none", border:"none", cursor:"pointer", fontSize:15, color:C.faint, padding:"0 2px" }}>⇅</button>
+      <button onClick={()=>del(t.id)} title="Delete" style={{ background:"none", border:"none", color:C.faint, cursor:"pointer", padding:0, display:"flex" }}><TrashIcon size={15}/></button>
     </div>
   );
 
@@ -1973,31 +1992,41 @@ function TodoListView({ todos,save,flash }){
     <div style={{ maxWidth:680, margin:"0 auto" }}>
       <div style={{ textAlign:"center", marginBottom:18 }}>
         <div style={{ fontFamily:"'Caveat',cursive", fontSize:40, color:C.teal }}>To Do</div>
-        <div style={{ fontSize:12, color:C.dim }}>{open.length} open · dated tasks appear on that day automatically</div>
+        <div style={{ fontSize:12, color:C.dim }}>{big.length} big · {small.length} daily · dated tasks also show on that day</div>
       </div>
 
       <Panel accent={C.green} title={null} style={{ marginBottom:18 }}>
-        <input value={text} onChange={e=>setText(e.target.value)} onKeyDown={e=>e.key==="Enter"&&add()} placeholder="Add a task…" style={{ ...inp, width:"100%", fontSize:16, padding:"13px 12px", marginBottom:10 }}/>
+        <div style={{ display:"flex", gap:6, marginBottom:10 }}>
+          {[[false,"Daily / small"],[true,"Big picture"]].map(([v,l])=> <button key={l} onClick={()=>setToBig(v)} style={{ flex:1, padding:"8px", borderRadius:9, cursor:"pointer", fontSize:13, fontWeight:650, border:`1px solid ${toBig===v?(v?C.purple:C.teal):C.line}`, background:toBig===v?(v?`${C.purple}22`:`${C.teal}22`):"transparent", color:toBig===v?C.ink:C.dim }}>{l}</button>)}
+        </div>
+        <input value={text} onChange={e=>setText(e.target.value)} onKeyDown={e=>e.key==="Enter"&&add()} placeholder={toBig?"A big one — a project, a goal, something with weeks in it…":"Something small for the day…"} style={{ ...inp, width:"100%", fontSize:16, padding:"13px 12px", marginBottom:10 }}/>
         <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
           <input type="date" value={due} onChange={e=>setDue(e.target.value)} style={{ ...inp, fontSize:12, padding:"7px 8px" }}/>
           {due && <button onClick={()=>setDue("")} style={{ background:"none", border:"none", color:C.faint, cursor:"pointer", fontSize:14 }}>×</button>}
-          <button onClick={()=>setStar(s=>!s)} style={{ background:"none", border:`1px solid ${star?C.gold:C.line}`, borderRadius:8, padding:"6px 10px", cursor:"pointer", fontSize:13, color:star?C.gold:C.dim }}>{star?"★ Important":"☆ Important"}</button>
+          <button onClick={()=>setStar(s=>!s)} style={{ background:"none", border:`1px solid ${star?C.gold:C.line}`, borderRadius:8, padding:"6px 10px", cursor:"pointer", fontSize:13, color:star?C.gold:C.dim }}>{star?"★ Starred":"☆ Star"}</button>
           <button onClick={add} style={{ ...addBtn, width:"auto", padding:"7px 18px", borderColor:C.green, color:C.green, marginLeft:"auto" }}>Add</button>
         </div>
       </Panel>
 
-      {open.length===0 && <Empty big>Nothing on the list. Add anything you must not forget — date it and it'll surface on that day's plan.</Empty>}
-      {sections.map(s=> s.items.length>0 && (
-        <Panel key={s.key} accent={s.color} title={`${s.title} · ${s.items.length}`} style={{ marginBottom:14 }}>
-          {s.items.map(t=> <Row key={t.id} t={t}/>)}
-        </Panel>
-      ))}
+      <Panel accent={C.purple} title={`Big picture · ${big.length}`} style={{ marginBottom:16 }} right={<span style={{ fontSize:11, color:C.faint }}>the things that matter this term</span>}>
+        {big.length===0 ? <Empty>Nothing big on the list. Projects and goals go here — DofE, the interview, the ISA.</Empty> : big.map(t=> <Row key={t.id} t={t} bigRow/>)}
+      </Panel>
+
+      <Panel accent={C.teal} title={`Daily / small · ${small.length}`} style={{ marginBottom:14 }} right={<span style={{ fontSize:11, color:C.faint }}>⇅ moves a task across</span>}>
+        {small.length===0 && <Empty>Nothing small waiting.</Empty>}
+        {smallGroups.map(g=> g.items.length>0 && (
+          <div key={g.key} style={{ marginBottom:8 }}>
+            <div style={{ fontSize:10.5, fontWeight:700, letterSpacing:0.6, textTransform:"uppercase", color:g.color, marginTop:6 }}>{g.title} · {g.items.length}</div>
+            {g.items.map(t=> <Row key={t.id} t={t}/>)}
+          </div>
+        ))}
+      </Panel>
 
       {done.length>0 && (
         <div style={{ marginTop:6 }}>
           <button onClick={()=>setShowDone(s=>!s)} style={{ ...addBtn }}>{showDone?"Hide":"Show"} completed ({done.length}) {showDone?"▴":"▾"}</button>
           {showDone && <Panel accent={C.faint} title={null} style={{ marginTop:10 }}>
-            {done.map(t=> <Row key={t.id} t={t}/>)}
+            {done.map(t=> <Row key={t.id} t={t} bigRow={isBig(t)}/>)}
             <button onClick={clearDone} style={{ ...addBtn, marginTop:10, borderColor:C.red, color:C.red }}>Clear all completed</button>
           </Panel>}
         </div>
