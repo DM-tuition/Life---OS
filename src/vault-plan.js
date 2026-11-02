@@ -665,4 +665,13 @@ export const VAULT_PLAN = [
     text: "DofE Gold: finish the award (tell Claude what is left to sign off)" },
   { key: "td-big-gym", kind: "todo", list: "big",
     text: "Gym routine: run it 4 weeks, log every set, review ~26 Nov (Gym routine page)" },
+  // --- appended 2026-11-02 · Big items reworded from Dan's answers ---------------------------
+  // "I mean optimising the gym routine that I have so it works best for me." / DofE: "I need to
+  // sort out the admin of submitting everything."
+  { key: "rm-td-big-gym", kind: "todo-remove", target: "td-big-gym" },
+  { key: "td-big-gym-optimise", kind: "todo", list: "big",
+    text: "Optimise the gym routine so it works best for you: log every set, then tune exercises, volume and days with Claude" },
+  { key: "rm-td-big-dofe", kind: "todo-remove", target: "td-big-dofe" },
+  { key: "td-big-dofe-admin", kind: "todo", list: "big",
+    text: "DofE Gold admin: get every section signed off and submitted on eDofE (evidence, assessor reports)" },
 ];
