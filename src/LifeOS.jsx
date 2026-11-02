@@ -843,7 +843,13 @@ function CloudSyncModal({ close,flash }){
 }
 
 // ============ VERTICAL TIMELINE (draw-to-plan canvas) ============
-const DAY_START=6, DAY_END=24, PX_PER_HOUR=56;
+const DAY_START=6, DAY_END=24, PX_PER_HOUR=64;
+// Dan, 2 Nov: "the dashed lines and other stuff makes it seem messy and crowded." Blocks are now a
+// soft tint with a colour bar — no outlines, no grip marks — and short ones collapse to one line.
+// Height is the real duration (min 16px) so a 15-minute block no longer spills onto the next one.
+const MIN_BLOCK_H = 16;
+const blockH = (b)=> Math.max(MIN_BLOCK_H, (b.e-b.t)*PX_PER_HOUR);
+const TrashIcon = ({ size=14 })=> <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/></svg>;
 const timeToY = (t)=> (t-DAY_START)*PX_PER_HOUR;
 const yToTime = (y)=> Math.max(DAY_START, Math.min(DAY_END, DAY_START + y/PX_PER_HOUR));
 const snap = (t)=> Math.round(t*4)/4;
@@ -941,8 +947,8 @@ function Timeline({ blocks,onChange,isToday=false,isPast=false,sketch,onSketch,o
     const rail=railRef.current.getBoundingClientRect();
     // which edge? decided by where the finger is on the block, not by which strip the browser
     // happens to hit-test — touch targeting is fuzzy and kept landing on the thin grips
-    const bt=rail.top+timeToY(blk.t), bh=Math.max(22,(blk.e-blk.t)*PX_PER_HOUR), off=p.clientY-bt;
-    if(off>=bh-(touch?16:11)) mode="resize-b"; else if(bh>=40 && off<=(touch?9:7)) mode="resize-t"; else mode="move";
+    const bt=rail.top+timeToY(blk.t), bh=blockH(blk), off=p.clientY-bt;
+    if(bh<34) mode="move"; else if(off>=bh-(touch?14:10)) mode="resize-b"; else if(bh>=48 && off<=(touch?9:7)) mode="resize-t"; else mode="move";   // short blocks only move; resize them in the editor
     const d={ id:blk.id, mode, touch, sx:p.clientX, sy:p.clientY, y:p.clientY, oT:blk.t, oE:blk.e, oStatus:blk.status,
       grab:p.clientY-rail.top-timeToY(blk.t), axis:mode==="move"?null:"v", lifted:!touch||mode!=="move", dx:0, moved:false, last:null, started:false };
     dragRef.current=d;
@@ -1026,35 +1032,37 @@ function Timeline({ blocks,onChange,isToday=false,isPast=false,sketch,onSketch,o
         <div ref={railRef} onMouseDown={startCreate} onTouchStart={startCreate}
           style={{ flex:1, position:"relative", height, borderLeft:`1px solid ${C.line}`, cursor:pen?"crosshair":"copy", touchAction:pen?"none":"pan-y" }}>
           {hours.map(h=> <div key={h} style={{ position:"absolute", top:timeToY(h), left:0, right:0, height:1, background:C.line, opacity:0.5, pointerEvents:"none" }}/>)}
-          {hours.slice(0,-1).map(h=> <div key={"h"+h} style={{ position:"absolute", top:timeToY(h+0.5), left:0, right:0, borderTop:`1px dashed ${C.line}`, opacity:0.25, pointerEvents:"none" }}/>)}
 
-          {blocks.map(b=>{ const top=timeToY(b.t); const h=Math.max(22,(b.e-b.t)*PX_PER_HOUR); const col=CATS[b.cat]||C.dim;
+          {blocks.map(b=>{ const top=timeToY(b.t); const h=blockH(b); const col=CATS[b.cat]||C.dim;
             const st=effState(b); const mine=dd&&dd.id===b.id; const dx=(mine&&dd.axis==="h")?dd.dx:0;
             const lifted=mine&&dd.lifted&&dd.axis!=="h"; const missed=st==="missed", plan=st==="plan";
             const lay=cols[b.id]||{ col:0, n:1 }; const w=inner/lay.n;
+            const compact=h<34 && !lifted;                       // one line: label + start time
+            const stop=(e)=>e.stopPropagation();
             return (
               <div key={b.id} onMouseDown={(e)=>startBlock(e,b,"move")} onTouchStart={(e)=>startBlock(e,b,"move")}
                 onContextMenu={(e)=>e.preventDefault()}
                 onClick={(e)=>{ e.stopPropagation(); if(suppressRef.current){ suppressRef.current=false; return; } setEditing(editing===b.id?null:b.id); }}
-                style={{ position:"absolute", top, left:6+lay.col*w, width:w-(lay.n>1?3:0), height:h,
-                  transform:`translateX(${dx}px) scale(${lifted?1.03:1})`, transformOrigin:"center",
-                  background: lifted? `${col}40` : plan? `${col}0F` : `${col}22`, border:`${plan&&!lifted?"1.5px dashed":"1px solid"} ${col}`, borderLeft:`3px solid ${col}`,
-                  borderRadius:9, padding:"5px 9px", cursor:lifted?"grabbing":"grab", overflow:"hidden", touchAction:lifted?"none":"pan-y",
+                style={{ position:"absolute", top:top+1, left:6+lay.col*w, width:w-(lay.n>1?4:0), height:h-2,
+                  transform:`translateX(${dx}px) scale(${lifted?1.02:1})`, transformOrigin:"center",
+                  background: `linear-gradient(${lifted?col+"44":plan?col+"17":col+"2A"},${lifted?col+"44":plan?col+"17":col+"2A"}) ${C.panel}`, borderLeft:`3px solid ${col}`,   // solid, so hour lines don't show through
+                  borderRadius:8, padding:compact?"0 30px 0 9px":"6px 34px 6px 10px", display:compact?"flex":"block", alignItems:"center",
+                  cursor:lifted?"grabbing":"grab", overflow:"hidden", touchAction:lifted?"none":"pan-y",
                   userSelect:"none", WebkitUserSelect:"none", WebkitTouchCallout:"none",
                   boxShadow: lifted?"0 12px 30px rgba(0,0,0,.6)":"none",
-                  opacity: missed? 0.32 : (1 - Math.min(0.65, Math.abs(dx)/170)), transition: (dx||lifted)?"box-shadow .12s, transform .12s":"opacity .15s, transform .15s, box-shadow .15s", zIndex:lifted?30:5 }}>
-                <div style={{ display:"flex", alignItems:"center", gap:6 }}>
-                  <span style={{ width:8,height:8,borderRadius:"50%",background:col,flexShrink:0,opacity:plan?0.6:1 }}/>
-                  <span style={{ fontSize:lay.n>2?12:15, fontWeight:700, color:missed?C.faint:C.ink, textDecoration:missed?"line-through":"none", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{b.label||<span style={{ color:C.faint, fontWeight:500 }}>Untitled</span>}</span>
-                  {isPlanned(b) && <span title="From the Sunday plan" style={{ fontSize:10, color:C.teal, flexShrink:0 }}>✦</span>}
+                  opacity: missed? 0.35 : (1 - Math.min(0.65, Math.abs(dx)/170)), transition: (dx||lifted)?"box-shadow .12s, transform .12s":"opacity .15s, transform .15s, box-shadow .15s", zIndex:lifted?30:5 }}>
+                <div style={{ display:"flex", alignItems:"baseline", gap:7, minWidth:0, width:"100%" }}>
+                  <span style={{ fontSize:compact?12.5:lay.n>2?12.5:14.5, fontWeight:650, color:missed?C.faint:C.ink, textDecoration:missed?"line-through":"none", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis", minWidth:0 }}>{b.label||<span style={{ color:C.faint, fontWeight:500 }}>Untitled</span>}</span>
+                  {isPlanned(b) && <span title="From the Sunday plan" style={{ fontSize:9, color:C.teal, opacity:0.8, flexShrink:0 }}>✦</span>}
+                  {compact && <span style={{ marginLeft:"auto", fontSize:10.5, color:C.dim, fontVariantNumeric:"tabular-nums", flexShrink:0 }}>{hhmm(b.t)}</span>}
                 </div>
-                {(h>32 || lifted) && <div style={{ fontSize:10, color:lifted?C.ink:C.dim, marginTop:2, fontWeight:lifted?700:400, fontVariantNumeric:"tabular-nums" }}>{hhmm(b.t)}–{hhmm(b.e)}{!lifted && lay.n<3 ? ` · ${b.cat}`:""}{(b.note && h<=50 && !lifted)?" · 📝":""}{missed?" · skipped":""}</div>}
-                {b.note && h>50 && !lifted && <div style={{ fontSize:11.5, color:missed?C.faint:C.dim, marginTop:4, lineHeight:1.3, overflow:"hidden", display:"-webkit-box", WebkitLineClamp:Math.max(1,Math.floor((h-46)/15)), WebkitBoxOrient:"vertical", whiteSpace:"normal" }}>{b.note}</div>}
-                {/* resize grips (visual) — the top and bottom edges resize straight away, no hold */}
-                {h>=40 && <div style={{ position:"absolute", top:0, left:0, right:0, height:8, cursor:"ns-resize", pointerEvents:"none" }}/>}
-                <div style={{ position:"absolute", bottom:0, left:0, right:0, height:isMobile?16:11, cursor:"ns-resize", pointerEvents:"none", display:"flex", alignItems:"flex-end", justifyContent:"center", paddingBottom:3 }}>
-                  {h>=36 && <div style={{ width:22, height:3, borderRadius:2, background:col, opacity:mine?0.9:0.35 }}/>}
-                </div>
+                {!compact && <div style={{ fontSize:11, color:lifted?C.ink:C.dim, marginTop:2, fontWeight:lifted?700:400, fontVariantNumeric:"tabular-nums" }}>{hhmm(b.t)}–{hhmm(b.e)}{missed?" · skipped":""}</div>}
+                {b.note && h>=76 && !lifted && <div style={{ fontSize:11.5, color:missed?C.faint:C.dim, marginTop:5, lineHeight:1.35, overflow:"hidden", display:"-webkit-box", WebkitLineClamp:Math.max(1,Math.floor((h-58)/16)), WebkitBoxOrient:"vertical", whiteSpace:"normal" }}>{b.note}</div>}
+                {/* one tap → bin (Dan, 2 Nov: "reintroduce the one click trash button"). Undo + the bin restore it. */}
+                {!lifted && <button aria-label="Delete block" onMouseDown={stop} onTouchStart={stop} onClick={(e)=>{ e.stopPropagation(); buzz(); delBlock(b.id); }}
+                  style={{ position:"absolute", top:compact?"50%":4, right:4, transform:compact?"translateY(-50%)":"none", width:compact?22:26, height:compact?22:26, borderRadius:7, border:"none", background:"transparent", color:C.faint, cursor:"pointer", padding:0, display:"flex", alignItems:"center", justifyContent:"center", opacity:0.75 }}>
+                  <TrashIcon size={compact?12:14}/>
+                </button>}
               </div>
             );
           })}
