@@ -674,4 +674,19 @@ export const VAULT_PLAN = [
   { key: "rm-td-big-dofe", kind: "todo-remove", target: "td-big-dofe" },
   { key: "td-big-dofe-admin", kind: "todo", list: "big",
     text: "DofE Gold admin: get every section signed off and submitted on eDofE (evidence, assessor reports)" },
+  // --- appended 2026-11-04 · habit check-in, backlog 30 Oct – 3 Nov (at Dad's) ----------
+  // Dan: "Sunday and Friday were BS days… Friday was probably like a zero. Saturday was probably
+  // like a 4" (football game most of the day), "Sunday… like a 2". Friday's 0 can't be stored
+  // on a 1–10 scale, so it carries the BS flag only.
+  { key: "hl-2026-10-30", kind: "habitLog", date: "2026-10-30", bad: { bs: true }, habits: {} },
+  { key: "hl-2026-10-31", kind: "habitLog", date: "2026-10-31", rating: 4, habits: { exercise: true } },
+  { key: "hl-2026-11-01", kind: "habitLog", date: "2026-11-01", rating: 2, bad: { bs: true }, habits: {} },
+  // Mon 2: Gym A, watched Rocky (~2h screen), decent dinner but junk snacking after — Eat Well
+  // left unticked for the snacking. "About 7.5."
+  { key: "hl-2026-11-02", kind: "habitLog", date: "2026-11-02", rating: 7.5,
+    habits: { exercise: true, screen: true } },
+  // Tue 3: football 20–21, little screen, bed 23:00 (Garmin 82, 7h45, up 07:15). "8 out of 10."
+  { key: "hl-2026-11-03", kind: "habitLog", date: "2026-11-03", rating: 8, habits: { screen: true } },
+  { key: "wo-2026-11-03-football", kind: "workout", date: "2026-11-03", t: 20, e: 21, cat: "Sport",
+    label: "Football", note: "From the habit check-in." },
 ];
