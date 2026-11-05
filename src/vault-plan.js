@@ -689,4 +689,17 @@ export const VAULT_PLAN = [
   { key: "hl-2026-11-03", kind: "habitLog", date: "2026-11-03", rating: 8, habits: { screen: true } },
   { key: "wo-2026-11-03-football", kind: "workout", date: "2026-11-03", t: 20, e: 21, cat: "Sport",
     label: "Football", note: "From the habit check-in." },
+  // --- appended 2026-11-05 · to-do review with Dan ------------------------------------------
+  // Dan kept: interview, Six Easy Pieces, gym optimise, DofE admin, Stamford site, mock debrief,
+  // shopping run (halfway), rosacea GP, Garmin. Everything else shipped here is off his list.
+  { key: "rm3-td-mock-dates", kind: "todo-remove", target: "td-mock-dates" },
+  { key: "rm3-td-isa-date", kind: "todo-remove", target: "td-isa-date" },
+  { key: "rm3-td-apikey", kind: "todo-remove", target: "td-apikey" },
+  { key: "rm3-td-peaks", kind: "todo-remove", target: "td-peaks" },
+  { key: "rm3-td-ey-decline", kind: "todo-remove", target: "td-ey-decline" },   // decline window stays on Calendar
+  { key: "rm3-td-run-close", kind: "todo-remove", target: "td-run-close" },
+  // GitHub token: "don't bring it up until two weeks before" — off the list, onto the Month tab.
+  { key: "rm3-td-gh-token-renew", kind: "todo-remove", target: "td-gh-token-renew" },
+  { key: "ev-gh-token-renew-2027", kind: "event", date: "2027-09-16",
+    text: "Renew GitHub token for Obsidian Git (expires 30 Sep) — classic token, repo scope" },
 ];
