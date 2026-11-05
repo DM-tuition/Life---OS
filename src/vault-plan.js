@@ -702,4 +702,7 @@ export const VAULT_PLAN = [
   { key: "rm3-td-gh-token-renew", kind: "todo-remove", target: "td-gh-token-renew" },
   { key: "ev-gh-token-renew-2027", kind: "event", date: "2027-09-16",
     text: "Renew GitHub token for Obsidian Git (expires 30 Sep) — classic token, repo scope" },
+  // --- appended 2026-11-05 · LinkedIn backlog (vault: Personal/wiki/LinkedIn Posts.md) -------
+  { key: "td-linkedin-posts", kind: "todo", list: "big",
+    text: "LinkedIn posts: 100-miler (owed since Sep), HYROX, Higgs project, EY offer, Trafford sports mela" },
 ];
