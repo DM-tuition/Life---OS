@@ -776,4 +776,24 @@ export const VAULT_PLAN = [
   { key: "hl-2026-11-06", kind: "habitLog", date: "2026-11-06", rating: 8, habits: {} },
   { key: "hl-2026-11-07", kind: "habitLog", date: "2026-11-07", rating: 6.5, habits: {} },
   { key: "hl-2026-11-08", kind: "habitLog", date: "2026-11-08", rating: 8.5, habits: {} },
+  // --- appended 2026-11-09 · Utsav Charity Run (ADS × Trafford Hindu Society) ---------------
+  // Sun 15 Nov 14:00, Stamford Park, 11,048 m. Sunday re-planned: the 13:00 pool slot gives way.
+  { key: "ev-utsav-run-15nov", kind: "event", date: "2026-11-15",
+    text: "🏃 Utsav Charity Run — Stamford Park, 14:00 (11,048 m). Dan organising" },
+  { key: "kd-utsav-run", kind: "keyDate", name: "Utsav run", date: "2026-11-15" },
+  { key: "td-utsav-reels-riyan", kind: "todo", due: "2026-11-10", star: true,
+    text: "Film Utsav run promo reels with Riyan" },
+  { key: "td-utsav-park-check", kind: "todo", due: "2026-11-11",
+    text: "Utsav run: confirm meeting point + postcode, and check whether the park needs booking" },
+  { key: "rm-wp-2026-11-15", kind: "plan-remove", date: "2026-11-15", target: "wp-2026-11-15" },
+  { key: "wp-2026-11-15-v2", kind: "plan", date: "2026-11-15", blocks: [
+    { t: 9, e: 9.25, label: "Stretch", cat: "Other" },
+    { t: 10, e: 10 + 20/60, label: "Answer the planner's questions", cat: "Other", note: "In the Planning and Calendar chat." },
+    { t: 10.5, e: 12, label: "Interview problems + A-level", cat: "Revision", note: "Listen back to the week's recordings; name the weakest answer." },
+    { t: 12, e: 12.75, label: "Lunch (carbs)", cat: "Other" },
+    { t: 13, e: 14, label: "Utsav run set-up · Stamford Park", cat: "Other", note: "Organiser: meeting point, first-aid kit, JustGiving QR." },
+    { t: 14, e: 16, label: "Utsav Charity Run · 11,048 m", cat: "Sport", note: "End time assumed (~2h incl. walkers)." },
+    { t: 18, e: 18.5, label: "School-week setup", cat: "Other", note: "Bag, kit, gym clothes for Mon + Wed." },
+    { t: 22, e: 22.5, label: "Wind-down · phone out of the room", cat: "Other", note: "Bed 22:30." },
+  ]},
 ];
