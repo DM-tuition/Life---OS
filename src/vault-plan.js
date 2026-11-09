@@ -770,4 +770,10 @@ export const VAULT_PLAN = [
     { t: 18, e: 18.5, label: "School-week setup", cat: "Other", note: "Bag, kit, gym clothes for Mon + Wed." },
     { t: 22, e: 22.5, label: "Wind-down · phone out of the room", cat: "Other", note: "Bed 22:30." },
   ]},
+  // --- appended 2026-11-09 · habit check-in, scores only (detail to follow from Dan) ---
+  { key: "hl-2026-11-04", kind: "habitLog", date: "2026-11-04", rating: 6.5, habits: {} },
+  { key: "hl-2026-11-05", kind: "habitLog", date: "2026-11-05", rating: 8, habits: {} },
+  { key: "hl-2026-11-06", kind: "habitLog", date: "2026-11-06", rating: 8, habits: {} },
+  { key: "hl-2026-11-07", kind: "habitLog", date: "2026-11-07", rating: 6.5, habits: {} },
+  { key: "hl-2026-11-08", kind: "habitLog", date: "2026-11-08", rating: 8.5, habits: {} },
 ];
