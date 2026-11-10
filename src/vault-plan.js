@@ -827,4 +827,34 @@ export const VAULT_PLAN = [
     { t: 13, e: 14, label: "Stamford Park set-up", cat: "Work", note: "Utsav Charity Run — you're organising. Meeting point + postcode: see the ADS page." },
     { t: 14, e: 16, label: "Utsav Charity Run (11,048 m)", cat: "Sport", note: "ADS × Trafford Hindu Society. One metre per £1 Utsav raised last year. Pack-down included." },
   ]},
+  // --- appended 2026-11-10 · Dan: no football Tue/Thu this week; real kick-off times; travel ---------
+  // "I'm not doing football training this week on Tuesday or Thursday... I've definitely got some extra
+  // space to lock in more on interviews." Sat: meet 12:30, kick-off 14:00. Sun: meet 09:15, kick-off 10:00.
+  { key: "rm-wp-2026-11-10-fb", kind: "plan-remove", date: "2026-11-10", target: "wp-2026-11-10",
+    labels: ["6-a-side · Tom", "Dinner (early, before football)"] },
+  { key: "wp-2026-11-10-v2", kind: "plan", date: "2026-11-10", blocks: [
+    { t: 18, e: 18.75, label: "Dinner", cat: "Other" },
+    { t: 19.5, e: 20.5, label: "Interview problems — out loud", cat: "Revision", note: "Extra block — no 6-a-side this week. Mock-style: one unseen problem, talk the whole way, record it." },
+  ]},
+  { key: "rm-wp-2026-11-12-fb", kind: "plan-remove", date: "2026-11-12", target: "wp-2026-11-12",
+    labels: ["Football training", "Wind-down · bed"] },
+  { key: "wp-2026-11-12-v2", kind: "plan", date: "2026-11-12", blocks: [
+    { t: 19.5, e: 20.5, label: "Interview problems — out loud", cat: "Revision", note: "Extra block — no training this week. Explain the Lennard-Jones curve start to finish, unprompted: shape, minimum, force, spring constant, thermal expansion." },
+    { t: 22, e: 22.5, label: "Wind-down · phone out of the room", cat: "Other", note: "Bed 22:30 — no late training tonight." },
+  ]},
+  { key: "rm-wp-2026-11-14-v2", kind: "plan-remove", date: "2026-11-14", target: "wp-2026-11-14-v2" },
+  { key: "wp-2026-11-14-v3", kind: "plan", date: "2026-11-14", blocks: [
+    { t: 10, e: 11.5, label: "Interview problems + A-level catch-up", cat: "Revision", note: "Topic: Lennard-Jones 6–12, why the attraction goes as r⁻⁶ (induced dipoles)." },
+    { t: 11.75, e: 12.25, label: "Lunch (carbs)", cat: "Other" },
+    { t: 12.5, e: 16, label: "School football match", cat: "Sport", note: "Meet 12:30, kick-off 14:00 (Dan, 10 Nov)." },
+  ]},
+  { key: "rm-wp-2026-11-15-am", kind: "plan-remove", date: "2026-11-15", target: "wp-2026-11-15-v3",
+    labels: ["Answer the planner's questions", "Interview problems + A-level", "Lunch"] },
+  { key: "rm-wp-2026-11-15-stretch", kind: "plan-remove", date: "2026-11-15", target: "wp-2026-11-15", labels: ["Stretch"] },
+  { key: "wp-2026-11-15-v4", kind: "plan", date: "2026-11-15", blocks: [
+    { t: 8.5, e: 8.75, label: "Stretch", cat: "Other" },
+    { t: 9.25, e: 11.75, label: "Sunday football match", cat: "Sport", note: "Meet 09:15, kick-off 10:00 (Dan, 10 Nov)." },
+    { t: 12, e: 12.75, label: "Lunch + answer the planner's questions", cat: "Other", note: "In the Planning and Calendar chat — 10 minutes." },
+    { t: 16.5, e: 17.5, label: "Interview recordings review", cat: "Revision", note: "Listen back to the week's recordings; name the weakest answer — that's next week's target." },
+  ]},
 ];
