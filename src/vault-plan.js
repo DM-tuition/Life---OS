@@ -796,4 +796,9 @@ export const VAULT_PLAN = [
     { t: 18, e: 18.5, label: "School-week setup", cat: "Other", note: "Bag, kit, gym clothes for Mon + Wed." },
     { t: 22, e: 22.5, label: "Wind-down · phone out of the room", cat: "Other", note: "Bed 22:30." },
   ]},
+  // --- appended 2026-11-10 · Utsav show date (Dan: "Utsav is on the 27th") ----------------
+  { key: "ev-utsav-show-27nov", kind: "event", date: "2026-11-27",
+    text: "🪔 Utsav: Trafford Hindu Society show (announce run total)" },
+  { key: "td-utsav-headcount-post", kind: "todo", due: "2026-11-12",
+    text: "Utsav run: post the 'X people signed up' headcount (numbers from Riyan's form)" },
 ];
