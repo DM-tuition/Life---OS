@@ -817,4 +817,14 @@ export const VAULT_PLAN = [
     { t: 10.5, e: 12.5, label: "Sunday football match", cat: "Sport", note: "Sunday games are a regular thing now (Dan, 9 Nov) — time assumed; tell the planner the real one." },
     { t: 14.5, e: 16, label: "Interview problems + A-level", cat: "Revision", note: "Listen back to the week's recordings; name the weakest answer — that's next week's target." },
   ]},
+  // --- appended 2026-11-10 · Sun 15 Nov re-planned around the Utsav run (Dan organising, 14:00) -------
+  // v2 had assumed a Sunday match; with the run that day, no match is planned this Sunday.
+  { key: "rm-wp-2026-11-15-v2", kind: "plan-remove", date: "2026-11-15", target: "wp-2026-11-15-v2" },
+  { key: "wp-2026-11-15-v3", kind: "plan", date: "2026-11-15", blocks: [
+    { t: 9.5, e: 9.84, label: "Answer the planner's questions", cat: "Other", note: "In the Planning and Calendar chat." },
+    { t: 10.5, e: 12, label: "Interview problems + A-level", cat: "Revision", note: "Listen back to the week's recordings; name the weakest answer — that's next week's target." },
+    { t: 12, e: 12.75, label: "Lunch", cat: "Other" },
+    { t: 13, e: 14, label: "Stamford Park set-up", cat: "Work", note: "Utsav Charity Run — you're organising. Meeting point + postcode: see the ADS page." },
+    { t: 14, e: 16, label: "Utsav Charity Run (11,048 m)", cat: "Sport", note: "ADS × Trafford Hindu Society. One metre per £1 Utsav raised last year. Pack-down included." },
+  ]},
 ];
