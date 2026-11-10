@@ -801,4 +801,20 @@ export const VAULT_PLAN = [
     text: "🪔 Utsav: Trafford Hindu Society show (announce run total)" },
   { key: "td-utsav-headcount-post", kind: "todo", due: "2026-11-12",
     text: "Utsav run: post the 'X people signed up' headcount (numbers from Riyan's form)" },
+  // --- appended 2026-11-10 · Dan's answers (9 Nov): school game Sat MORNING; Sunday games too ----------
+  // Times not given — assumed and marked. Sunday games "will probably be more regular" from now.
+  { key: "rm-wp-2026-11-14-v1", kind: "plan-remove", date: "2026-11-14", target: "wp-2026-11-14",
+    labels: ["Interview problems + A-level catch-up", "Lunch (carbs)", "Football match"] },
+  { key: "wp-2026-11-14-v2", kind: "plan", date: "2026-11-14", blocks: [
+    { t: 9.5, e: 12, label: "School football match", cat: "Sport", note: "Morning game (Dan, 9 Nov) — kick-off time assumed ~10:00; tell the planner the real one." },
+    { t: 12.5, e: 13.25, label: "Lunch", cat: "Other" },
+    { t: 14, e: 15.5, label: "Interview problems + A-level catch-up", cat: "Revision", note: "Moved to the afternoon for the match. Topic: Lennard-Jones 6–12, why the attraction goes as r⁻⁶ (induced dipoles)." },
+  ]},
+  { key: "rm-wp-2026-11-15-v1", kind: "plan-remove", date: "2026-11-15", target: "wp-2026-11-15",
+    labels: ["Answer the planner's questions", "Interview problems + A-level", "Pool + sauna"] },
+  { key: "wp-2026-11-15-v2", kind: "plan", date: "2026-11-15", blocks: [
+    { t: 9.5, e: 9.84, label: "Answer the planner's questions", cat: "Other", note: "In the Planning and Calendar chat." },
+    { t: 10.5, e: 12.5, label: "Sunday football match", cat: "Sport", note: "Sunday games are a regular thing now (Dan, 9 Nov) — time assumed; tell the planner the real one." },
+    { t: 14.5, e: 16, label: "Interview problems + A-level", cat: "Revision", note: "Listen back to the week's recordings; name the weakest answer — that's next week's target." },
+  ]},
 ];
