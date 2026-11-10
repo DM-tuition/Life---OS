@@ -812,11 +812,6 @@ export const VAULT_PLAN = [
   ]},
   { key: "rm-wp-2026-11-15-v1", kind: "plan-remove", date: "2026-11-15", target: "wp-2026-11-15",
     labels: ["Answer the planner's questions", "Interview problems + A-level", "Pool + sauna"] },
-  { key: "wp-2026-11-15-v2", kind: "plan", date: "2026-11-15", blocks: [
-    { t: 9.5, e: 9.84, label: "Answer the planner's questions", cat: "Other", note: "In the Planning and Calendar chat." },
-    { t: 10.5, e: 12.5, label: "Sunday football match", cat: "Sport", note: "Sunday games are a regular thing now (Dan, 9 Nov) — time assumed; tell the planner the real one." },
-    { t: 14.5, e: 16, label: "Interview problems + A-level", cat: "Revision", note: "Listen back to the week's recordings; name the weakest answer — that's next week's target." },
-  ]},
   // --- appended 2026-11-10 · Sun 15 Nov re-planned around the Utsav run (Dan organising, 14:00) -------
   // v2 had assumed a Sunday match; with the run that day, no match is planned this Sunday.
   { key: "rm-wp-2026-11-15-v2", kind: "plan-remove", date: "2026-11-15", target: "wp-2026-11-15-v2" },
@@ -856,5 +851,13 @@ export const VAULT_PLAN = [
     { t: 9.25, e: 11.75, label: "Sunday football match", cat: "Sport", note: "Meet 09:15, kick-off 10:00 (Dan, 10 Nov)." },
     { t: 12, e: 12.75, label: "Lunch + answer the planner's questions", cat: "Other", note: "In the Planning and Calendar chat — 10 minutes." },
     { t: 16.5, e: 17.5, label: "Interview recordings review", cat: "Revision", note: "Listen back to the week's recordings; name the weakest answer — that's next week's target." },
+  ]},
+  // --- appended 2026-11-10 · fix: key clash on Sun 15 ----------------------------------------------
+  // Two sessions both wrote "wp-2026-11-15-v2" (the Utsav session's applied; the planner's never did and
+  // is removed). The planner's rm-wp-2026-11-15-v2 then also cleared the Utsav session's evening blocks.
+  // Put those back. Rule for re-plans: grep for the key before appending.
+  { key: "wp-2026-11-15-v5", kind: "plan", date: "2026-11-15", blocks: [
+    { t: 18, e: 18.5, label: "School-week setup", cat: "Other", note: "Bag, kit, gym clothes for Mon + Wed." },
+    { t: 22, e: 22.5, label: "Wind-down · phone out of the room", cat: "Other", note: "Bed 22:30." },
   ]},
 ];
