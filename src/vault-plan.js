@@ -1221,4 +1221,34 @@ export const VAULT_PLAN = [
   { key: "rte2-2026-10-18", kind: "rating", date: "2026-10-18", value: 4.5, est: true, why: "term weekend (BS days cluster here)" },
   { key: "rte2-2026-10-28", kind: "rating", date: "2026-10-28", value: 6.5, est: true, why: "HYROX doubles 1:17 (target sub-1h), then Rohan's party" },
   { key: "rte2-2026-10-29", kind: "rating", date: "2026-10-29", value: 6, est: true, why: "library in the morning, dinner out with mum before she flew" },
+  // --- appended 2026-11-12 · discipline trend made true (Dan: "my Garmin data ... informs you on what
+  // the truth is"). `known` = habits the check-in actually assessed (from the Habit Log table), so an
+  // unticked one reads as a real miss, not unknown. Garmin overrules a stated bedtime: 20 Oct asleep 23:24.
+  { key: "hl-off-bed-2026-10-20", kind: "habitLog", date: "2026-10-20", habits: {}, off: ["bed"] },
+  { key: "hl-known-2026-10-19", kind: "habitLog", date: "2026-10-19", habits: {}, known: ["eatwell", "exercise", "screen"] },
+  { key: "hl-known-2026-10-20", kind: "habitLog", date: "2026-10-20", habits: {}, known: ["eatwell", "exercise", "screen"] },
+  { key: "hl-known-2026-10-21", kind: "habitLog", date: "2026-10-21", habits: {}, known: ["eatwell", "exercise", "screen"] },
+  { key: "hl-known-2026-10-22", kind: "habitLog", date: "2026-10-22", habits: {}, known: ["eatwell", "exercise"] },
+  { key: "hl-known-2026-10-23", kind: "habitLog", date: "2026-10-23", habits: {}, known: ["eatwell", "exercise", "screen"] },
+  { key: "hl-known-2026-10-24", kind: "habitLog", date: "2026-10-24", habits: {}, known: ["eatwell", "exercise"] },
+  { key: "hl-known-2026-10-25", kind: "habitLog", date: "2026-10-25", habits: {}, known: ["eatwell", "exercise", "screen"] },
+  { key: "hl-known-2026-10-26", kind: "habitLog", date: "2026-10-26", habits: {}, known: ["eatwell", "exercise"] },
+  { key: "hl-known-2026-10-27", kind: "habitLog", date: "2026-10-27", habits: {}, known: ["eatwell", "exercise"] },
+  { key: "hl-known-2026-10-28", kind: "habitLog", date: "2026-10-28", habits: {}, known: ["eatwell", "exercise"] },
+  { key: "hl-known-2026-10-30", kind: "habitLog", date: "2026-10-30", habits: {}, known: ["eatwell", "exercise"] },
+  { key: "hl-known-2026-10-31", kind: "habitLog", date: "2026-10-31", habits: {}, known: ["exercise"] },
+  { key: "hl-known-2026-11-01", kind: "habitLog", date: "2026-11-01", habits: {}, known: ["exercise"] },
+  { key: "hl-known-2026-11-02", kind: "habitLog", date: "2026-11-02", habits: {}, known: ["eatwell", "exercise", "screen"] },
+  { key: "hl-known-2026-11-03", kind: "habitLog", date: "2026-11-03", habits: {}, known: ["eatwell", "exercise", "screen"] },
+  // "Last week or so I've had a pretty very healthy diet" (Dan, 12 Nov) -> Eat Well 5-11 Nov.
+  { key: "hl-eat-2026-11-05", kind: "habitLog", date: "2026-11-05", habits: { eatwell: true } },
+  { key: "hl-eat-2026-11-06", kind: "habitLog", date: "2026-11-06", habits: { eatwell: true } },
+  { key: "hl-eat-2026-11-07", kind: "habitLog", date: "2026-11-07", habits: { eatwell: true } },
+  { key: "hl-eat-2026-11-08", kind: "habitLog", date: "2026-11-08", habits: { eatwell: true } },
+  { key: "hl-eat-2026-11-09", kind: "habitLog", date: "2026-11-09", habits: { eatwell: true } },
+  { key: "hl-eat-2026-11-10", kind: "habitLog", date: "2026-11-10", habits: { eatwell: true } },
+  { key: "hl-eat-2026-11-11", kind: "habitLog", date: "2026-11-11", habits: { eatwell: true } },
+  // New Library habit (12 Nov). Known library days so far: 26 Oct (~2h, interview prep), 29 Oct (morning).
+  { key: "hl-lib-2026-10-26", kind: "habitLog", date: "2026-10-26", habits: { library: true } },
+  { key: "hl-lib-2026-10-29", kind: "habitLog", date: "2026-10-29", habits: { library: true } },
 ];
