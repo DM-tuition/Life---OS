@@ -231,7 +231,7 @@ function applyEntry(e){
       for(const k of (e.off||[])){ if(k==="bs") d={ ...d, bs:false }; if(k in h) h[k]=false; if(k in bd) bd[k]=false; }
       d={ ...d, habits:h, bad:bd };
       if(e.reps) d.reps={ ...(d.reps||{ target:dayOfYear(e.date) }), done:true };
-      if(e.rating && !d.rating) d.rating=e.rating;   // his own score in the app wins
+      if(e.rating && (!d.rating || d.ratingEst)){ d.rating=e.rating; d.ratingEst=false; d.ratingZero=false; }   // his own app score wins; an estimate never does
       if(e.bs) d.bs=true;                             // his own "BS day" call, from the check-in
       writeLS("day:"+e.date,d); return;
     }
@@ -244,6 +244,17 @@ function applyEntry(e){
         d={ ...d, blocks:[...blocks,{ id:Date.now()+Math.floor(Math.random()*1000), done:true, t:e.t, e:e.e,
           label:e.label, cat:CATS[e.cat]?e.cat:"Gym", note:e.note||"" }] };
       d={ ...d, habits:{ ...(d.habits||{}), exercise:true } };
+      writeLS("day:"+e.date,d); return;
+    }
+    case "rating": {                      // a day score, 0–10 (12 Nov). `est: true` = Claude's estimate for a past
+      // day he never scored (Dan: "assume slightly worse than the general local trend, but only for the
+      // past"). An estimate only fills an empty day; a real score replaces an estimate, never his own.
+      let d=readLS("day:"+e.date,null);
+      if(!d){ d={ ...blankDay(e.date), stub:true };
+        const idx=readLS("index:days",[]); if(!idx.includes(e.date)) writeLS("index:days",[...idx,e.date]); }
+      const has = d.rating>0 || d.ratingZero;
+      if(e.est){ if(has) return; d={ ...d, rating:e.value, ratingEst:true, ratingZero:false }; }
+      else { if(has && !d.ratingEst) return; d={ ...d, rating:e.value, ratingZero:e.value===0, ratingEst:false }; }
       writeLS("day:"+e.date,d); return;
     }
     case "sleep": {                       // a night from the monthly Garmin export (12 Nov). `date` = the WAKE
@@ -403,6 +414,8 @@ function useIsTouch(){
 }
 
 // ============ AUTO BREAKDOWN (derive Hourly Breakdown from timeline blocks) ============
+// day score incl. a real 0 (BS days) — null when unscored
+const scoreOf = (d)=> !d ? null : d.ratingZero ? 0 : (d.rating>0 ? d.rating : null);
 const slH = (d)=> d && d.sleep ? d.sleep.hours : undefined;   // Garmin hours on a day, if any
 const BD_MAP = { Sleep:"Sleep", School:"Lessons", Revision:"Revision", Gym:"Gym", Sport:"Activity", Activity:"Activity" };
 function computeBreakdown(blocks, sleepH){
@@ -1286,12 +1299,20 @@ function TodayView({ day,date,setDate,upd,dayTypes,applyDayType,links,allDays,fl
         )}
       </div>
 
+      {(()=>{ // Dan, 12 Nov: "from now on I will give a score and you will push me to do so"
+        if(date!==todayISO()) return null;
+        const y=addDays(date,-1), yd=allDays[y];
+        if(scoreOf(yd)!==null && !(yd&&yd.ratingEst)) return null;
+        return <button onClick={()=>{ setDate(y); setShowLog(true); }} style={{ display:"block", width:"100%", marginBottom:14, padding:"11px 14px", borderRadius:12, cursor:"pointer", textAlign:"left",
+          border:`1px solid ${C.red}`, background:`${C.red}1f`, color:C.ink, fontSize:14 }}>
+          <b style={{ color:C.red }}>Yesterday has no score.</b> Score it now, 0–10, while you remember it →</button>;
+      })()}
       <div style={{ display:"flex", gap:10, justifyContent:"center", marginBottom:16, flexWrap:"wrap" }}>
         {[
           { l:"Plan adherence", v: adh?`${adh.pct}%`:"—", c: adh?(adh.pct>=70?C.green:adh.pct>=40?C.gold:C.red):C.faint, on:()=>setShowLog(true) },
           // Daily reps lapsed (Dan, 20 Oct); the discipline score is the number he asked for on 27 Oct
           { l:"Discipline", v: dayScore===null?"—":`${dayScore>0?"+":""}${dayScore}`, c: dayScore>0?C.green:dayScore<0?C.red:C.dim, on:()=>setShowLog(true) },
-          { l:"Day score", v: day.rating?`${day.rating}/10`:"—", c:C.red, on:()=>setShowLog(true) },
+          { l:"Day score", v: scoreOf(day)===null?"—":`${scoreOf(day)}/10${day.ratingEst?" est":""}`, c:C.red, on:()=>setShowLog(true) },
         ].map(s=> <button key={s.l} onClick={s.on} style={{ background:C.panel, border:`1px solid ${C.line}`, borderRadius:12, padding:"8px 16px", cursor:"pointer", textAlign:"center", minWidth:96 }}><div style={{ fontSize:18, fontWeight:700, color:s.c }}>{s.v}</div><div style={{ fontSize:10, color:C.dim, marginTop:3 }}>{s.l}</div></button>)}
       </div>
 
@@ -1397,9 +1418,10 @@ function TodayView({ day,date,setDate,upd,dayTypes,applyDayType,links,allDays,fl
 
           <Panel accent={C.red} title="Day Assessment" style={{ gridColumn:isMobile?"auto":"1 / -1" }}>
             <div style={{ display:"flex", gap:6, marginBottom:14, flexWrap:"wrap" }}>
-              {[1,2,3,4,5,6,7,8,9,10].map(n=> <button key={n} onClick={()=>upd({rating:n})} style={{ width:32,height:36,borderRadius:7,cursor:"pointer",fontWeight:700,fontSize:14, border:`1px solid ${day.rating>=n?C.red:C.line}`, background:day.rating>=n?`rgba(224,82,74,${0.25+0.05*n})`:"transparent", color:day.rating>=n?"#fff":C.faint }}>{n}</button>)}
+              {[0,1,2,3,4,5,6,7,8,9,10].map(n=> <button key={n} onClick={()=>upd({rating:n, ratingZero:n===0, ratingEst:false})} style={{ width:32,height:36,borderRadius:7,cursor:"pointer",fontWeight:700,fontSize:14, border:`1px solid ${(!day.ratingEst&&((n===0&&day.ratingZero)||(n>0&&day.rating>=n)))?C.red:C.line}`, background:(!day.ratingEst&&((n===0&&day.ratingZero)||(n>0&&day.rating>=n)))?`rgba(224,82,74,${0.25+0.05*n})`:"transparent", color:day.rating>=n?"#fff":C.faint }}>{n}</button>)}
               <div style={{ display:"flex", alignItems:"center", fontFamily:"'Caveat',cursive", fontSize:26, color:C.red, marginLeft:4 }}>/10</div>
             </div>
+            {day.ratingEst && <Mini>Estimated {day.rating}/10 — you didn't score this day. Tap a number to score it for real.</Mini>}
             <textarea value={day.feedback} onChange={e=>upd({feedback:e.target.value})} placeholder="Feedback: how did today actually go?" style={{ ...inp, minHeight:70, resize:"vertical", width:"100%" }}/>
           </Panel>
         </div>
@@ -1813,7 +1835,7 @@ function DisciplineChart({ allDays, links, bad }){
 // ============ METRIC CHART — one number per day over time (Dan, 12 Nov) ============
 // Same drawing as the discipline chart: a smooth line through logged days, gaps where nothing was
 // logged (never drawn as zero), a dashed 7-day trend, and an optional target band.
-function MetricChart({ allDays, title, accent, get, yMin, yMax, ticks, target, targetLabel, note, unitFmt }){
+function MetricChart({ allDays, title, accent, get, isEst, yMin, yMax, ticks, target, targetLabel, note, unitFmt }){
   const [span,setSpan] = useState(30);
   const today=todayISO();
   const first=Object.keys(allDays).filter(k=>get(allDays[k])!==null).sort()[0];
@@ -1821,6 +1843,8 @@ function MetricChart({ allDays, title, accent, get, yMin, yMax, ticks, target, t
   const n= span==="all"? allN : span;
   const isos=[]; for(let i=n-1;i>=0;i--) isos.push(addDays(today,-i));
   const vals=isos.map(iso=>{ const d=allDays[iso]; return d? get(d) : null; });
+  const est=isos.map(iso=>{ const d=allDays[iso]; return !!(d && isEst && isEst(d)); });
+  const nEst=est.filter((e,i)=>e && vals[i]!==null).length;
   const trend=vals.map((_,i)=>{ const w=vals.slice(Math.max(0,i-6),i+1).filter(v=>v!==null); return w.length? w.reduce((a,b)=>a+b,0)/w.length : null; });
   const W=720,H=210,L=34,R=12,T=14,B=26, iw=W-L-R, ih=H-T-B;
   const X=(i)=> L + (n===1?iw/2: i*iw/(n-1));
@@ -1847,16 +1871,16 @@ function MetricChart({ allDays, title, accent, get, yMin, yMax, ticks, target, t
         {runs(vals).map((r,i)=>{ const path=smoothPath(r,T,T+ih); return <path key={"a"+i} d={`${path} L${r[r.length-1][0]},${T+ih} L${r[0][0]},${T+ih} Z`} fill={`url(#mg${id})`}/>; })}
         {runs(trend).map((r,i)=> <path key={"t"+i} d={smoothPath(r,T,T+ih)} fill="none" stroke={C.gold} strokeWidth="1.6" strokeDasharray="5 4" opacity="0.85"/>)}
         {runs(vals).map((r,i)=> <path key={"l"+i} d={smoothPath(r,T,T+ih)} fill="none" stroke={accent} strokeWidth="2.2"/>)}
-        {n<=90 && vals.map((v,i)=> v===null?null: <circle key={"d"+i} cx={X(i)} cy={Y(v)} r={i===n-1?4.5:2.6} fill={target!=null&&v>=target?C.green:accent}><title>{`${isos[i]} · ${f(v)}`}</title></circle>)}
+        {n<=90 && vals.map((v,i)=> v===null?null: <circle key={"d"+i} cx={X(i)} cy={Y(v)} r={i===n-1?4.5:2.6} fill={est[i]?C.panel:(target!=null&&v>=target?C.green:accent)} stroke={est[i]?accent:"none"} strokeWidth="1.2"><title>{`${isos[i]} · ${f(v)}${est[i]?" (estimate)":""}`}</title></circle>)}
         {isos.map((iso,i)=> (i%step===0||i===n-1) ? <text key={"x"+i} x={X(i)} y={H-8} fontSize="10" fill={i===n-1?C.ink:C.faint} textAnchor="middle">{i===n-1?"today":lbl(iso)}</text> : null)}
       </svg>
       <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:10, marginTop:10 }}>
         <Stat label="Latest" value={f(latest??null)} color={accent}/>
         <Stat label="7-day avg" value={f(avg(last7))} color={C.gold}/>
         <Stat label={span==="all"?"All-time avg":`${n}-day avg`} value={f(avg(logged))} color={C.teal}/>
-        <Stat label="Days logged" value={logged.length} sub={`/${n}`} color={C.dim}/>
+        <Stat label="Days logged" value={logged.length-nEst} sub={`/${n}`} color={C.dim}/>
       </div>
-      <Mini>{note} <span style={{ color:C.gold }}>Dashed</span> = 7-day trend. Gaps = nothing logged.{target!=null?<> <span style={{ color:C.green }}>Green</span> = {targetLabel}.</>:null}</Mini>
+      <Mini>{note}{nEst>0?` ${nEst} hollow dot${nEst===1?" is an estimate":"s are estimates"} (included in averages).`:""} <span style={{ color:C.gold }}>Dashed</span> = 7-day trend. Gaps = nothing logged.{target!=null?<> <span style={{ color:C.green }}>Green</span> = {targetLabel}.</>:null}</Mini>
     </Panel>
   );
 }
@@ -1955,8 +1979,8 @@ function HabitsView({ allDays, links, saveLinks, cfg, saveCfg, bad, saveBad, let
         target={80} targetLabel="80+, Garmin's 'good'" get={(d)=> d.sleep && d.sleep.score!=null ? d.sleep.score : null}
         note="Garmin's 0–100 score, on the morning you woke. Arrives with the monthly export."/>
       <MetricChart allDays={allDays} title="How the day felt" accent={C.pink} yMin={0} yMax={10} ticks={[0,2,4,6,8,10]}
-        target={8} targetLabel="8+" get={(d)=> d.rating ? d.rating : null}
-        note="Your own 1–10 score for the day, from the check-in or the Today tab."/>
+        target={8} targetLabel="8+" get={scoreOf} isEst={(d)=>!!d.ratingEst}
+        note="Your own 0–10 score for the day, from the check-in or the Today tab."/>
       <FutureLetter letter={letter} saveLetter={saveLetter} letters={letters} saveLetters={saveLetters}/>
       <div style={{ display:"flex", flexDirection:"column", gap:18 }}>
         {HABITS.map(h=>{
