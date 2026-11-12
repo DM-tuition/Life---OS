@@ -879,4 +879,12 @@ export const VAULT_PLAN = [
   { key: "hl-ex-2026-11-10-gymchat", kind: "habitLog", date: "2026-11-10", habits: { exercise: true } },
   { key: "hl-ex-2026-11-11-gymchat", kind: "habitLog", date: "2026-11-11", habits: { exercise: true } },
   { key: "hl-ex-2026-11-12-gymchat", kind: "habitLog", date: "2026-11-12", habits: { exercise: true } },
+  // --- appended 2026-11-12 · IRONMAN Leeds chosen (vault: ADS/wiki/Ironman 2027.md) ---
+  { key: "ev-ironman-leeds-2027", kind: "event", date: "2027-08-15", text: "IRONMAN Leeds — full distance, Roundhay Park (Dan, Ayaan, Varish)" },
+  { key: "kd-ironman-leeds-2027", kind: "keyDate", name: "Ironman Leeds", date: "2027-08-15" },
+  { key: "rm-td-ironman-entry-decision-v2", kind: "todo-remove", target: "td-ironman-entry-decision-v2" },
+  { key: "td-ironman-leeds-enter", kind: "todo", due: "2026-11-18", star: true, list: "big",
+    text: "Enter IRONMAN Leeds (£752.64) — Dan, Ayaan + Varish all by Wed 18 Nov for Flex90" },
+  { key: "td-ironman-swim-lessons", kind: "todo", due: "2026-11-30", list: "big",
+    text: "Ironman: book front-crawl lessons / masters swim squad — 3 swims a week from December" },
 ];
