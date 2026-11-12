@@ -895,4 +895,8 @@ export const VAULT_PLAN = [
     text: "Garmin export (requested 12 Nov): when the email lands, upload the file to the Gym routine chat" },
   { key: "td-garmin-export-12dec", kind: "todo", due: "2026-12-12",
     text: "Monthly Garmin data export (last 30 days) → send to Claude with Hevy screenshots" },
+  // --- appended 2026-11-12 · habit check-in, scores only ---
+  { key: "hl-2026-11-09", kind: "habitLog", date: "2026-11-09", rating: 7.5, habits: {} },
+  { key: "hl-2026-11-10", kind: "habitLog", date: "2026-11-10", rating: 7.5, habits: {} },
+  { key: "hl-2026-11-11", kind: "habitLog", date: "2026-11-11", rating: 7, habits: {} },
 ];
