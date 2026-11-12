@@ -244,6 +244,18 @@ function applyEntry(e){
       d={ ...d, habits:{ ...(d.habits||{}), exercise:true } };
       writeLS("day:"+e.date,d); return;
     }
+    case "sleep": {                       // a night from the monthly Garmin export (12 Nov). `date` = the WAKE
+      // date; bed/wake are "HH:MM", hours is time actually asleep. Feeds that day's Sleep hours in the
+      // breakdown and the Sleep Hours chart in place of the 8h assumption. Never ticks `bed` — that is
+      // a habitLog on the evening's date, and only when he was asleep by 22:30.
+      let d=readLS("day:"+e.date,null);
+      if(!d){ d={ ...blankDay(e.date), stub:true };
+        const idx=readLS("index:days",[]); if(!idx.includes(e.date)) writeLS("index:days",[...idx,e.date]); }
+      const sl={ bed:e.bed, wake:e.wake, hours:+e.hours||0, score:e.score??null, src:"garmin" };
+      d={ ...d, sleep:sl };
+      d.breakdown=withAdj(computeBreakdown(d.blocks||[], sl.hours), d.breakdownAdj);
+      writeLS("day:"+e.date,d); return;
+    }
     case "workout-edit": {                // correct a block a `workout` entry shipped (matched by label)
       const d=readLS("day:"+e.date,null); if(!d) return;
       const patch={}; for(const k of ["t","e","note"]) if(e[k]!==undefined) patch[k]=e[k];
@@ -367,7 +379,7 @@ function materialiseDay(date, stored, { dayTypes, hols, weekMap, weekMapB, weekA
   if(obj && !(d.blocks||[]).some(b=>String(b.label||"").toLowerCase()===obj.label.toLowerCase()))
     d.blocks = [...(d.blocks||[]), { id:Date.now(), done:false, ...obj }];
   // breakdown = auto from timeline + the day's manual adjustments
-  d.breakdown = withAdj(computeBreakdown(d.blocks), d.breakdownAdj);
+  d.breakdown = withAdj(computeBreakdown(d.blocks, slH(d)), d.breakdownAdj);
   return d;
 }
 
@@ -389,12 +401,14 @@ function useIsTouch(){
 }
 
 // ============ AUTO BREAKDOWN (derive Hourly Breakdown from timeline blocks) ============
+const slH = (d)=> d && d.sleep ? d.sleep.hours : undefined;   // Garmin hours on a day, if any
 const BD_MAP = { Sleep:"Sleep", School:"Lessons", Revision:"Revision", Gym:"Gym", Sport:"Activity", Activity:"Activity" };
-function computeBreakdown(blocks){
+function computeBreakdown(blocks, sleepH){
   const out = { Sleep:0,Lessons:0,Revision:0,Gym:0,Activity:0 };
   for(const b of (blocks||[])){ const k=BD_MAP[b.cat]; if(k) out[k]+=Math.max(0,(b.e-b.t)); }
   for(const k in out) out[k]=Math.round(out[k]*2)/2;
-  if(out.Sleep===0) out.Sleep=8;   // auto-assume 8h sleep unless a Sleep block says otherwise
+  // Sleep: a Sleep block wins; else the night's Garmin hours (`sleep` entry, 12 Nov); else assume 8h
+  if(out.Sleep===0) out.Sleep = (typeof sleepH==="number" && sleepH>0) ? Math.round(sleepH*2)/2 : 8;
   return out;
 }
 // final breakdown = auto-from-timeline + manual ± adjustments, clamped at 0
@@ -624,9 +638,9 @@ export default function LifeOS(){
     if(!fromDay || fromDay.date===toIso) return;
     const to = materialiseDay(toIso, allDays[toIso]||readLS("day:"+toIso,null), dayCtx);
     const fromBlocks = fromDay.blocks.filter(b=>b.id!==blk.id);
-    const nf = { ...fromDay, blocks:fromBlocks, breakdown:withAdj(computeBreakdown(fromBlocks), fromDay.breakdownAdj) };
+    const nf = { ...fromDay, blocks:fromBlocks, breakdown:withAdj(computeBreakdown(fromBlocks, slH(fromDay)), fromDay.breakdownAdj) };
     const toBlocks = [...to.blocks, { ...blk, id:Date.now() }];
-    const nt = { ...to, blocks:toBlocks, breakdown:withAdj(computeBreakdown(toBlocks), to.breakdownAdj) };
+    const nt = { ...to, blocks:toBlocks, breakdown:withAdj(computeBreakdown(toBlocks, slH(to)), to.breakdownAdj) };
     await sSet(`day:${nf.date}`, nf); await sSet(`day:${nt.date}`, nt);
     const idx=await sGet("index:days",[]); const add=[nf.date,nt.date].filter(x=>!idx.includes(x)); if(add.length) await sSet("index:days",[...idx,...add]);
     setAllDays(prev=>({ ...prev, [nf.date]:nf, [nt.date]:nt }));
@@ -649,7 +663,7 @@ export default function LifeOS(){
   const toggleMasterTodo = (id)=> persistMasterTodos(masterTodos.map(t=>t.id===id?{...t,done:!t.done}:t));
   const applyDayType = (typeId)=>{ const dt=dayTypes[typeId]; if(!dt) return;
     const next=swapDayType(day, dayTypes, typeId);
-    persistDay({ ...next, breakdown:withAdj(computeBreakdown(next.blocks), day.breakdownAdj) }); flash(`Applied: ${dt.name}`); };
+    persistDay({ ...next, breakdown:withAdj(computeBreakdown(next.blocks, slH(day)), day.breakdownAdj) }); flash(`Applied: ${dt.name}`); };
 
   if(loading || !day) return (
     <div style={{ background:C.bg, minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center", color:C.dim, fontFamily:"system-ui" }}>Loading your system…</div>
@@ -1195,16 +1209,16 @@ function TodayView({ day,date,setDate,upd,dayTypes,applyDayType,links,allDays,fl
   const isToday = date===todayISO();
   const isPast = date<todayISO();
   const [showBin,setShowBin] = useState(false);
-  const setBlocks = (updater)=>{ const next=typeof updater==="function"?updater(day.blocks):updater; upd({ blocks:next, breakdown:withAdj(computeBreakdown(next), day.breakdownAdj) }); };
+  const setBlocks = (updater)=>{ const next=typeof updater==="function"?updater(day.blocks):updater; upd({ blocks:next, breakdown:withAdj(computeBreakdown(next, slH(day)), day.breakdownAdj) }); };
   const setSketch = (s)=> upd({ sketch:s });
   const bin = day.bin||[];
   const deleteToBin=(id)=>{ const b=day.blocks.find(x=>x.id===id); const blocks=day.blocks.filter(x=>x.id!==id);
     const nb=[...bin, ...(b?[{ t:b.t,e:b.e,label:b.label,cat:b.cat }]:[])].slice(-40);
-    upd({ blocks, bin:nb, breakdown:withAdj(computeBreakdown(blocks), day.breakdownAdj) }); flash&&flash("Moved to bin"); };
+    upd({ blocks, bin:nb, breakdown:withAdj(computeBreakdown(blocks, slH(day)), day.breakdownAdj) }); flash&&flash("Moved to bin"); };
   const restoreBin=(i)=>{ const b=bin[i]; if(!b) return; const blocks=[...day.blocks,{ ...b, id:Date.now() }]; const nb=bin.filter((_,j)=>j!==i);
-    upd({ blocks, bin:nb, breakdown:withAdj(computeBreakdown(blocks), day.breakdownAdj) }); flash&&flash("Restored"); };
+    upd({ blocks, bin:nb, breakdown:withAdj(computeBreakdown(blocks, slH(day)), day.breakdownAdj) }); flash&&flash("Restored"); };
   const clearBin=()=> upd({ bin:[] });
-  const adjustBd = (k,delta)=>{ const adj={ ...(day.breakdownAdj||{}), [k]:((day.breakdownAdj&&day.breakdownAdj[k])||0)+delta }; upd({ breakdownAdj:adj, breakdown:withAdj(computeBreakdown(day.blocks), adj) }); };
+  const adjustBd = (k,delta)=>{ const adj={ ...(day.breakdownAdj||{}), [k]:((day.breakdownAdj&&day.breakdownAdj[k])||0)+delta }; upd({ breakdownAdj:adj, breakdown:withAdj(computeBreakdown(day.blocks, slH(day)), adj) }); };
   const addTask=(b)=>{ if(!newTask.trim())return; upd({ todos:{ ...day.todos,[b]:[...day.todos[b],{text:newTask.trim(),done:false}] } }); setNewTask(""); };
   const toggleTask=(b,i)=>{ const a=[...day.todos[b]]; a[i]={...a[i],done:!a[i].done}; upd({ todos:{ ...day.todos,[b]:a } }); };
   const delTask=(b,i)=> upd({ todos:{ ...day.todos,[b]:day.todos[b].filter((_,j)=>j!==i) } });
@@ -1367,7 +1381,9 @@ function TodayView({ day,date,setDate,upd,dayTypes,applyDayType,links,allDays,fl
                 {adj!==0 && <span style={{ fontSize:10, color:adj>0?C.green:C.red, width:24 }}>{adj>0?`+${adj}`:adj}</span>}
               </div>
             ); })}
-            <Mini>Auto-filled from your timeline (sleep defaults to 8h). Tap ± to tweak any day.</Mini>
+            {day.sleep
+              ? <Mini>Garmin: asleep {day.sleep.bed} → up {day.sleep.wake} · {Math.floor(day.sleep.hours)}h{String(Math.round((day.sleep.hours%1)*60)).padStart(2,"0")}{day.sleep.score!=null?` · score ${day.sleep.score}`:""}. Rest auto-filled from your timeline. Tap ± to tweak.</Mini>
+              : <Mini>Auto-filled from your timeline (sleep defaults to 8h). Tap ± to tweak any day.</Mini>}
           </Panel>
 
           <Panel accent={C.teal} title="Productive Hours">
