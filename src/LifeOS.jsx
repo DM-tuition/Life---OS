@@ -41,7 +41,7 @@ const MONTHS = ["January","February","March","April","May","June","July","August
 // Dan, 12 Nov: target moved to 23:00 with 15 min to fall asleep — ticked when Garmin has him
 // asleep by 23:15 (22:30 had been hit once in 87 nights). Same key, so history carries over.
 const HABITS = [
-  { key:"bed",label:"Bed by 23:00",color:C.purple }, { key:"eatwell",label:"Eat Well",color:C.purple },
+  { key:"bed",label:"Bed by 23:00 (Fri/Sat 00:00)",color:C.purple }, { key:"eatwell",label:"Eat Well",color:C.purple },
   { key:"exercise",label:"Exercise",color:C.purple }, { key:"screen",label:"Screen < 3hrs",color:C.purple },
   { key:"library",label:"Library",color:C.purple },   // Dan, 12 Nov: a day at the library counts
 ];
@@ -229,6 +229,7 @@ function applyEntry(e){
       const kn={ ...(d.habitKnown||{}) };
       for(const k of [...(e.known||[]), ...(e.off||[]), ...Object.keys(e.habits||{}).filter(k=>e.habits[k])]) kn[k]=true;
       d={ ...d, habitKnown:kn };
+      if(e.library){ d={ ...d, library:{ ...(d.library||{}), ...e.library } }; h.library=true; }   // { hours, productive }
       const bd={ ...(d.bad||{}) };
       for(const k in (e.bad||{})) if(e.bad[k]){ if(k==="bs") d={ ...d, bs:true }; else bd[k]=true; }
       // Explicit corrections, 27 Oct: "you ultimately change them based on information I give
@@ -446,8 +447,16 @@ const DEFAULT_BAD = [{ key:"bs", label:"BS day" }];
 const badDone = (day,key)=> !!(day && (key==="bs" ? day.bs : (day.bad && day.bad[key])));
 // a day's score: good habits done minus bad habits that happened. No record = no score (a gap),
 // never a fake zero — an unlogged day isn't a disciplined one.
+// Library scoring (Dan, 12 Nov): going = +1. 3h+ AND locked in = +2. "Pissed about" = 0, or −1 if
+// it ate 3h+ ("you're wasting time"). 3h+ with no verdict stays +1 — the bonus needs his word.
+const libPoints = (day)=>{ const L=(day&&day.library)||{};
+  if(L.productive===false) return (L.hours>=3) ? -1 : 0;
+  return (L.hours>=3 && L.productive===true) ? 2 : 1; };
+const habitPoints = (day,key,links)=> !habitDone(day,key,links) ? 0 : key==="library" ? libPoints(day) : 1;
+// Bed target (12 Nov): 23:00 Sun–Thu nights, midnight Fri + Sat; 15 min to fall asleep either way.
+const bedLimit = (iso)=>{ const wd=pd(iso).getDay(); return (wd===5||wd===6) ? 24*60+15 : 23*60+15; };
 const disciplineOf = (day,links,bad)=> !day ? null :
-  HABITS.filter(h=>habitDone(day,h.key,links)).length - (bad||DEFAULT_BAD).filter(b=>badDone(day,b.key)).length;
+  HABITS.reduce((a,h)=>a+habitPoints(day,h.key,links),0) - (bad||DEFAULT_BAD).filter(b=>badDone(day,b.key)).length;
 
 // ============ THE TRUE TREND (Dan, 12 Nov) ============
 // "I've told you the truth, but I haven't told you everything." The chart used to count every
@@ -460,7 +469,7 @@ const disciplineOf = (day,links,bad)=> !day ? null :
 const asleepMins=(t)=>{ const [h,m]=String(t).split(":").map(Number); const x=h*60+m; return x<720?x+1440:x; };
 function habitTruth(allDays,iso,key,links){
   const d=allDays[iso]; if(!d) return null;
-  if(key==="bed"){ const nx=allDays[addDays(iso,1)]; if(nx&&nx.sleep&&nx.sleep.bed) return asleepMins(nx.sleep.bed)<=23*60+15; }
+  if(key==="bed"){ const nx=allDays[addDays(iso,1)]; if(nx&&nx.sleep&&nx.sleep.bed) return asleepMins(nx.sleep.bed)<=bedLimit(iso); }
   if(habitDone(d,key,links)) return true;
   if(d.habitKnown&&d.habitKnown[key]) return false;
   if(key==="exercise" && (d.sleep || (allDays[addDays(iso,1)]||{}).sleep)) return false;
@@ -479,7 +488,7 @@ function disciplineTrue(allDays,isos,links,bad){
     const t=truth[iso]; if(keys.every(k=>t[k]===null) && !d.bs) return { v:null, est:false };
     let sum=0, est=false;
     for(const k of keys){
-      if(t[k]!==null){ sum+= t[k]?1:0; continue; }
+      if(t[k]!==null){ sum+= t[k] ? (k==="library"?libPoints(d):1) : 0; continue; }
       est=true;
       const w=[]; for(let j=-14;j<=14;j++){ const tt=truth[addDays(iso,j)]; if(j&&tt&&tt[k]!==null) w.push(tt[k]); }
       sum+= w.length>=3 ? w.filter(Boolean).length/w.length : overall[k];
@@ -1408,6 +1417,14 @@ function TodayView({ day,date,setDate,upd,dayTypes,applyDayType,links,allDays,fl
           <Panel accent={C.purple} title="Habit Tracker" right={<span style={{ fontSize:13, fontWeight:700, color:dayScore>0?C.green:dayScore<0?C.red:C.dim }}>{dayScore>0?"+":""}{dayScore}</span>}>
             <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"10px 14px" }}>
               {HABITS.map(h=>{ const on=habitDone(day,h.key,links); const auto=on&&!(day.habits&&day.habits[h.key]); return <div key={h.key} style={{ display:"flex", alignItems:"center", gap:10 }}><Check on={on} color={h.color} onClick={()=>toggleHabit(h.key)} /><span style={{ fontSize:13, color:on?C.ink:C.dim }}>{h.label}{auto && <span style={{ fontSize:9, color:h.color, marginLeft:4 }}>auto</span>}</span></div>; })}
+              {habitDone(day,"library",links) && (()=>{ const L=day.library||{}; const set=(p)=>upd({ library:{ ...L, ...p } });
+                const chip=(on,label,col,fn)=> <button onClick={fn} style={{ fontSize:11, padding:"3px 9px", borderRadius:10, cursor:"pointer", border:`1px solid ${on?col:C.line}`, background:on?`${col}33`:"transparent", color:on?C.ink:C.dim }}>{label}</button>;
+                return <div style={{ display:"flex", gap:6, flexWrap:"wrap", alignItems:"center", marginLeft:30 }}>
+                  {chip(L.hours>=3,"3h+",C.purple,()=>set({ hours: L.hours>=3 ? 1 : 3 }))}
+                  {chip(L.productive===true,"Locked in",C.green,()=>set({ productive: L.productive===true ? null : true }))}
+                  {chip(L.productive===false,"Pissed about",C.red,()=>set({ productive: L.productive===false ? null : false }))}
+                  <span style={{ fontSize:11, color:C.faint }}>{(()=>{ const v=libPoints(day); return v>0?`+${v}`:String(v); })()}</span>
+                </div>; })()}
             </div>
             <div style={{ borderTop:`1px solid ${C.line}`, marginTop:12, paddingTop:10 }}>
               <div style={{ fontSize:10, fontWeight:700, letterSpacing:0.6, textTransform:"uppercase", color:C.red, marginBottom:8 }}>Bad habits · tick if it happened</div>
@@ -1828,7 +1845,7 @@ function DisciplineChart({ allDays, links, bad }){
   const isos=[]; for(let i=span-1;i>=0;i--) isos.push(addDays(today,-i));
   const dt=useMemo(()=>disciplineTrue(allDays,isos,links,bad),[allDays,links,bad,span,today]);
   const scores=dt.map(x=>x.v), estd=dt.map(x=>x.est);
-  const nGood=HABITS.length, nBad=Math.max(1,(bad||DEFAULT_BAD).length);
+  const nGood=HABITS.length+1, nBad=Math.max(1,(bad||DEFAULT_BAD).length)+1;   // +1 each way: library can score +2 or −1
   const yMax=nGood, yMin=-nBad;
   // 7-day trend: mean of whatever was logged in the trailing week
   const trend=scores.map((_,i)=>{ const w=scores.slice(Math.max(0,i-6),i+1).filter(v=>v!==null); return w.length? w.reduce((a,b)=>a+b,0)/w.length : null; });
@@ -1875,7 +1892,7 @@ function DisciplineChart({ allDays, links, bad }){
         <Stat label="Best day" value={logged.length?fmt1(Math.max(...logged)):"—"} color={C.green}/>
         <Stat label="Known" value={logged.length-nEst} sub={`/${span}`} color={C.dim}/>
       </div>
-      <Mini>Each day = good habits done − bad habits that happened (max +{nGood}). Bed comes from Garmin where it has the night (asleep by 23:15). Habits you didn't mention count at your recent rate for them, not as fails — {nEst} hollow dot{nEst===1?" is":"s are"} part-estimated. <span style={{ color:C.gold }}>Dashed</span> = 7-day trend. Gaps = nothing known.</Mini>
+      <Mini>Each day = good habits done − bad habits that happened (max +{nGood}). Bed comes from Garmin where it has the night (asleep by 23:15, Fri/Sat 00:15). Library: +1, +2 for 3h+ locked in, −1 for 3h+ pissing about. Habits you didn't mention count at your recent rate for them, not as fails — {nEst} hollow dot{nEst===1?" is":"s are"} part-estimated. <span style={{ color:C.gold }}>Dashed</span> = 7-day trend. Gaps = nothing known.</Mini>
     </Panel>
   );
 }

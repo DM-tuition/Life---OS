@@ -1254,4 +1254,43 @@ export const VAULT_PLAN = [
   // --- appended 2026-11-12 · Garmin data export cadence (Dan exports by hand; window is 30 days) ---
   { key: "td-garmin-export-2026-12", kind: "todo", due: "2026-12-08", list: "small",
     text: "Garmin export (last 30 days) — do it every 4 weeks so there's no gap; next one early Jan" },
+  // --- appended 2026-11-12 · weekend bedtime, library history + scoring, 4 Nov gym --------------
+  // Dan: "12 o'clock on Fridays and Saturdays" -> Fri/Sat nights tick if Garmin has him asleep by 00:15.
+  { key: "hl-bedwk-2026-09-18", kind: "habitLog", date: "2026-09-18", habits: { bed: true } },  // asleep 00:15
+  { key: "hl-bedwk-2026-09-25", kind: "habitLog", date: "2026-09-25", habits: { bed: true } },  // asleep 23:28
+  { key: "hl-bedwk-2026-09-26", kind: "habitLog", date: "2026-09-26", habits: { bed: true } },  // asleep 00:07
+  { key: "hl-bedwk-2026-10-03", kind: "habitLog", date: "2026-10-03", habits: { bed: true } },  // asleep 23:47
+  { key: "hl-bedwk-2026-10-10", kind: "habitLog", date: "2026-10-10", habits: { bed: true } },  // asleep 23:33
+  // (5 weekend nights newly qualify.)
+  // Library: "during ESAT pretty much every day, other than Sundays, never on a Sunday, and occasionally
+  // on Saturdays" -> every school day 7 Sep - 12 Oct (term started 7 Sep), except Fri 18 Sep (Oxford
+  // open day). Hours and verdict unknown, so +1 each. Saturdays left unticked ("occasionally").
+  { key: "hl-lib-2026-09-07", kind: "habitLog", date: "2026-09-07", habits: { library: true }, known: ["library"] },
+  { key: "hl-lib-2026-09-08", kind: "habitLog", date: "2026-09-08", habits: { library: true }, known: ["library"] },
+  { key: "hl-lib-2026-09-09", kind: "habitLog", date: "2026-09-09", habits: { library: true }, known: ["library"] },
+  { key: "hl-lib-2026-09-10", kind: "habitLog", date: "2026-09-10", habits: { library: true }, known: ["library"] },
+  { key: "hl-lib-2026-09-11", kind: "habitLog", date: "2026-09-11", habits: { library: true }, known: ["library"] },
+  { key: "hl-lib-2026-09-14", kind: "habitLog", date: "2026-09-14", habits: { library: true }, known: ["library"] },
+  { key: "hl-lib-2026-09-15", kind: "habitLog", date: "2026-09-15", habits: { library: true }, known: ["library"] },
+  { key: "hl-lib-2026-09-16", kind: "habitLog", date: "2026-09-16", habits: { library: true }, known: ["library"] },
+  { key: "hl-lib-2026-09-17", kind: "habitLog", date: "2026-09-17", habits: { library: true }, known: ["library"] },
+  { key: "hl-lib-2026-09-21", kind: "habitLog", date: "2026-09-21", habits: { library: true }, known: ["library"] },
+  { key: "hl-lib-2026-09-22", kind: "habitLog", date: "2026-09-22", habits: { library: true }, known: ["library"] },
+  { key: "hl-lib-2026-09-23", kind: "habitLog", date: "2026-09-23", habits: { library: true }, known: ["library"] },
+  { key: "hl-lib-2026-09-24", kind: "habitLog", date: "2026-09-24", habits: { library: true }, known: ["library"] },
+  { key: "hl-lib-2026-09-25", kind: "habitLog", date: "2026-09-25", habits: { library: true }, known: ["library"] },
+  { key: "hl-lib-2026-09-28", kind: "habitLog", date: "2026-09-28", habits: { library: true }, known: ["library"] },
+  { key: "hl-lib-2026-09-29", kind: "habitLog", date: "2026-09-29", habits: { library: true }, known: ["library"] },
+  { key: "hl-lib-2026-09-30", kind: "habitLog", date: "2026-09-30", habits: { library: true }, known: ["library"] },
+  { key: "hl-lib-2026-10-01", kind: "habitLog", date: "2026-10-01", habits: { library: true }, known: ["library"] },
+  { key: "hl-lib-2026-10-02", kind: "habitLog", date: "2026-10-02", habits: { library: true }, known: ["library"] },
+  { key: "hl-lib-2026-10-05", kind: "habitLog", date: "2026-10-05", habits: { library: true }, known: ["library"] },
+  { key: "hl-lib-2026-10-06", kind: "habitLog", date: "2026-10-06", habits: { library: true }, known: ["library"] },
+  { key: "hl-lib-2026-10-07", kind: "habitLog", date: "2026-10-07", habits: { library: true }, known: ["library"] },
+  { key: "hl-lib-2026-10-08", kind: "habitLog", date: "2026-10-08", habits: { library: true }, known: ["library"] },
+  { key: "hl-lib-2026-10-09", kind: "habitLog", date: "2026-10-09", habits: { library: true }, known: ["library"] },
+  { key: "hl-lib-2026-10-12", kind: "habitLog", date: "2026-10-12", habits: { library: true }, known: ["library"] },
+  { key: "hl-lib2-2026-10-26", kind: "habitLog", date: "2026-10-26", habits: { library: true }, library: { hours: 2, productive: true } },  // interview prep + Stamford site
+  // Wed 4 Nov: "I've done every session since last week. Been consistent." -> Gym B happened.
+  { key: "hl-ex-2026-11-04", kind: "habitLog", date: "2026-11-04", habits: { exercise: true }, known: ["exercise"] },
 ];
