@@ -890,4 +890,9 @@ export const VAULT_PLAN = [
   // --- appended 2026-11-12 · this morning's swim; Thursday 07:30 swim is now a regular slot ----
   { key: "wo-2026-11-12-swim", kind: "workout", date: "2026-11-12", t: 7.5, e: 8.5, cat: "Sport",
     label: "Swim 1 km", note: "Late school start. Now a regular Thursday slot (Google Calendar, from 19 Nov)." },
+  // --- appended 2026-11-12 · monthly Garmin export (recurring in Google Calendar on the 12th) ---
+  { key: "td-garmin-export-12nov", kind: "todo", due: "2026-11-14",
+    text: "Garmin export (requested 12 Nov): when the email lands, upload the file to the Gym routine chat" },
+  { key: "td-garmin-export-12dec", kind: "todo", due: "2026-12-12",
+    text: "Monthly Garmin data export (last 30 days) → send to Claude with Hevy screenshots" },
 ];
