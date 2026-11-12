@@ -887,4 +887,7 @@ export const VAULT_PLAN = [
     text: "Enter IRONMAN Leeds (£752.64) — Dan, Ayaan + Varish all by Wed 18 Nov for Flex90" },
   { key: "td-ironman-swim-lessons", kind: "todo", due: "2026-11-30", list: "big",
     text: "Ironman: book front-crawl lessons / masters swim squad — 3 swims a week from December" },
+  // --- appended 2026-11-12 · this morning's swim; Thursday 07:30 swim is now a regular slot ----
+  { key: "wo-2026-11-12-swim", kind: "workout", date: "2026-11-12", t: 7.5, e: 8.5, cat: "Sport",
+    label: "Swim 1 km", note: "Late school start. Now a regular Thursday slot (Google Calendar, from 19 Nov)." },
 ];
