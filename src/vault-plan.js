@@ -874,4 +874,9 @@ export const VAULT_PLAN = [
   { key: "rm-td-ironman-entry-decision", kind: "todo-remove", target: "td-ironman-entry-decision" },
   { key: "td-ironman-entry-decision-v2", kind: "todo", due: "2026-11-18", star: true, list: "big",
     text: "Ironman 2027 (ADS): decide Leeds (15 Aug) vs Vichy (22 Aug) with Ayaan + Varish — Leeds Flex90 entry ends 18 Nov, Vichy 25 Nov" },
+  // --- appended 2026-11-12 · gym chat: exercise ticks (times not given, so no timeline blocks) ---
+  // Tue 10 Nov back + biceps at PureGym with Aryaman and Rory · Wed 11 Nov Gym B · Thu 12 Nov 1 km swim.
+  { key: "hl-ex-2026-11-10-gymchat", kind: "habitLog", date: "2026-11-10", habits: { exercise: true } },
+  { key: "hl-ex-2026-11-11-gymchat", kind: "habitLog", date: "2026-11-11", habits: { exercise: true } },
+  { key: "hl-ex-2026-11-12-gymchat", kind: "habitLog", date: "2026-11-12", habits: { exercise: true } },
 ];
