@@ -870,4 +870,8 @@ export const VAULT_PLAN = [
     text: "Gym chat with Claude: specifics (Y raise, Tuesday sessions, missing numbers)" },
   { key: "td-gym-review-26nov", kind: "todo", due: "2026-11-26",
     text: "Gym routine 4-week review with Claude: send app screenshots first" },
+  // --- appended 2026-11-12 · Ironman to-do: "Ian" was dictation for Ayaan ---
+  { key: "rm-td-ironman-entry-decision", kind: "todo-remove", target: "td-ironman-entry-decision" },
+  { key: "td-ironman-entry-decision-v2", kind: "todo", due: "2026-11-18", star: true, list: "big",
+    text: "Ironman 2027 (ADS): decide Leeds (15 Aug) vs Vichy (22 Aug) with Ayaan + Varish — Leeds Flex90 entry ends 18 Nov, Vichy 25 Nov" },
 ];
