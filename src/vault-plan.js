@@ -863,4 +863,11 @@ export const VAULT_PLAN = [
   // --- appended 2026-11-12 · Ironman 2027 entry decision (vault: ADS/wiki/Ironman 2027.md) ---
   { key: "td-ironman-entry-decision", kind: "todo", due: "2026-11-18", star: true, list: "big",
     text: "Ironman 2027: decide Leeds (15 Aug) vs Vichy (22 Aug) with Ian + Varish — Leeds Flex90 entry ends 18 Nov, Vichy 25 Nov" },
+  // --- appended 2026-11-12 · gym chat: Dan asked for the gym setup on his to-do list ----------
+  { key: "td-gym-app-setup-12nov", kind: "todo", due: "2026-11-12", star: true,
+    text: "Set up the gym tracking app and enter Gym A, Gym B and Skills" },
+  { key: "td-gym-specifics-chat", kind: "todo", due: "2026-11-15",
+    text: "Gym chat with Claude: specifics (Y raise, Tuesday sessions, missing numbers)" },
+  { key: "td-gym-review-26nov", kind: "todo", due: "2026-11-26",
+    text: "Gym routine 4-week review with Claude: send app screenshots first" },
 ];
