@@ -38,8 +38,10 @@ const DAYS = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sun
 const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 // Dan, 22 Oct: "Sleep 8hrs+" became "In bed by 22:30" (he hit bedtime and still failed 8h) and
 // Ice Bath was dropped. Old sleep8/icebath ticks stay in saved days, just no longer shown.
+// Dan, 12 Nov: target moved to 23:00 with 15 min to fall asleep — ticked when Garmin has him
+// asleep by 23:15 (22:30 had been hit once in 87 nights). Same key, so history carries over.
 const HABITS = [
-  { key:"bed",label:"In bed by 22:30",color:C.purple }, { key:"eatwell",label:"Eat Well",color:C.purple },
+  { key:"bed",label:"Bed by 23:00",color:C.purple }, { key:"eatwell",label:"Eat Well",color:C.purple },
   { key:"exercise",label:"Exercise",color:C.purple }, { key:"screen",label:"Screen < 3hrs",color:C.purple },
 ];
 const BREAKDOWN = ["Sleep","Lessons","Revision","Gym","Activity"];
@@ -1808,6 +1810,57 @@ function DisciplineChart({ allDays, links, bad }){
   );
 }
 
+// ============ METRIC CHART — one number per day over time (Dan, 12 Nov) ============
+// Same drawing as the discipline chart: a smooth line through logged days, gaps where nothing was
+// logged (never drawn as zero), a dashed 7-day trend, and an optional target band.
+function MetricChart({ allDays, title, accent, get, yMin, yMax, ticks, target, targetLabel, note, unitFmt }){
+  const [span,setSpan] = useState(30);
+  const today=todayISO();
+  const first=Object.keys(allDays).filter(k=>get(allDays[k])!==null).sort()[0];
+  const allN=first? Math.max(30, Math.round((pd(today)-pd(first))/86400000)+1) : 30;
+  const n= span==="all"? allN : span;
+  const isos=[]; for(let i=n-1;i>=0;i--) isos.push(addDays(today,-i));
+  const vals=isos.map(iso=>{ const d=allDays[iso]; return d? get(d) : null; });
+  const trend=vals.map((_,i)=>{ const w=vals.slice(Math.max(0,i-6),i+1).filter(v=>v!==null); return w.length? w.reduce((a,b)=>a+b,0)/w.length : null; });
+  const W=720,H=210,L=34,R=12,T=14,B=26, iw=W-L-R, ih=H-T-B;
+  const X=(i)=> L + (n===1?iw/2: i*iw/(n-1));
+  const Y=(v)=> T + (yMax-Math.max(yMin,Math.min(yMax,v)))*ih/(yMax-yMin);
+  const runs=(arr)=>{ const out=[]; let cur=[]; arr.forEach((v,i)=>{ if(v===null){ if(cur.length) out.push(cur); cur=[]; } else cur.push([X(i),Y(v)]); }); if(cur.length) out.push(cur); return out; };
+  const logged=vals.filter(v=>v!==null);
+  const avg=(a)=> a.length? a.reduce((x,y)=>x+y,0)/a.length : null;
+  const f=(v)=> v===null?"—":(unitFmt?unitFmt(v):String(Math.round(v*10)/10));
+  const last7=vals.slice(-7).filter(v=>v!==null);
+  const latest=[...vals].reverse().find(v=>v!==null);
+  const lbl=(iso)=>{ const d=pd(iso); return `${d.getDate()}/${d.getMonth()+1}`; };
+  const step=Math.max(1,Math.round(n/6));
+  const id=title.replace(/\W/g,"");
+  return (
+    <Panel accent={accent} title={title} style={{ marginBottom:18 }} right={
+      <div style={{ display:"flex", gap:6 }}>{[30,90,"all"].map(k=> <button key={k} onClick={()=>setSpan(k)} style={{ fontSize:11, padding:"3px 9px", borderRadius:10, cursor:"pointer", border:`1px solid ${span===k?accent:C.line}`, background:span===k?accent:"transparent", color:span===k?"#0b0b0b":C.dim }}>{k==="all"?"All":k+"d"}</button>)}</div>}>
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width:"100%", height:"auto", display:"block" }} role="img" aria-label={title}>
+        <defs><linearGradient id={"mg"+id} x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stopColor={accent} stopOpacity="0.28"/><stop offset="100%" stopColor={accent} stopOpacity="0"/></linearGradient></defs>
+        {target!=null && <rect x={L} y={T} width={iw} height={Math.max(0,Y(target)-T)} fill={C.green} opacity="0.06"/>}
+        {ticks.map(v=> <g key={v}>
+          <line x1={L} x2={W-R} y1={Y(v)} y2={Y(v)} stroke={v===target?C.green:C.line} strokeWidth="1" strokeDasharray={v===target?"":"2 4"} opacity={v===target?0.6:1}/>
+          <text x={L-8} y={Y(v)+4} fontSize="11" fill={v===target?C.green:C.faint} textAnchor="end">{v}</text>
+        </g>)}
+        {runs(vals).map((r,i)=>{ const path=smoothPath(r,T,T+ih); return <path key={"a"+i} d={`${path} L${r[r.length-1][0]},${T+ih} L${r[0][0]},${T+ih} Z`} fill={`url(#mg${id})`}/>; })}
+        {runs(trend).map((r,i)=> <path key={"t"+i} d={smoothPath(r,T,T+ih)} fill="none" stroke={C.gold} strokeWidth="1.6" strokeDasharray="5 4" opacity="0.85"/>)}
+        {runs(vals).map((r,i)=> <path key={"l"+i} d={smoothPath(r,T,T+ih)} fill="none" stroke={accent} strokeWidth="2.2"/>)}
+        {n<=90 && vals.map((v,i)=> v===null?null: <circle key={"d"+i} cx={X(i)} cy={Y(v)} r={i===n-1?4.5:2.6} fill={target!=null&&v>=target?C.green:accent}><title>{`${isos[i]} · ${f(v)}`}</title></circle>)}
+        {isos.map((iso,i)=> (i%step===0||i===n-1) ? <text key={"x"+i} x={X(i)} y={H-8} fontSize="10" fill={i===n-1?C.ink:C.faint} textAnchor="middle">{i===n-1?"today":lbl(iso)}</text> : null)}
+      </svg>
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:10, marginTop:10 }}>
+        <Stat label="Latest" value={f(latest??null)} color={accent}/>
+        <Stat label="7-day avg" value={f(avg(last7))} color={C.gold}/>
+        <Stat label={span==="all"?"All-time avg":`${n}-day avg`} value={f(avg(logged))} color={C.teal}/>
+        <Stat label="Days logged" value={logged.length} sub={`/${n}`} color={C.dim}/>
+      </div>
+      <Mini>{note} <span style={{ color:C.gold }}>Dashed</span> = 7-day trend. Gaps = nothing logged.{target!=null?<> <span style={{ color:C.green }}>Green</span> = {targetLabel}.</>:null}</Mini>
+    </Panel>
+  );
+}
+
 // ============ LETTER TO FUTURE YOU — 30 days out (Dan, 27 Oct) ============
 function FutureLetter({ letter, saveLetter, letters, saveLetters }){
   const today=todayISO();
@@ -1898,6 +1951,12 @@ function HabitsView({ allDays, links, saveLinks, cfg, saveCfg, bad, saveBad, let
         <div style={{ fontSize:12, color:C.dim }}>Don't break the chain · last {GRID_WEEKS} weeks · ❄ freeze a day from the Today tab</div>
       </div>
       <DisciplineChart allDays={allDays} links={links} bad={bad}/>
+      <MetricChart allDays={allDays} title="Sleep score" accent={C.sleep} yMin={0} yMax={100} ticks={[0,25,50,75,100]}
+        target={80} targetLabel="80+, Garmin's 'good'" get={(d)=> d.sleep && d.sleep.score!=null ? d.sleep.score : null}
+        note="Garmin's 0–100 score, on the morning you woke. Arrives with the monthly export."/>
+      <MetricChart allDays={allDays} title="How the day felt" accent={C.pink} yMin={0} yMax={10} ticks={[0,2,4,6,8,10]}
+        target={8} targetLabel="8+" get={(d)=> d.rating ? d.rating : null}
+        note="Your own 1–10 score for the day, from the check-in or the Today tab."/>
       <FutureLetter letter={letter} saveLetter={saveLetter} letters={letters} saveLetters={saveLetters}/>
       <div style={{ display:"flex", flexDirection:"column", gap:18 }}>
         {HABITS.map(h=>{
