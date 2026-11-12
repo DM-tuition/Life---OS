@@ -253,8 +253,9 @@ function applyEntry(e){
       if(!d){ d={ ...blankDay(e.date), stub:true };
         const idx=readLS("index:days",[]); if(!idx.includes(e.date)) writeLS("index:days",[...idx,e.date]); }
       const has = d.rating>0 || d.ratingZero;
-      if(e.est){ if(has) return; d={ ...d, rating:e.value, ratingEst:true, ratingZero:false }; }
-      else { if(has && !d.ratingEst) return; d={ ...d, rating:e.value, ratingZero:e.value===0, ratingEst:false }; }
+      // A newer estimate replaces an older one (12 Nov: re-estimated from his daily logs); `why` says what it's based on.
+      if(e.est){ if(has && !d.ratingEst) return; d={ ...d, rating:e.value, ratingEst:true, ratingZero:false, ratingWhy:e.why||"" }; }
+      else { if(has && !d.ratingEst) return; d={ ...d, rating:e.value, ratingZero:e.value===0, ratingEst:false, ratingWhy:"" }; }
       writeLS("day:"+e.date,d); return;
     }
     case "sleep": {                       // a night from the monthly Garmin export (12 Nov). `date` = the WAKE
@@ -1418,10 +1419,10 @@ function TodayView({ day,date,setDate,upd,dayTypes,applyDayType,links,allDays,fl
 
           <Panel accent={C.red} title="Day Assessment" style={{ gridColumn:isMobile?"auto":"1 / -1" }}>
             <div style={{ display:"flex", gap:6, marginBottom:14, flexWrap:"wrap" }}>
-              {[0,1,2,3,4,5,6,7,8,9,10].map(n=> <button key={n} onClick={()=>upd({rating:n, ratingZero:n===0, ratingEst:false})} style={{ width:32,height:36,borderRadius:7,cursor:"pointer",fontWeight:700,fontSize:14, border:`1px solid ${(!day.ratingEst&&((n===0&&day.ratingZero)||(n>0&&day.rating>=n)))?C.red:C.line}`, background:(!day.ratingEst&&((n===0&&day.ratingZero)||(n>0&&day.rating>=n)))?`rgba(224,82,74,${0.25+0.05*n})`:"transparent", color:day.rating>=n?"#fff":C.faint }}>{n}</button>)}
+              {[0,1,2,3,4,5,6,7,8,9,10].map(n=> <button key={n} onClick={()=>upd({rating:n, ratingZero:n===0, ratingEst:false, ratingWhy:""})} style={{ width:32,height:36,borderRadius:7,cursor:"pointer",fontWeight:700,fontSize:14, border:`1px solid ${(!day.ratingEst&&((n===0&&day.ratingZero)||(n>0&&day.rating>=n)))?C.red:C.line}`, background:(!day.ratingEst&&((n===0&&day.ratingZero)||(n>0&&day.rating>=n)))?`rgba(224,82,74,${0.25+0.05*n})`:"transparent", color:day.rating>=n?"#fff":C.faint }}>{n}</button>)}
               <div style={{ display:"flex", alignItems:"center", fontFamily:"'Caveat',cursive", fontSize:26, color:C.red, marginLeft:4 }}>/10</div>
             </div>
-            {day.ratingEst && <Mini>Estimated {day.rating}/10 — you didn't score this day. Tap a number to score it for real.</Mini>}
+            {day.ratingEst && <Mini>Estimated {day.rating}/10{day.ratingWhy?` (${day.ratingWhy})`:""}. You didn't score this day. Tap a number to score it for real.</Mini>}
             <textarea value={day.feedback} onChange={e=>upd({feedback:e.target.value})} placeholder="Feedback: how did today actually go?" style={{ ...inp, minHeight:70, resize:"vertical", width:"100%" }}/>
           </Panel>
         </div>
