@@ -1251,4 +1251,7 @@ export const VAULT_PLAN = [
   // New Library habit (12 Nov). Known library days so far: 26 Oct (~2h, interview prep), 29 Oct (morning).
   { key: "hl-lib-2026-10-26", kind: "habitLog", date: "2026-10-26", habits: { library: true } },
   { key: "hl-lib-2026-10-29", kind: "habitLog", date: "2026-10-29", habits: { library: true } },
+  // --- appended 2026-11-12 · Garmin data export cadence (Dan exports by hand; window is 30 days) ---
+  { key: "td-garmin-export-2026-12", kind: "todo", due: "2026-12-08", list: "small",
+    text: "Garmin export (last 30 days) — do it every 4 weeks so there's no gap; next one early Jan" },
 ];
