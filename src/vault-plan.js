@@ -860,4 +860,7 @@ export const VAULT_PLAN = [
     { t: 18, e: 18.5, label: "School-week setup", cat: "Other", note: "Bag, kit, gym clothes for Mon + Wed." },
     { t: 22, e: 22.5, label: "Wind-down · phone out of the room", cat: "Other", note: "Bed 22:30." },
   ]},
+  // --- appended 2026-11-12 · Ironman 2027 entry decision (vault: ADS/wiki/Ironman 2027.md) ---
+  { key: "td-ironman-entry-decision", kind: "todo", due: "2026-11-18", star: true, list: "big",
+    text: "Ironman 2027: decide Leeds (15 Aug) vs Vichy (22 Aug) with Ian + Varish — Leeds Flex90 entry ends 18 Nov, Vichy 25 Nov" },
 ];
