@@ -1341,6 +1341,4 @@ export const VAULT_PLAN = [
   // 1k swim in the morning, good school day, library (lost time on Garmin setup), home at 5
   // to make brownies, then a terrible diet. Early bed (time to confirm). "A 5.5."
   { key: "hl-2026-11-12", kind: "habitLog", date: "2026-11-12", rating: 5.5, habits: {} },
-  { key: "wo-2026-11-12-swim", kind: "workout", date: "2026-11-12", t: 7, e: 7.75, cat: "Sport",
-    label: "Swim · 1k", note: "Morning, before school. Time approximate." },
 ];
