@@ -1341,4 +1341,8 @@ export const VAULT_PLAN = [
   // 1k swim in the morning, good school day, library (lost time on Garmin setup), home at 5
   // to make brownies, then a terrible diet. Early bed (time to confirm). "A 5.5."
   { key: "hl-2026-11-12", kind: "habitLog", date: "2026-11-12", rating: 5.5, habits: {} },
+  // Thu 12 Nov, per the 12 Nov protocol: early bed (taken as before 23:00, Garmin overrides),
+  // diet failed after brownies, ~2h library mostly on Garmin = "pissed about" → library 0.
+  { key: "hl-2026-11-12-v2", kind: "habitLog", date: "2026-11-12", habits: { bed: true },
+    known: ["bed", "eatwell", "exercise", "library"], library: { hours: 2, productive: false } },
 ];
