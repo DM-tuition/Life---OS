@@ -1351,4 +1351,16 @@ export const VAULT_PLAN = [
   { key: "hl-2026-11-12-v3", kind: "habitLog", date: "2026-11-12", off: ["bed"], known: ["bed"], habits: {} },
   // Mum back from Vietnam Sun 15 Nov; Dan back at hers next week.
   { key: "ev-mum-back-2026-11-15", kind: "event", date: "2026-11-15", text: "Mum back from Vietnam — back to Mum's" },
+  // --- appended 2026-11-13 · Dan: Sat match is the MORNING (at school 08:30, back ~12) ---------
+  { key: "rm-wp-2026-11-14-v3", kind: "plan-remove", date: "2026-11-14", target: "wp-2026-11-14-v3" },
+  { key: "rm-wp-2026-11-14-stretch", kind: "plan-remove", date: "2026-11-14", target: "wp-2026-11-14", labels: ["Stretch"] },
+  { key: "wp-2026-11-14-v4", kind: "plan", date: "2026-11-14", blocks: [
+    { t: 8.5, e: 12, label: "School football match", cat: "Sport", note: "At school 08:30, back ~12:00 (Dan, 13 Nov)." },
+    { t: 12.25, e: 13, label: "Pool: recover after the match", cat: "Sport" },
+    { t: 13, e: 13.5, label: "Lunch (carbs)", cat: "Other" },
+    { t: 13.75, e: 15.75, label: "Library: interview problems out loud + A-level", cat: "Revision", note: "Topic: Lennard-Jones 6–12, why the attraction goes as r⁻⁶." },
+    { t: 16.5, e: 18.5, label: "Rock climbing (optional)", cat: "Sport", note: "Dan: 'maybe some rock climbing'." },
+  ]},
+  // Dan, 13 Nov: "add the snacking as well" — after-dinner snacking, separate from Eat Well.
+  { key: "bh-snacking", kind: "badHabit", habit: "snacking", label: "Late snacking" },
 ];
