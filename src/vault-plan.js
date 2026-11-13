@@ -1382,4 +1382,8 @@ export const VAULT_PLAN = [
   { key: "td-ironman-tuneup", kind: "todo", due: "2027-04-30", list: "big",
     text: "Book an Olympic-distance tune-up tri for late Jun / early Jul" },
   { key: "ev-ironman-flex90-cutoff", kind: "event", date: "2027-07-01", text: "Ironman Leeds: last day to defer/transfer/refund (Flex90)" },
+  // --- appended 2026-11-13 · Ironman withdrawal tiers from Dan's screenshot of the policy ---
+  { key: "fix-ironman-flex90-cutoff", kind: "event-remove", date: "2027-07-01", text: "Ironman Leeds: last day to defer/transfer/refund (Flex90)" },
+  { key: "ev-ironman-withdraw-50", kind: "event", date: "2027-04-17", text: "Ironman Leeds: last day for 50% refund / defer to 2028 / transfer (Flex90)" },
+  { key: "ev-ironman-withdraw-25", kind: "event", date: "2027-07-01", text: "Ironman Leeds: last day for 25% refund (Flex90) — nothing after" },
 ];
