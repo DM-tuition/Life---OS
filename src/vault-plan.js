@@ -1389,4 +1389,9 @@ export const VAULT_PLAN = [
   // --- appended 2026-11-13 · Friday Skills missed; Dan promised it for Saturday after football ---
   { key: "td-skills-sat-14nov", kind: "todo", due: "2026-11-14", star: true,
     text: "Gym Skills after the match (~16:30) — the promise. Floor: front lever, muscle-ups, weighted pull-up/dip" },
+  // --- appended 2026-11-13 · Ironman: swim baseline 2 km/55 min → no lessons; bike is the gap, brought forward ---
+  { key: "rm-td-ironman-swim-lessons", kind: "todo-remove", target: "td-ironman-swim-lessons" },
+  { key: "rm-td-ironman-bike", kind: "todo-remove", target: "td-ironman-bike" },
+  { key: "td-ironman-bike-v2", kind: "todo", due: "2027-01-31", star: true, list: "big",
+    text: "Ironman: bike sorted (biggest gap) — compact + 11-32/34, fit, clip-ins, turbo. Boxing Day sales" },
 ];
