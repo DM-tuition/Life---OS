@@ -1345,4 +1345,10 @@ export const VAULT_PLAN = [
   // diet failed after brownies, ~2h library mostly on Garmin = "pissed about" → library 0.
   { key: "hl-2026-11-12-v2", kind: "habitLog", date: "2026-11-12", habits: { bed: true },
     known: ["bed", "eatwell", "exercise", "library"], library: { hours: 2, productive: false } },
+  // --- appended 2026-11-13 · Dan's answers ---
+  // Correction: Thu 12 Nov bed was 23:15, then 20 min phone, struggled to sleep, ~6h asleep in
+  // ~8h in bed — not "early" enough for the 23:00/23:15 rule. Bed off; screen known (YouTube+phone).
+  { key: "hl-2026-11-12-v3", kind: "habitLog", date: "2026-11-12", off: ["bed"], known: ["bed"], habits: {} },
+  // Mum back from Vietnam Sun 15 Nov; Dan back at hers next week.
+  { key: "ev-mum-back-2026-11-15", kind: "event", date: "2026-11-15", text: "Mum back from Vietnam — back to Mum's" },
 ];
