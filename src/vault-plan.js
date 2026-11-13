@@ -1366,4 +1366,7 @@ export const VAULT_PLAN = [
   // --- appended 2026-11-13 · Ironman: stay Sat night before the race ---
   { key: "td-ironman-book-sat-night", kind: "todo", due: "2026-11-30", list: "big",
     text: "Book Sat 14 Aug 2027 night near Roundhay Park for Dan, Ayaan + Varish (cancellable rate)" },
+  // --- appended 2026-11-13 · Black Friday buy (Shopping List) ---------------------------------
+  { key: "td-parallettes-black-friday", kind: "todo", due: "2026-11-27",
+    text: "Black Friday: buy GORNATION wooden parallettes, 30 cm (£53 full price) — gornation.com" },
 ];
