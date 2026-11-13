@@ -1363,4 +1363,7 @@ export const VAULT_PLAN = [
   ]},
   // Dan, 13 Nov: "add the snacking as well" — after-dinner snacking, separate from Eat Well.
   { key: "bh-snacking", kind: "badHabit", habit: "snacking", label: "Late snacking" },
+  // --- appended 2026-11-13 · Ironman: stay Sat night before the race ---
+  { key: "td-ironman-book-sat-night", kind: "todo", due: "2026-11-30", list: "big",
+    text: "Book Sat 14 Aug 2027 night near Roundhay Park for Dan, Ayaan + Varish (cancellable rate)" },
 ];
