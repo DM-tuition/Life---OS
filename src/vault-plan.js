@@ -1386,4 +1386,7 @@ export const VAULT_PLAN = [
   { key: "fix-ironman-flex90-cutoff", kind: "event-remove", date: "2027-07-01", text: "Ironman Leeds: last day to defer/transfer/refund (Flex90)" },
   { key: "ev-ironman-withdraw-50", kind: "event", date: "2027-04-17", text: "Ironman Leeds: last day for 50% refund / defer to 2028 / transfer (Flex90)" },
   { key: "ev-ironman-withdraw-25", kind: "event", date: "2027-07-01", text: "Ironman Leeds: last day for 25% refund (Flex90) — nothing after" },
+  // --- appended 2026-11-13 · Friday Skills missed; Dan promised it for Saturday after football ---
+  { key: "td-skills-sat-14nov", kind: "todo", due: "2026-11-14", star: true,
+    text: "Gym Skills after the match (~16:30) — the promise. Floor: front lever, muscle-ups, weighted pull-up/dip" },
 ];
