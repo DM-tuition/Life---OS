@@ -1369,4 +1369,17 @@ export const VAULT_PLAN = [
   // --- appended 2026-11-13 · Black Friday buy (Shopping List) ---------------------------------
   { key: "td-parallettes-black-friday", kind: "todo", due: "2026-11-27",
     text: "Black Friday: buy GORNATION wooden parallettes, 30 cm (£53 full price) — gornation.com" },
+  // --- appended 2026-11-13 · Ironman Leeds: all three entered; milestones (vault: ADS/wiki/Ironman 2027.md) ---
+  { key: "rm-td-ironman-leeds-enter", kind: "todo-remove", target: "td-ironman-leeds-enter" },
+  { key: "td-ironman-charity", kind: "todo", due: "2026-11-30", star: true, list: "big",
+    text: "Ironman: pick the charity + set up Tiltify with Ayaan & Varish" },
+  { key: "td-ironman-bike", kind: "todo", due: "2027-02-28", list: "big",
+    text: "Ironman: own/long-term bike sorted — compact + 11-32/34, bike fit, clip-ins, turbo" },
+  { key: "td-ironman-btf", kind: "todo", due: "2027-03-31", list: "big",
+    text: "British Triathlon Core membership (£35 under-25) — race licence + training insurance" },
+  { key: "td-ironman-wetsuit", kind: "todo", due: "2027-04-30", list: "big",
+    text: "Ironman: wetsuit bought or season-rented, tried in the pool" },
+  { key: "td-ironman-tuneup", kind: "todo", due: "2027-04-30", list: "big",
+    text: "Book an Olympic-distance tune-up tri for late Jun / early Jul" },
+  { key: "ev-ironman-flex90-cutoff", kind: "event", date: "2027-07-01", text: "Ironman Leeds: last day to defer/transfer/refund (Flex90)" },
 ];
