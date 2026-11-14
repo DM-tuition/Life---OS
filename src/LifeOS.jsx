@@ -2237,11 +2237,15 @@ function TodoListView({ todos,save,flash }){
         {editId===t.id
           ? <textarea autoFocus value={t.text} onChange={e=>upd(t.id,{text:e.target.value})} onBlur={()=>setEditId(null)} onKeyDown={e=>{ if(e.key==="Enter"){ e.preventDefault(); setEditId(null); } }} rows={Math.max(1,Math.ceil(t.text.length/34))}
               style={{ ...inp, width:"100%", fontSize:bigRow?15:14.5, fontWeight:bigRow||t.star?600:450, padding:"4px 6px", resize:"none", lineHeight:1.35 }}/>
-          : <div onClick={()=>setEditId(t.id)} style={{ fontSize:bigRow?15:14.5, fontWeight:bigRow||t.star?600:450, lineHeight:1.4, letterSpacing:"-0.005em", color:t.done?C.faint:C.ink, textDecoration:t.done?"line-through":"none", cursor:"text", overflowWrap:"anywhere" }}>{t.text}</div>}
+          : <div onClick={()=>setEditId(t.id)} style={{ fontSize:bigRow?15:14.5, fontWeight:bigRow||t.star?550:450, lineHeight:1.4, letterSpacing:"-0.005em", color:t.done?C.faint:C.ink, textDecoration:t.done?"line-through":"none", cursor:"text", overflowWrap:"anywhere" }}>{t.text}</div>}
         {t.due && <div style={{ fontSize:11, color: !t.done && t.due<today ? C.red : C.faint, marginTop:3, fontWeight:550 }}>{fmt(t.due)}{!t.done && t.due<today ? " · overdue":""}</div>}
       </div>
-      <input type="date" value={t.due||""} onChange={e=>upd(t.id,{due:e.target.value||null})} style={{ ...inp, padding:"5px 6px", fontSize:11, width:34, color:"transparent", cursor:"pointer" }} title="Set date"/>
-      <button onClick={()=>upd(t.id,{star:!t.star})} title="Star" style={{ background:"none", border:"none", cursor:"pointer", fontSize:17, color:t.star?C.gold:C.faint, padding:0, minWidth:24, minHeight:28 }}>{t.star?"★":"☆"}</button>
+      {/* date picker: a calendar glyph with the native input laid invisibly over it (still one tap) */}
+      <label title="Set date" style={{ position:"relative", width:28, height:28, display:"inline-flex", alignItems:"center", justifyContent:"center", color:t.due?C.dim:C.faint, cursor:"pointer", flexShrink:0 }}>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={ICON_PATHS.month}/></svg>
+        <input type="date" value={t.due||""} onChange={e=>upd(t.id,{due:e.target.value||null})} aria-label="Set date" style={{ position:"absolute", inset:0, width:"100%", height:"100%", opacity:0, cursor:"pointer", border:"none", padding:0 }}/>
+      </label>
+      <button onClick={()=>upd(t.id,{star:!t.star})} title="Star" style={{ background:"none", border:"none", cursor:"pointer", fontSize:17, color:t.star?C.gold:C.faint, padding:0, minWidth:28, minHeight:28 }}>{t.star?"★":"☆"}</button>
       <button onClick={()=>move(t)} title={bigRow?"Move to Daily":"Move to Big picture"} style={{ background:"none", border:"none", cursor:"pointer", fontSize:15, color:C.faint, padding:"0 2px" }}>⇅</button>
       <button onClick={()=>del(t.id)} title="Delete" style={{ background:"none", border:"none", color:C.faint, cursor:"pointer", padding:0, display:"flex" }}><TrashIcon size={15}/></button>
     </div>
