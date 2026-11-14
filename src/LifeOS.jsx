@@ -33,6 +33,14 @@ const DAY_KINDS = {
   off:  { bar:"#E6B800", tint:"rgba(230,184,0,.055)", label:"off school" },  // amber
   away: { bar:"#7B4FB5", tint:"rgba(123,79,181,.07)", label:"away" },        // purple
 };
+// Day-type colours live in stored data (DEFAULT_DAYTYPES and anything Dan has saved), picked
+// against the old palette. Remap them at render time only, so storage never changes: the old
+// hex → the token that plays the same role in the current palette. Unknown colours pass through.
+const DT_REMAP = {
+  "#E0529B":C.pink, "#4FC3E0":C.cyan, "#E6B800":C.gold, "#2F9E44":C.green,
+  "#2BA8B8":C.teal, "#7B4FB5":C.purple, "#8C92A0":C.dim,
+};
+const dtColor = (hex)=> (hex && DT_REMAP[String(hex).toUpperCase()]) || hex || C.faint;
 const holidaysAt = (iso,hols)=> (hols||[]).filter(h=> h && h.start && h.end && iso>=h.start && iso<=h.end);
 const kindsAt = (iso,hols)=>{ const seen=[]; for(const h of holidaysAt(iso,hols)){ const k=DAY_KINDS[h.type]?h.type:"off"; if(!seen.includes(k)) seen.push(k); } return seen; };
 
@@ -1381,7 +1389,7 @@ function TodayView({ day,date,setDate,upd,dayTypes,applyDayType,links,allDays,fl
 
       <div style={{ display:"flex", alignItems:"center", gap:SP.sm, marginBottom:SP.lg, position:"relative", flexWrap:"wrap", padding:"0 4px" }}>
         <button onClick={()=>setShowApply(s=>!s)} style={{ display:"inline-flex", alignItems:"center", gap:6, minHeight:34, padding:"0 12px", borderRadius:R.pill, cursor:"pointer", fontSize:13, fontWeight:600, border:`1px solid ${C.line}`, background:C.panel, color:C.ink }}>
-          <span style={{ width:8, height:8, borderRadius:R.pill, background:currentType?currentType.color:C.faint }}/>{currentType?currentType.name:"Blank"} <span style={{ color:C.faint, fontSize:11 }}>▾</span></button>
+          <span style={{ width:8, height:8, borderRadius:R.pill, background:currentType?dtColor(currentType.color):C.faint }}/>{currentType?currentType.name:"Blank"} <span style={{ color:C.faint, fontSize:11 }}>▾</span></button>
         {(day.bs||day.frozen) && <span style={{ fontSize:11, fontWeight:700, padding:"5px 10px", borderRadius:R.pill, background:day.bs?`${C.red}26`:`${C.blue}26`, color:day.bs?C.red:C.blue }}>{day.bs?"BS day":"❄ Frozen"}</span>}
         <div style={{ position:"relative", marginLeft:"auto" }}>
           <button onClick={()=>setShowActions(s=>!s)} aria-label="Day actions" style={{ width:34, height:34, borderRadius:R.pill, cursor:"pointer", fontSize:15, fontWeight:700, border:`1px solid ${C.line}`, background:C.panel, color:C.dim, padding:0 }}>⋯</button>
@@ -1396,7 +1404,7 @@ function TodayView({ day,date,setDate,upd,dayTypes,applyDayType,links,allDays,fl
         {showApply && (
           <div style={{ position:"absolute", top:"100%", marginTop:8, background:C.panel2, border:`1px solid ${C.line}`, borderRadius:R.md, padding:8, zIndex:30, width:250, maxHeight:300, overflowY:"auto", boxShadow:SH.pop, left:0 }}>
             <div style={{ fontSize:11, color:C.faint, padding:"4px 8px 8px" }}>Switch this day's format — your own and planned blocks stay</div>
-            {Object.entries(dayTypes).map(([id,t])=> <button key={id} onClick={()=>{ applyDayType(id); setShowApply(false); }} style={{ display:"flex", alignItems:"center", gap:8, width:"100%", padding:"10px 10px", borderRadius:8, border:"none", background:day.dayTypeId===id?C.panel:"transparent", color:C.ink, cursor:"pointer", fontSize:14, textAlign:"left" }}><span style={{ width:8,height:8,borderRadius:"50%",background:t.color }}/>{t.name}</button>)}
+            {Object.entries(dayTypes).map(([id,t])=> <button key={id} onClick={()=>{ applyDayType(id); setShowApply(false); }} style={{ display:"flex", alignItems:"center", gap:8, width:"100%", padding:"10px 10px", borderRadius:8, border:"none", background:day.dayTypeId===id?C.panel:"transparent", color:C.ink, cursor:"pointer", fontSize:14, textAlign:"left" }}><span style={{ width:8,height:8,borderRadius:"50%",background:dtColor(t.color) }}/>{t.name}</button>)}
           </div>
         )}
       </div>
@@ -1865,7 +1873,7 @@ function DayTypesView({ dayTypes,save,weekMap,saveWeekMap,weekMapB,saveWeekMapB,
       <div style={{ display:"grid", gridTemplateColumns:isMobile?"1fr":"260px 1fr", gap:18 }}>
         <div style={{ display:"flex", flexDirection:"column", gap:18 }}>
           <Panel accent={C.teal} title="Your Formats">
-            {Object.entries(dayTypes).map(([id,t])=> <button key={id} onClick={()=>setSelId(id)} style={{ display:"flex", alignItems:"center", gap:8, width:"100%", padding:"9px 10px", borderRadius:8, marginBottom:4, cursor:"pointer", textAlign:"left", border:`1px solid ${selId===id?t.color:"transparent"}`, background:selId===id?C.panel2:"transparent", color:C.ink, fontSize:13 }}><span style={{ width:9,height:9,borderRadius:"50%",background:t.color,flexShrink:0 }}/><span style={{ flex:1 }}>{t.name}</span><span style={{ fontSize:10, color:C.faint }}>{(t.blocks||[]).length}</span></button>)}
+            {Object.entries(dayTypes).map(([id,t])=> <button key={id} onClick={()=>setSelId(id)} style={{ display:"flex", alignItems:"center", gap:8, width:"100%", padding:"9px 10px", borderRadius:8, marginBottom:4, cursor:"pointer", textAlign:"left", border:`1px solid ${selId===id?dtColor(t.color):"transparent"}`, background:selId===id?C.panel2:"transparent", color:C.ink, fontSize:13 }}><span style={{ width:9,height:9,borderRadius:"50%",background:dtColor(t.color),flexShrink:0 }}/><span style={{ flex:1 }}>{t.name}</span><span style={{ fontSize:10, color:C.faint }}>{(t.blocks||[]).length}</span></button>)}
             <button onClick={newType} style={{ ...addBtn, marginTop:8 }}>+ New day type</button>
             <button onClick={loadReal} style={{ ...addBtn, marginTop:6, borderColor:C.pink, color:C.pink }}>↺ Load my real timetable</button>
           </Panel>
@@ -1889,10 +1897,10 @@ function DayTypesView({ dayTypes,save,weekMap,saveWeekMap,weekMapB,saveWeekMapB,
         </div>
         <div>
           {sel && (
-            <Panel accent={sel.color} title={null}>
+            <Panel accent={dtColor(sel.color)} title={null}>
               <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:16, flexWrap:"wrap" }}>
                 <input value={sel.name} onChange={e=>updType({name:e.target.value})} style={{ ...inp, flex:1, minWidth:160, fontSize:16, fontWeight:600 }}/>
-                <div style={{ display:"flex", gap:5 }}>{[C.pink,C.cyan,C.blue,C.green,C.gold,C.purple,C.teal,C.sleep,C.red].map(col=> <button key={col} onClick={()=>updType({color:col})} style={{ width:22,height:22,borderRadius:"50%",background:col,cursor:"pointer",border:sel.color===col?"2px solid #fff":"2px solid transparent" }}/>)}</div>
+                <div style={{ display:"flex", gap:5 }}>{[C.pink,C.cyan,C.blue,C.green,C.gold,C.purple,C.teal,C.sleep,C.red].map(col=> <button key={col} onClick={()=>updType({color:col})} style={{ width:22,height:22,borderRadius:"50%",background:col,cursor:"pointer",border:dtColor(sel.color)===col?"2px solid #fff":"2px solid transparent" }}/>)}</div>
                 <button onClick={delType} style={delBtn}>×</button>
               </div>
               <div style={{ fontSize:11, color:C.faint, marginBottom:10 }}>Edit this format's blocks — same controls as the day timeline. This becomes the starting layout whenever you apply this type.</div>
