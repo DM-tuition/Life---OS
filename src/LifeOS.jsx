@@ -593,6 +593,18 @@ const stepBtn = { width:24,height:24,borderRadius:6,border:`1px solid ${C.line}`
 const Nav = ({ children,onClick })=>(
   <button onClick={onClick} style={{ width:44,height:44,borderRadius:R.pill,border:`1px solid ${C.line}`,background:C.panel,color:C.ink,fontSize:22,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",lineHeight:1,paddingBottom:3 }}>{children}</button>
 );
+// Page header shared by every tab — same shape as Today's: small eyebrow, big left-aligned title,
+// optional one-line sub, and any controls (‹ › arrows) on the right edge.
+const PageHeader = ({ eyebrow,title,sub,right,eyebrowColor })=>(
+  <header style={{ display:"flex", alignItems:"flex-end", justifyContent:"space-between", gap:SP.md, marginBottom:SP.lg, padding:"4px 4px 0" }}>
+    <div style={{ minWidth:0 }}>
+      {eyebrow && <div style={{ ...EYEBROW, color:eyebrowColor||C.dim, padding:"6px 0" }}>{eyebrow}</div>}
+      <h1 style={{ ...DISPLAY, margin:0, fontSize:34, lineHeight:1.02, color:C.ink }}>{title}</h1>
+      {sub && <div style={{ fontSize:13, color:C.dim, marginTop:SP.sm, lineHeight:1.45 }}>{sub}</div>}
+    </div>
+    {right && <div style={{ display:"flex", gap:SP.sm, flexShrink:0, paddingBottom:2 }}>{right}</div>}
+  </header>
+);
 const Empty = ({ children,big })=> <div style={{ textAlign:"center", color:C.faint, fontSize:big?15:12, padding:big?"60px 20px":"14px", lineHeight:1.6 }}>{children}</div>;
 const Mini = ({ children })=> <div style={{ fontSize:11, color:C.faint, marginTop:8, textAlign:"center" }}>{children}</div>;
 const Label = ({ children })=> <div style={{ fontSize:11, color:C.faint, marginBottom:8 }}>{children}</div>;
@@ -1620,14 +1632,9 @@ function WeekPlanView({ date,setDate,setTab,allDays,ctx,moveBlock }){
 
   return (
     <div>
-      <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:18, marginBottom:18 }}>
-        <Nav onClick={()=>setDate(addDays(wk,-7))}>‹</Nav>
-        <div style={{ textAlign:"center", minWidth:200 }}>
-          <div style={{ fontFamily:DISPLAY.fontFamily, fontWeight:DISPLAY.fontWeight, letterSpacing:DISPLAY.letterSpacing, fontSize:28, color:C.ink, lineHeight:0.9 }}>Week of {pd(wk).getDate()} {MONTHS[pd(wk).getMonth()].slice(0,3)}</div>
-          <div style={{ fontSize:12, color:C.dim, marginTop:4 }}>Week {isB?"B":"A"} · {planned ? `${planned} blocks from the Sunday plan` : "no Sunday plan yet"}</div>
-        </div>
-        <Nav onClick={()=>setDate(addDays(wk,7))}>›</Nav>
-      </div>
+      <PageHeader eyebrow={`Week ${isB?"B":"A"} · ${planned ? `${planned} planned blocks` : "no Sunday plan yet"}`} eyebrowColor={wk===weekKeyOf(today)?C.teal:C.dim}
+        title={(()=>{ const a=pd(wk), b=pd(addDays(wk,6)); const m=(x)=>MONTHS[x.getMonth()].slice(0,3); return a.getMonth()===b.getMonth() ? `${a.getDate()}–${b.getDate()} ${m(b)}` : `${a.getDate()} ${m(a)} – ${b.getDate()} ${m(b)}`; })()}
+        right={<><Nav onClick={()=>setDate(addDays(wk,-7))}>‹</Nav><Nav onClick={()=>setDate(addDays(wk,7))}>›</Nav></>}/>
       <div style={{ display:"grid", gridTemplateColumns:isMobile?"1fr":"repeat(auto-fill,minmax(250px,1fr))", gap:12 }}>
         {days.map(({ iso,d,evs,kinds })=>{
           const blocks=[...(d.blocks||[])].sort((a,b)=>a.t-b.t);
@@ -1706,11 +1713,8 @@ function MonthView({ date,setDate,setTab,allDays,dayTypes,flash,weekAnchorA }){
 
   return (
     <div>
-      <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:18, marginBottom:18 }}>
-        <Nav onClick={prevM}>‹</Nav>
-        <div style={{ fontFamily:DISPLAY.fontFamily, fontWeight:DISPLAY.fontWeight, letterSpacing:DISPLAY.letterSpacing, fontSize:28, color:C.ink, minWidth:220, textAlign:"center" }}>{MONTHS[viewM]} {viewY}</div>
-        <Nav onClick={nextM}>›</Nav>
-      </div>
+      <PageHeader eyebrow={String(viewY)} eyebrowColor={monthKey===todayISO().slice(0,7)?C.teal:C.dim} title={MONTHS[viewM]}
+        right={<><Nav onClick={prevM}>‹</Nav><Nav onClick={nextM}>›</Nav></>}/>
 
       <div style={{ display:"grid", gridTemplateColumns:"repeat(7,1fr)", gap:6 }}>
         {DAYS.map(d=> <div key={d} style={{ textAlign:"center", fontSize:11, color:C.dim, fontWeight:600, padding:"4px 0" }}>{d.slice(0,3)}</div>)}
@@ -1793,10 +1797,7 @@ function TrendsView({ allDays,links,cfg }){
 
   return (
     <div>
-      <div style={{ textAlign:"center", marginBottom:22 }}>
-        <div style={{ fontFamily:DISPLAY.fontFamily, fontWeight:DISPLAY.fontWeight, letterSpacing:DISPLAY.letterSpacing, fontSize:28, color:C.ink }}>Trends</div>
-        <div style={{ fontSize:12, color:C.dim }}>{sorted.length} days logged · the long game</div>
-      </div>
+      <PageHeader eyebrow={`${sorted.length} days logged`} title="Trends" sub="The long game — what the logs say over weeks, not days."/>
 
       <Panel accent={C.teal} title="Plan Adherence" style={{ marginBottom:18 }} right={<span style={{ fontSize:11, color:C.faint }}>of what you drew, how much you did — drive this up</span>}>
         <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:14 }}>
@@ -1849,10 +1850,7 @@ function DayTypesView({ dayTypes,save,weekMap,saveWeekMap,weekMapB,saveWeekMapB,
 
   return (
     <div>
-      <div style={{ textAlign:"center", marginBottom:8 }}>
-        <div style={{ fontFamily:DISPLAY.fontFamily, fontWeight:DISPLAY.fontWeight, letterSpacing:DISPLAY.letterSpacing, fontSize:28, color:C.ink }}>Day Types</div>
-        <div style={{ fontSize:12, color:C.dim }}>Build a format once · apply it to any day from the Today tab</div>
-      </div>
+      <PageHeader eyebrow="Formats" title="Day Types" sub="Build a format once · apply it to any day from the Today tab"/>
       <div style={{ display:"grid", gridTemplateColumns:isMobile?"1fr":"260px 1fr", gap:18 }}>
         <div style={{ display:"flex", flexDirection:"column", gap:18 }}>
           <Panel accent={C.teal} title="Your Formats">
@@ -2107,10 +2105,7 @@ function HabitsView({ allDays, links, saveLinks, cfg, saveCfg, bad, saveBad, let
 
   return (
     <div>
-      <div style={{ textAlign:"center", marginBottom:20 }}>
-        <div style={{ fontFamily:DISPLAY.fontFamily, fontWeight:DISPLAY.fontWeight, letterSpacing:DISPLAY.letterSpacing, fontSize:28, color:C.ink }}>Habits</div>
-        <div style={{ fontSize:12, color:C.dim }}>Don't break the chain · last {GRID_WEEKS} weeks · ❄ freeze a day from the Today tab</div>
-      </div>
+      <PageHeader eyebrow={`Last ${GRID_WEEKS} weeks`} title="Habits" sub="Don't break the chain · ❄ freeze a day from the Today tab"/>
       <DisciplineChart allDays={allDays} links={links} bad={bad}/>
       <MetricChart allDays={allDays} title="Sleep score" accent={C.sleep} yMin={0} yMax={100} ticks={[0,25,50,75,100]}
         target={80} targetLabel="80+, Garmin's 'good'" get={(d)=> d.sleep && d.sleep.score!=null ? d.sleep.score : null}
@@ -2226,10 +2221,7 @@ function TodoListView({ todos,save,flash }){
 
   return (
     <div style={{ maxWidth:680, margin:"0 auto" }}>
-      <div style={{ textAlign:"center", marginBottom:18 }}>
-        <div style={{ fontFamily:DISPLAY.fontFamily, fontWeight:DISPLAY.fontWeight, letterSpacing:DISPLAY.letterSpacing, fontSize:28, color:C.ink }}>To Do</div>
-        <div style={{ fontSize:12, color:C.dim }}>{big.length} big · {small.length} daily · dated tasks also show on that day</div>
-      </div>
+      <PageHeader eyebrow={`${big.length} big · ${small.length} daily`} title="To Do" sub="Dated tasks also show on that day."/>
 
       <Panel accent={C.green} title={null} style={{ marginBottom:18 }}>
         <div style={{ display:"flex", gap:6, marginBottom:10 }}>
