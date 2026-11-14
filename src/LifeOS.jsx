@@ -1716,38 +1716,42 @@ function MonthView({ date,setDate,setTab,allDays,dayTypes,flash,weekAnchorA }){
       <PageHeader eyebrow={String(viewY)} eyebrowColor={monthKey===todayISO().slice(0,7)?C.teal:C.dim} title={MONTHS[viewM]}
         right={<><Nav onClick={prevM}>‹</Nav><Nav onClick={nextM}>›</Nav></>}/>
 
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(7,1fr)", gap:6 }}>
-        {DAYS.map(d=> <div key={d} style={{ textAlign:"center", fontSize:11, color:C.dim, fontWeight:600, padding:"4px 0" }}>{d.slice(0,3)}</div>)}
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(7,minmax(0,1fr))", gap:isMobile?4:6 }}>
+        {DAYS.map(d=> <div key={d} style={{ ...EYEBROW, fontSize:10, textAlign:"center", color:(d==="Saturday"||d==="Sunday")?C.faint:C.dim, padding:"2px 0 6px" }}>{isMobile?d.slice(0,1):d.slice(0,3)}</div>)}
         {cells.map((dd,i)=>{
           if(dd===null) return <div key={"e"+i}/>;
-          const iso=cellISO(dd); const isToday=iso===todayISO();
+          const iso=cellISO(dd); const today=todayISO(); const isToday=iso===today; const past=iso<today;
           const logged=allDays[iso]; const evArr=evList(events[iso]);
           const rating=logged?.rating; const bs=logged?.bs;
           const dayKinds=kindsAt(iso,hols);
           const tint = dayKinds.length ? DAY_KINDS[dayKinds[0]].tint : null;
-          const radius = isMobile?8:10;
+          const isMon = dayNameOf(iso)==="Monday" && weekAnchorA; const isB = isMon && weekIsB(iso,weekAnchorA);
+          const nBlocks = logged?.blocks?.length||0;
           return (
             <div key={dd} onClick={()=>{ setDate(iso); setTab("today"); }}
               title={dayKinds.length? holidaysAt(iso,hols).map(h=>h.label||DAY_KINDS[h.type]?.label||"Holiday").join(" · ") : undefined}
-              style={{ minHeight:isMobile?58:84, background:isToday?C.panel2:C.panel, backgroundImage:tint?`linear-gradient(${tint},${tint})`:undefined, border:`1px solid ${isToday?C.teal:C.line}`, borderRadius:radius, padding:isMobile?4:8, cursor:"pointer", position:"relative", display:"flex", flexDirection:"column", gap:3, overflow:"hidden" }}>
+              style={{ minHeight:isMobile?64:92, background:isToday?C.panel2:C.panel, backgroundImage:tint?`linear-gradient(${tint},${tint})`:undefined,
+                border:`1px solid ${isToday?C.teal:"transparent"}`, boxShadow:isToday?`0 0 0 3px ${C.teal}22`:"none",
+                borderRadius:isMobile?R.sm+2:R.md, padding:isMobile?"5px 4px 4px":"8px 8px 6px", cursor:"pointer", position:"relative", display:"flex", flexDirection:"column", gap:3, overflow:"hidden", minWidth:0 }}>
               {dayKinds.length>0 && (
                 <div style={{ position:"absolute", top:0, left:0, right:0, height:3, display:"flex" }}>
                   {dayKinds.map(k=> <div key={k} style={{ flex:1, background:DAY_KINDS[k].bar }}/>)}
                 </div>
               )}
-              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-                <span style={{ fontSize:13, fontWeight:700, color:isToday?C.teal:C.dim }}>{dd}</span>
-                <div style={{ display:"flex", gap:3, alignItems:"center" }}>
-                  {dayNameOf(iso)==="Monday" && weekAnchorA && (()=>{ const b=weekIsB(iso,weekAnchorA);
-                    return <span style={{ fontSize:8, fontWeight:700, letterSpacing:0.3, color:b?C.cyan:C.pink, border:`1px solid ${b?C.cyan:C.pink}`, borderRadius:4, padding:"0 3px" }}>{b?"B":"A"}</span>; })()}
-                  {bs && <span style={{ fontSize:8, fontWeight:700, color:"#fff", background:C.red, borderRadius:4, padding:"1px 4px" }}>BS</span>}
-                  {rating>0 && <span style={{ fontSize:9, color:C.faint }}>{rating}/10</span>}
-                </div>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:2, minHeight:20 }}>
+                <span style={{ width:20, height:20, display:"inline-flex", alignItems:"center", justifyContent:"center", borderRadius:R.pill, fontSize:12.5, fontWeight:700, fontVariantNumeric:"tabular-nums",
+                  background:isToday?C.teal:"transparent", color:isToday?C.bg:past?C.dim:C.ink }}>{dd}</span>
+                {bs ? <span style={{ fontSize:8, fontWeight:750, color:"#fff", background:C.red, borderRadius:4, padding:"1px 3px", lineHeight:1.2 }}>BS</span>
+                  : rating>0 && <span style={{ fontSize:isMobile?9.5:10.5, fontWeight:650, color:rating>=7?C.green:rating>=5?C.dim:C.gold, fontVariantNumeric:"tabular-nums" }}>{rating}{isMobile?"":"/10"}</span>}
               </div>
-              {evArr.slice(0,maxShow).map((e,j)=> <div key={j} style={{ fontSize:11, color:C.pink, fontWeight:600, lineHeight:1.15, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{e}</div>)}
-              {evArr.length>maxShow && <div style={{ fontSize:9, color:C.faint }}>+{evArr.length-maxShow} more</div>}
-              {logged?.blocks?.length>0 && evArr.length===0 && <div style={{ fontSize:9, color:C.faint }}>{logged.blocks.length} blocks</div>}
-              <button onClick={(e)=>{ e.stopPropagation(); setNewEv(""); setEditCell(iso); }} style={{ position:"absolute", bottom:4, right:4, width:18, height:18, borderRadius:5, border:`1px solid ${C.line}`, background:C.panel2, color:C.faint, fontSize:11, cursor:"pointer", lineHeight:1, padding:0 }}>+</button>
+              {evArr.slice(0,maxShow).map((e,j)=> <div key={j} style={{ fontSize:isMobile?9.5:11, color:C.pink, fontWeight:650, lineHeight:1.25, background:`${C.pink}1F`, borderRadius:4, padding:isMobile?"1px 3px":"2px 5px", overflow:"hidden", ...(isMobile?{ display:"-webkit-box", WebkitLineClamp:2, WebkitBoxOrient:"vertical", wordBreak:"break-word" }:{ whiteSpace:"nowrap", textOverflow:"ellipsis" }) }}>{e}</div>)}
+              {evArr.length>maxShow && <div style={{ fontSize:9, color:C.dim, fontWeight:600 }}>+{evArr.length-maxShow}</div>}
+              {!isMobile && nBlocks>0 && evArr.length===0 && <div style={{ fontSize:10, color:C.faint }}>{nBlocks} blocks</div>}
+              <div style={{ marginTop:"auto", display:"flex", alignItems:"center", justifyContent:"space-between", gap:2, minHeight:16 }}>
+                {isMon ? <span style={{ fontSize:8.5, fontWeight:750, letterSpacing:0.3, color:isB?C.cyan:C.pink, background:`${isB?C.cyan:C.pink}1F`, borderRadius:4, padding:"1px 4px" }}>{isB?"B":"A"}</span>
+                  : (isMobile && nBlocks>0 && evArr.length===0 ? <span style={{ width:4, height:4, borderRadius:R.pill, background:C.faint, marginLeft:3 }} title={`${nBlocks} blocks`}/> : <span/>)}
+                <button aria-label={`Add event on ${fmt(iso)}`} onClick={(e)=>{ e.stopPropagation(); setNewEv(""); setEditCell(iso); }} style={{ width:18, height:18, borderRadius:5, border:"none", background:"transparent", color:C.faint, fontSize:14, cursor:"pointer", lineHeight:1, padding:0 }}>+</button>
+              </div>
             </div>
           );
         })}
@@ -1769,7 +1773,14 @@ function MonthView({ date,setDate,setTab,allDays,dayTypes,flash,weekAnchorA }){
             <button onClick={()=>{ setEditCell(null); setNewEv(""); }} style={addBtn}>Done</button>
         </Sheet>
       ); })()}
-      <Mini>Tap a day to open & plan it · tap + to add events · BS and day-score show once logged · top bar: <span style={{ color:DAY_KINDS.off.bar }}>▬ off school</span> <span style={{ color:DAY_KINDS.away.bar }}>▬ away</span></Mini>
+      <div style={{ display:"flex", flexWrap:"wrap", justifyContent:"center", gap:"6px 14px", marginTop:SP.lg, fontSize:11, color:C.dim }}>
+        <span style={{ display:"inline-flex", alignItems:"center", gap:5 }}><span style={{ width:14, height:3, borderRadius:2, background:DAY_KINDS.off.bar }}/>off school</span>
+        <span style={{ display:"inline-flex", alignItems:"center", gap:5 }}><span style={{ width:14, height:3, borderRadius:2, background:DAY_KINDS.away.bar }}/>away</span>
+        <span style={{ display:"inline-flex", alignItems:"center", gap:5 }}><span style={{ width:10, height:10, borderRadius:3, background:`${C.pink}33` }}/>event</span>
+        <span style={{ display:"inline-flex", alignItems:"center", gap:5 }}><span style={{ color:C.green, fontWeight:650 }}>7</span>day score</span>
+        <span style={{ display:"inline-flex", alignItems:"center", gap:5 }}><span style={{ width:4, height:4, borderRadius:R.pill, background:C.faint }}/>planned</span>
+      </div>
+      <Mini>Tap a day to open & plan it · tap + to add events</Mini>
     </div>
   );
 }
