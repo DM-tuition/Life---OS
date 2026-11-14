@@ -1397,4 +1397,8 @@ export const VAULT_PLAN = [
   // 14 Nov: the redesigned countdown strip had no interview line. Window, not a date —
   // no invite yet (brief rule). Mocks stay out until their dates are known.
   { key: "kd-interview-window", kind: "keyDate", name: "Interview window opens", date: "2026-12-04" },
+  // 14 Nov: Dan's own score for Fri 13 ("I was a bum, 6/10 because I kept the streak").
+  { key: "rt-2026-11-13", kind: "rating", date: "2026-11-13", value: 6 },
+  // 14 Nov: Saturday library session (Dan typing from the library, ~14:00).
+  { key: "hl-2026-11-14-lib", kind: "habitLog", date: "2026-11-14", habits: { library: true }, known: ["library"] },
 ];
