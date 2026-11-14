@@ -1659,15 +1659,15 @@ function WeekPlanView({ date,setDate,setTab,allDays,ctx,moveBlock }){
               {isPlanned(b) && <span style={{ fontSize:10, color:C.teal }}>✦</span>}
             </div>); };
           return (
-            <div key={iso} data-iso={iso} style={{ background:drag&&drag.over===iso&&drag.from!==iso?`${C.teal}22`:isT?C.panel2:C.panel, border:`1px solid ${drag&&drag.over===iso&&drag.from!==iso?C.teal:isT?C.teal:C.line}`, transition:"background .12s, border-color .12s", borderRadius:14, padding:"12px 14px", position:"relative", overflow:"hidden", opacity:past?0.7:1 }}>
+            <div key={iso} data-iso={iso} style={{ background:drag&&drag.over===iso&&drag.from!==iso?`${C.teal}22`:isT?C.panel2:C.panel, border:`1px solid ${drag&&drag.over===iso&&drag.from!==iso?C.teal:isT?C.teal:C.line}`, transition:"background .12s, border-color .12s", borderRadius:R.lg, padding:`${SP.md}px ${SP.lg}px`, position:"relative", overflow:"hidden", boxShadow:SH.card, opacity:past?0.72:1 }}>
               {kinds.length>0 && <div style={{ position:"absolute", top:0, left:0, right:0, height:3, display:"flex" }}>{kinds.map(k=> <div key={k} style={{ flex:1, background:DAY_KINDS[k].bar }}/>)}</div>}
               <button onClick={()=>go(iso)} style={{ display:"flex", alignItems:"baseline", gap:8, width:"100%", background:"none", border:"none", padding:0, cursor:"pointer", textAlign:"left", marginBottom:6 }}>
                 <span style={{ fontFamily:DISPLAY.fontFamily, fontWeight:DISPLAY.fontWeight, letterSpacing:DISPLAY.letterSpacing, fontSize:20, color:isT?C.teal:C.ink, lineHeight:1 }}>{dayNameOf(iso)}</span>
                 <span style={{ fontSize:12, color:C.dim }}>{pd(iso).getDate()} {MONTHS[pd(iso).getMonth()].slice(0,3)}</span>
-                {isT && <span style={{ fontSize:10, color:C.green, fontWeight:700 }}>TODAY</span>}
-                <span style={{ marginLeft:"auto", fontSize:12, color:C.faint }}>open ›</span>
+                {isT && <span style={{ ...EYEBROW, fontSize:10, color:C.teal }}>Today</span>}
+                <span style={{ marginLeft:"auto", fontSize:12, color:C.dim }}>Open ›</span>
               </button>
-              {evs.map((e,j)=> <div key={j} style={{ fontSize:12, color:C.pink, fontWeight:600, marginBottom:3 }}>● {e}</div>)}
+              {evs.map((e,j)=> <div key={j} style={{ fontSize:12, color:C.pink, fontWeight:650, background:`${C.pink}1F`, borderRadius:6, padding:"3px 8px", marginBottom:4, display:"inline-block", marginRight:4 }}>{e}</div>)}
               {(exp ? blocks : [...rest, ...(school.length?[{ id:"school", t:school[0].t, summary:true }]:[])].sort((x,y)=>x.t-y.t)).map(b=> b.summary ?
                 <React.Fragment key="school"><button key="school" onClick={()=>setOpen(o=>({ ...o,[iso]:true }))} style={{ display:"flex", alignItems:"center", gap:9, width:"100%", padding:"6px 0", background:"none", border:"none", cursor:"pointer", textAlign:"left" }}>
                   <span style={{ width:76, fontSize:11.5, color:C.dim, fontVariantNumeric:"tabular-nums" }}>{hhmm(school[0].t)}–{hhmm(Math.max(...school.map(b=>b.e)))}</span>
