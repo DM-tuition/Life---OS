@@ -820,6 +820,7 @@ export default function LifeOS(){
       )}
 
       <div style={{ maxWidth:1180, margin:"0 auto", padding:isMobile?"16px 14px calc(96px + env(safe-area-inset-bottom))":bottomNav?"24px 24px calc(100px + env(safe-area-inset-bottom))":"24px" }}>
+        <div key={tab} className="lo-view">
         {tab==="today" && <TodayView day={day} date={date} setDate={setDate} upd={upd} dayTypes={dayTypes} applyDayType={applyDayType} links={habitLinks} allDays={allDays} flash={flash} masterTodos={masterTodos} toggleMasterTodo={toggleMasterTodo} goTodos={()=>setTab("todo")} keyDates={keyDates} saveKeyDates={persistKeyDates} bad={badHabits} />}
         {tab==="plan" && <WeekPlanView date={date} setDate={setDate} setTab={setTab} allDays={allDays} ctx={dayCtx} moveBlock={moveBlockToDay} />}
         {tab==="todo" && <TodoListView todos={masterTodos} save={persistMasterTodos} flash={flash} />}
@@ -827,6 +828,7 @@ export default function LifeOS(){
         {tab==="habits" && <HabitsView allDays={allDays} links={habitLinks} saveLinks={persistHabitLinks} cfg={habitCfg} saveCfg={persistHabitCfg} bad={badHabits} saveBad={persistBadHabits} letter={letter} saveLetter={persistLetter} letters={letters} saveLetters={persistLetters} />}
         {tab==="trends" && <TrendsView allDays={allDays} links={habitLinks} cfg={habitCfg} />}
         {tab==="types" && <DayTypesView dayTypes={dayTypes} save={persistDayTypes} weekMap={weekMap} saveWeekMap={persistWeekMap} weekMapB={weekMapB} saveWeekMapB={persistWeekMapB} weekAnchorA={weekAnchorA} saveWeekAnchor={persistWeekAnchor} flash={flash} />}
+        </div>
       </div>
 
       {bottomNav && (
@@ -1347,7 +1349,7 @@ function TodayView({ day,date,setDate,upd,dayTypes,applyDayType,links,allDays,fl
     if(Math.abs(dx)>70 && Math.abs(dx)>Math.abs(dy)*1.6) setDate(addDays(date, dx<0?1:-1)); sw.current=null; };
 
   return (
-    <div onTouchStart={onTS} onTouchEnd={onTE} className="lo-view">
+    <div onTouchStart={onTS} onTouchEnd={onTE}>
       {/* Header strip — Dan, Nov 2026 overhaul: date first, left-aligned, arrows to the side,
           the day's format and actions on one line under it. */}
       <div style={{ display:"flex", alignItems:"flex-end", justifyContent:"space-between", gap:SP.md, marginBottom:SP.md, padding:"4px 4px 0" }}>
@@ -1551,8 +1553,8 @@ function TodayView({ day,date,setDate,upd,dayTypes,applyDayType,links,allDays,fl
 
           <Panel accent={C.red} title="Day Assessment" style={{ gridColumn:isMobile?"auto":"1 / -1" }}>
             <div style={{ display:"flex", gap:6, marginBottom:14, flexWrap:"wrap" }}>
-              {[0,1,2,3,4,5,6,7,8,9,10].map(n=> <button key={n} onClick={()=>upd({rating:n, ratingZero:n===0, ratingEst:false, ratingWhy:""})} style={{ width:32,height:36,borderRadius:7,cursor:"pointer",fontWeight:700,fontSize:14, border:`1px solid ${(!day.ratingEst&&((n===0&&day.ratingZero)||(n>0&&day.rating>=n)))?C.red:C.line}`, background:(!day.ratingEst&&((n===0&&day.ratingZero)||(n>0&&day.rating>=n)))?`rgba(224,82,74,${0.25+0.05*n})`:"transparent", color:day.rating>=n?"#fff":C.faint }}>{n}</button>)}
-              <div style={{ display:"flex", alignItems:"center", fontFamily:DISPLAY.fontFamily, fontWeight:DISPLAY.fontWeight, letterSpacing:DISPLAY.letterSpacing, fontSize:20, color:C.red, marginLeft:4 }}>/10</div>
+              {[0,1,2,3,4,5,6,7,8,9,10].map(n=> <button key={n} onClick={()=>upd({rating:n, ratingZero:n===0, ratingEst:false, ratingWhy:""})} style={{ flex:"1 0 40px", height:44,borderRadius:R.sm+2,cursor:"pointer",fontWeight:700,fontSize:15, fontVariantNumeric:"tabular-nums", border:`1px solid ${(!day.ratingEst&&((n===0&&day.ratingZero)||(n>0&&day.rating>=n)))?C.teal:C.line}`, background:(!day.ratingEst&&((n===0&&day.ratingZero)||(n>0&&day.rating>=n)))?`rgba(51,195,208,${0.18+0.05*n})`:C.panel2, color:day.rating>=n?"#fff":C.faint }}>{n}</button>)}
+              <div style={{ display:"flex", alignItems:"center", fontFamily:DISPLAY.fontFamily, fontWeight:DISPLAY.fontWeight, letterSpacing:DISPLAY.letterSpacing, fontSize:20, color:C.faint, marginLeft:4 }}>/10</div>
             </div>
             {day.ratingEst && <Mini>Estimated {day.rating}/10{day.ratingWhy?` (${day.ratingWhy})`:""}. You didn't score this day. Tap a number to score it for real.</Mini>}
             <textarea value={day.feedback} onChange={e=>upd({feedback:e.target.value})} placeholder="Feedback: how did today actually go?" style={{ ...inp, minHeight:70, resize:"vertical", width:"100%" }}/>
@@ -2211,12 +2213,12 @@ function TodoListView({ todos,save,flash }){
         {/* titles wrap so the whole task is readable on a phone; tap the text to edit it */}
         {editId===t.id
           ? <textarea autoFocus value={t.text} onChange={e=>upd(t.id,{text:e.target.value})} onBlur={()=>setEditId(null)} onKeyDown={e=>{ if(e.key==="Enter"){ e.preventDefault(); setEditId(null); } }} rows={Math.max(1,Math.ceil(t.text.length/34))}
-              style={{ ...inp, width:"100%", fontSize:bigRow?16:14.5, fontWeight:bigRow||t.star?650:450, padding:"4px 6px", resize:"none", lineHeight:1.35 }}/>
-          : <div onClick={()=>setEditId(t.id)} style={{ fontSize:bigRow?16:14.5, fontWeight:bigRow||t.star?650:450, lineHeight:1.35, color:t.done?C.faint:C.ink, textDecoration:t.done?"line-through":"none", cursor:"text", overflowWrap:"anywhere" }}>{t.text}</div>}
-        {t.due && <div style={{ fontSize:11, color: !t.done && t.due<today ? C.red : C.faint, marginTop:2 }}>📅 {fmt(t.due)}{!t.done && t.due<today ? " · overdue":""}</div>}
+              style={{ ...inp, width:"100%", fontSize:bigRow?15:14.5, fontWeight:bigRow||t.star?600:450, padding:"4px 6px", resize:"none", lineHeight:1.35 }}/>
+          : <div onClick={()=>setEditId(t.id)} style={{ fontSize:bigRow?15:14.5, fontWeight:bigRow||t.star?600:450, lineHeight:1.4, letterSpacing:"-0.005em", color:t.done?C.faint:C.ink, textDecoration:t.done?"line-through":"none", cursor:"text", overflowWrap:"anywhere" }}>{t.text}</div>}
+        {t.due && <div style={{ fontSize:11, color: !t.done && t.due<today ? C.red : C.faint, marginTop:3, fontWeight:550 }}>{fmt(t.due)}{!t.done && t.due<today ? " · overdue":""}</div>}
       </div>
       <input type="date" value={t.due||""} onChange={e=>upd(t.id,{due:e.target.value||null})} style={{ ...inp, padding:"5px 6px", fontSize:11, width:34, color:"transparent", cursor:"pointer" }} title="Set date"/>
-      <button onClick={()=>upd(t.id,{star:!t.star})} title="Star" style={{ background:"none", border:"none", cursor:"pointer", fontSize:17, color:t.star?C.gold:C.faint, padding:0 }}>{t.star?"★":"☆"}</button>
+      <button onClick={()=>upd(t.id,{star:!t.star})} title="Star" style={{ background:"none", border:"none", cursor:"pointer", fontSize:17, color:t.star?C.gold:C.faint, padding:0, minWidth:24, minHeight:28 }}>{t.star?"★":"☆"}</button>
       <button onClick={()=>move(t)} title={bigRow?"Move to Daily":"Move to Big picture"} style={{ background:"none", border:"none", cursor:"pointer", fontSize:15, color:C.faint, padding:"0 2px" }}>⇅</button>
       <button onClick={()=>del(t.id)} title="Delete" style={{ background:"none", border:"none", color:C.faint, cursor:"pointer", padding:0, display:"flex" }}><TrashIcon size={15}/></button>
     </div>
