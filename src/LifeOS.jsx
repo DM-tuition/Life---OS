@@ -577,12 +577,12 @@ const Ring = ({ pct,color,value,label,size=68 })=>{
   const r=(size-8)/2, circ=2*Math.PI*r;
   return <div style={{ position:"relative", width:size, height:size, flexShrink:0 }}>
     <svg width={size} height={size}>
-      <circle cx={size/2} cy={size/2} r={r} stroke={C.panel2} strokeWidth={6} fill="none"/>
+      <circle cx={size/2} cy={size/2} r={r} stroke={C.line} strokeWidth={6} fill="none"/>
       <circle cx={size/2} cy={size/2} r={r} stroke={color} strokeWidth={6} fill="none" strokeLinecap="round" strokeDasharray={circ} strokeDashoffset={circ*(1-Math.min(1,Math.max(0,pct)))} transform={`rotate(-90 ${size/2} ${size/2})`}/>
     </svg>
     <div style={{ position:"absolute", inset:0, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center" }}>
-      <span style={{ fontSize:20, fontWeight:700, color }}>{value}</span>
-      <span style={{ fontSize:8, color:C.faint, textTransform:"uppercase", letterSpacing:0.5 }}>{label}</span>
+      <span style={{ fontSize:size>=72?24:20, fontWeight:750, color, letterSpacing:"-0.02em", fontVariantNumeric:"tabular-nums" }}>{value}</span>
+      <span style={{ fontSize:9, color:C.faint, textTransform:"uppercase", letterSpacing:0.5 }}>{label}</span>
     </div>
   </div>;
 };
@@ -591,7 +591,7 @@ const addBtn = { width:"100%", minHeight:40, padding:"9px 12px", borderRadius:R.
 const delBtn = { width:28,height:28,borderRadius:6,border:`1px solid ${C.line}`,background:"transparent",color:C.faint,cursor:"pointer",fontSize:16,flexShrink:0 };
 const stepBtn = { width:24,height:24,borderRadius:6,border:`1px solid ${C.line}`,background:C.panel2,color:C.dim,cursor:"pointer",fontSize:15,lineHeight:1,padding:0 };
 const Nav = ({ children,onClick })=>(
-  <button onClick={onClick} style={{ width:42,height:42,borderRadius:"50%",border:`1px solid ${C.line}`,background:C.panel,color:C.dim,fontSize:22,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",lineHeight:1,paddingBottom:3 }}>{children}</button>
+  <button onClick={onClick} style={{ width:44,height:44,borderRadius:R.pill,border:`1px solid ${C.line}`,background:C.panel,color:C.ink,fontSize:22,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",lineHeight:1,paddingBottom:3 }}>{children}</button>
 );
 const Empty = ({ children,big })=> <div style={{ textAlign:"center", color:C.faint, fontSize:big?15:12, padding:big?"60px 20px":"14px", lineHeight:1.6 }}>{children}</div>;
 const Mini = ({ children })=> <div style={{ fontSize:11, color:C.faint, marginTop:8, textAlign:"center" }}>{children}</div>;
@@ -1254,16 +1254,20 @@ function DeadlineRadar({ dates,save,setDate }){
   const del = (i)=> save(list.filter((_,j)=>j!==i));
 
   return (
-    <div style={{ marginBottom:14 }}>
-      <div style={{ display:"flex", alignItems:"center", gap:8, overflowX:"auto", paddingBottom:2 }} className="lo-tabs">
+    <div style={{ marginBottom:SP.lg }}>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"0 4px", marginBottom:SP.sm }}><span style={EYEBROW}>Countdown</span></div>
+      <div style={{ display:"flex", alignItems:"stretch", gap:SP.sm, overflowX:"auto", padding:"2px 2px 4px", margin:"0 -2px" }} className="lo-tabs">
         {up.length===0 && <button onClick={()=>setEdit(true)} style={{ ...addBtn, width:"auto", padding:"7px 14px", fontSize:12 }}>+ add a date worth counting down to</button>}
-        {up.slice(0,5).map((d,i)=>{ const n=daysBetween(today,d.date); const c=col(n); return (
-          <button key={d.date+d.name+i} onClick={()=>setDate(d.date)} style={{ flexShrink:0, display:"flex", alignItems:"baseline", gap:7, background:C.panel, border:`1px solid ${n<=7?c:C.line}`, borderRadius:20, padding:"6px 13px", cursor:"pointer" }}>
-            <span style={{ fontSize:13, fontWeight:700, color:c, fontVariantNumeric:"tabular-nums" }}>{lab(n)}</span>
-            <span style={{ fontSize:12, color:C.dim, whiteSpace:"nowrap" }}>{d.name}</span>
+        {up.slice(0,6).map((d,i)=>{ const n=daysBetween(today,d.date); const c=col(n); const hot=n<=7; return (
+          <button key={d.date+d.name+i} onClick={()=>setDate(d.date)} style={{ flexShrink:0, width:118, textAlign:"left", background:hot?`linear-gradient(160deg, ${c}24, ${C.panel} 70%)`:C.panel, border:`1px solid ${hot?c+"66":C.line}`, borderRadius:R.md, padding:"10px 12px", cursor:"pointer", boxShadow:SH.card }}>
+            <div style={{ display:"flex", alignItems:"baseline", gap:4 }}>
+              <span style={{ fontSize:n<=1?17:22, fontWeight:750, color:hot?c:C.ink, fontVariantNumeric:"tabular-nums", letterSpacing:"-0.02em" }}>{n<=1?lab(n):n}</span>
+              {n>1 && <span style={{ fontSize:11, color:C.faint, fontWeight:600 }}>days</span>}
+            </div>
+            <div style={{ fontSize:12, color:C.dim, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis", marginTop:2 }}>{d.name}</div>
           </button>
         ); })}
-        {up.length>0 && <button onClick={()=>setEdit(true)} style={{ flexShrink:0, width:30, height:30, borderRadius:"50%", border:`1px solid ${C.line}`, background:"transparent", color:C.faint, cursor:"pointer", fontSize:13, padding:0 }}>⋯</button>}
+        {up.length>0 && <button onClick={()=>setEdit(true)} aria-label="Edit deadline radar" style={{ flexShrink:0, width:44, alignSelf:"stretch", borderRadius:R.md, border:`1px dashed ${C.line}`, background:"transparent", color:C.faint, cursor:"pointer", fontSize:16, padding:0 }}>⋯</button>}
       </div>
 
       {edit && (
@@ -1343,54 +1347,96 @@ function TodayView({ day,date,setDate,upd,dayTypes,applyDayType,links,allDays,fl
     if(Math.abs(dx)>70 && Math.abs(dx)>Math.abs(dy)*1.6) setDate(addDays(date, dx<0?1:-1)); sw.current=null; };
 
   return (
-    <div onTouchStart={onTS} onTouchEnd={onTE}>
-      <DeadlineRadar dates={keyDates} save={saveKeyDates} setDate={setDate} />
-      <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:18, marginBottom:10 }}>
-        <Nav onClick={()=>setDate(addDays(date,-1))}>‹</Nav>
-        <div style={{ textAlign:"center", minWidth:200, position:"relative" }}>
-          <div style={{ fontFamily:DISPLAY.fontFamily, fontWeight:DISPLAY.fontWeight, letterSpacing:DISPLAY.letterSpacing, fontSize:34, color:C.teal, lineHeight:0.9 }}>{dn}</div>
-          <button onClick={()=>{ const el=dateRef.current; if(!el) return; try{ el.showPicker(); }catch{ el.focus(); el.click(); } }} style={{ background:"none", border:"none", cursor:"pointer", fontSize:12, color:C.dim, padding:0 }}>{fmt(date)} {isToday && <span style={{color:C.green}}>• today</span>} <span style={{ color:C.faint }}>▾</span></button>
-          <input ref={dateRef} type="date" value={date} onChange={e=>e.target.value&&setDate(e.target.value)} style={{ position:"absolute", left:"50%", bottom:0, width:1, height:1, opacity:0, pointerEvents:"none" }}/>
+    <div onTouchStart={onTS} onTouchEnd={onTE} className="lo-view">
+      {/* Header strip — Dan, Nov 2026 overhaul: date first, left-aligned, arrows to the side,
+          the day's format and actions on one line under it. */}
+      <div style={{ display:"flex", alignItems:"flex-end", justifyContent:"space-between", gap:SP.md, marginBottom:SP.md, padding:"4px 4px 0" }}>
+        <div style={{ minWidth:0, position:"relative" }}>
+          <button onClick={()=>{ const el=dateRef.current; if(!el) return; try{ el.showPicker(); }catch{ el.focus(); el.click(); } }} style={{ ...EYEBROW, background:"none", border:"none", cursor:"pointer", padding:"6px 0", display:"flex", alignItems:"center", gap:6, color:isToday?C.teal:C.dim }}>
+            {isToday && <span style={{ width:6, height:6, borderRadius:R.pill, background:C.teal, boxShadow:`0 0 0 3px ${C.teal}33` }}/>}
+            {isToday?"Today":isPast?"Past day":"Upcoming"} · {pd(date).getDate()} {MONTHS[pd(date).getMonth()]} <span style={{ color:C.faint }}>▾</span>
+          </button>
+          <div style={{ ...DISPLAY, fontSize:34, lineHeight:1.02, color:C.ink }}>{dn}</div>
+          <input ref={dateRef} type="date" value={date} onChange={e=>e.target.value&&setDate(e.target.value)} style={{ position:"absolute", left:0, bottom:0, width:1, height:1, opacity:0, pointerEvents:"none" }}/>
         </div>
-        <Nav onClick={()=>setDate(addDays(date,1))}>›</Nav>
+        <div style={{ display:"flex", gap:SP.sm, flexShrink:0, paddingBottom:2 }}>
+          <Nav onClick={()=>setDate(addDays(date,-1))}>‹</Nav>
+          <Nav onClick={()=>setDate(addDays(date,1))}>›</Nav>
+        </div>
       </div>
 
-      <div style={{ display:"flex", justifyContent:"center", alignItems:"center", gap:10, marginBottom:16, position:"relative", flexWrap:"wrap" }}>
-        <button onClick={()=>setShowApply(s=>!s)} style={{ padding:"6px 14px", borderRadius:20, cursor:"pointer", fontSize:13, fontWeight:600, border:`1px solid ${currentType?currentType.color:C.line}`, background:"transparent", color:currentType?currentType.color:C.dim }}>{currentType?currentType.name:"Blank"} ▾</button>
-        {(day.bs||day.frozen) && <span style={{ fontSize:11, fontWeight:700, padding:"4px 8px", borderRadius:8, background:day.bs?C.red:C.blue, color:"#fff" }}>{day.bs?"BS day":"❄ Frozen"}</span>}
-        <div style={{ position:"relative" }}>
-          <button onClick={()=>setShowActions(s=>!s)} style={{ padding:"6px 12px", borderRadius:20, cursor:"pointer", fontSize:13, fontWeight:600, border:`1px solid ${C.line}`, background:"transparent", color:C.dim }}>⋯</button>
+      <div style={{ display:"flex", alignItems:"center", gap:SP.sm, marginBottom:SP.lg, position:"relative", flexWrap:"wrap", padding:"0 4px" }}>
+        <button onClick={()=>setShowApply(s=>!s)} style={{ display:"inline-flex", alignItems:"center", gap:6, minHeight:34, padding:"0 12px", borderRadius:R.pill, cursor:"pointer", fontSize:13, fontWeight:600, border:`1px solid ${C.line}`, background:C.panel, color:C.ink }}>
+          <span style={{ width:8, height:8, borderRadius:R.pill, background:currentType?currentType.color:C.faint }}/>{currentType?currentType.name:"Blank"} <span style={{ color:C.faint, fontSize:11 }}>▾</span></button>
+        {(day.bs||day.frozen) && <span style={{ fontSize:11, fontWeight:700, padding:"5px 10px", borderRadius:R.pill, background:day.bs?`${C.red}26`:`${C.blue}26`, color:day.bs?C.red:C.blue }}>{day.bs?"BS day":"❄ Frozen"}</span>}
+        <div style={{ position:"relative", marginLeft:"auto" }}>
+          <button onClick={()=>setShowActions(s=>!s)} aria-label="Day actions" style={{ width:34, height:34, borderRadius:R.pill, cursor:"pointer", fontSize:15, fontWeight:700, border:`1px solid ${C.line}`, background:C.panel, color:C.dim, padding:0 }}>⋯</button>
           {showActions && (
-            <div style={{ position:"absolute", top:"100%", marginTop:6, right:0, background:C.panel2, border:`1px solid ${C.line}`, borderRadius:10, padding:6, zIndex:30, width:190, boxShadow:"0 8px 30px rgba(0,0,0,.6)" }}>
-              <button onClick={()=>{ copyYesterday(); setShowActions(false); }} style={{ display:"block", width:"100%", textAlign:"left", padding:"8px 10px", borderRadius:8, border:"none", background:"transparent", color:C.ink, cursor:"pointer", fontSize:13 }}>⧉ Copy yesterday</button>
-              <button onClick={()=>{ upd({ bs:!day.bs }); setShowActions(false); }} style={{ display:"block", width:"100%", textAlign:"left", padding:"8px 10px", borderRadius:8, border:"none", background:"transparent", color:day.bs?C.red:C.ink, cursor:"pointer", fontSize:13 }}>{day.bs?"✓ Unmark BS day":"Mark BS day"}</button>
-              <button onClick={()=>{ upd({ frozen:!day.frozen }); setShowActions(false); }} style={{ display:"block", width:"100%", textAlign:"left", padding:"8px 10px", borderRadius:8, border:"none", background:"transparent", color:day.frozen?C.blue:C.ink, cursor:"pointer", fontSize:13 }}>{day.frozen?"❄ Unfreeze day":"❄ Freeze day (ill/away)"}</button>
+            <div style={{ position:"absolute", top:"100%", marginTop:6, right:0, background:C.panel2, border:`1px solid ${C.line}`, borderRadius:R.md, padding:6, zIndex:30, width:210, boxShadow:SH.pop }}>
+              <button onClick={()=>{ copyYesterday(); setShowActions(false); }} style={{ display:"block", width:"100%", textAlign:"left", padding:"11px 12px", borderRadius:8, border:"none", background:"transparent", color:C.ink, cursor:"pointer", fontSize:14 }}>⧉ Copy yesterday</button>
+              <button onClick={()=>{ upd({ bs:!day.bs }); setShowActions(false); }} style={{ display:"block", width:"100%", textAlign:"left", padding:"11px 12px", borderRadius:8, border:"none", background:"transparent", color:day.bs?C.red:C.ink, cursor:"pointer", fontSize:14 }}>{day.bs?"✓ Unmark BS day":"Mark BS day"}</button>
+              <button onClick={()=>{ upd({ frozen:!day.frozen }); setShowActions(false); }} style={{ display:"block", width:"100%", textAlign:"left", padding:"11px 12px", borderRadius:8, border:"none", background:"transparent", color:day.frozen?C.blue:C.ink, cursor:"pointer", fontSize:14 }}>{day.frozen?"❄ Unfreeze day":"❄ Freeze day (ill/away)"}</button>
             </div>
           )}
         </div>
         {showApply && (
-          <div style={{ position:"absolute", top:"100%", marginTop:8, background:C.panel2, border:`1px solid ${C.line}`, borderRadius:12, padding:8, zIndex:30, width:240, maxHeight:300, overflowY:"auto", boxShadow:"0 8px 30px rgba(0,0,0,.6)", left:"50%", transform:"translateX(-50%)" }}>
-            <div style={{ fontSize:10, color:C.faint, padding:"4px 8px 8px" }}>Switch this day's format — your own and planned blocks stay</div>
-            {Object.entries(dayTypes).map(([id,t])=> <button key={id} onClick={()=>{ applyDayType(id); setShowApply(false); }} style={{ display:"flex", alignItems:"center", gap:8, width:"100%", padding:"8px 10px", borderRadius:8, border:"none", background:"transparent", color:C.ink, cursor:"pointer", fontSize:13, textAlign:"left" }}><span style={{ width:8,height:8,borderRadius:"50%",background:t.color }}/>{t.name}</button>)}
+          <div style={{ position:"absolute", top:"100%", marginTop:8, background:C.panel2, border:`1px solid ${C.line}`, borderRadius:R.md, padding:8, zIndex:30, width:250, maxHeight:300, overflowY:"auto", boxShadow:SH.pop, left:0 }}>
+            <div style={{ fontSize:11, color:C.faint, padding:"4px 8px 8px" }}>Switch this day's format — your own and planned blocks stay</div>
+            {Object.entries(dayTypes).map(([id,t])=> <button key={id} onClick={()=>{ applyDayType(id); setShowApply(false); }} style={{ display:"flex", alignItems:"center", gap:8, width:"100%", padding:"10px 10px", borderRadius:8, border:"none", background:day.dayTypeId===id?C.panel:"transparent", color:C.ink, cursor:"pointer", fontSize:14, textAlign:"left" }}><span style={{ width:8,height:8,borderRadius:"50%",background:t.color }}/>{t.name}</button>)}
           </div>
         )}
       </div>
+
+      <DeadlineRadar dates={keyDates} save={saveKeyDates} setDate={setDate} />
 
       {(()=>{ // Dan, 12 Nov: "from now on I will give a score and you will push me to do so"
         if(date!==todayISO()) return null;
         const y=addDays(date,-1), yd=allDays[y];
         if(scoreOf(yd)!==null && !(yd&&yd.ratingEst)) return null;
-        return <button onClick={()=>{ setDate(y); setShowLog(true); }} style={{ display:"block", width:"100%", marginBottom:14, padding:"11px 14px", borderRadius:12, cursor:"pointer", textAlign:"left",
-          border:`1px solid ${C.red}`, background:`${C.red}1f`, color:C.ink, fontSize:14 }}>
-          <b style={{ color:C.red }}>Yesterday has no score.</b> Score it now, 0–10, while you remember it →</button>;
+        return <button onClick={()=>{ setDate(y); setShowLog(true); }} style={{ display:"flex", alignItems:"center", gap:SP.md, width:"100%", marginBottom:SP.md, padding:"12px 14px", borderRadius:R.md, cursor:"pointer", textAlign:"left",
+          border:`1px solid ${C.red}55`, background:`linear-gradient(135deg, ${C.red}22, ${C.red}0d)`, color:C.ink, fontSize:14 }}>
+          <span style={{ width:32, height:32, borderRadius:R.pill, background:`${C.red}33`, color:C.red, display:"flex", alignItems:"center", justifyContent:"center", fontWeight:800, flexShrink:0 }}>!</span>
+          <span style={{ flex:1, lineHeight:1.35 }}><b style={{ color:C.ink }}>Score yesterday</b><br/><span style={{ color:C.dim, fontSize:13 }}>0–10, while you still remember it</span></span>
+          <span style={{ color:C.red, fontSize:18 }}>→</span></button>;
       })()}
-      <div style={{ display:"flex", gap:10, justifyContent:"center", marginBottom:16, flexWrap:"wrap" }}>
-        {[
-          { l:"Plan adherence", v: adh?`${adh.pct}%`:"—", c: adh?(adh.pct>=70?C.green:adh.pct>=40?C.gold:C.red):C.faint, on:()=>setShowLog(true) },
-          // Daily reps lapsed (Dan, 20 Oct); the discipline score is the number he asked for on 27 Oct
-          { l:"Discipline", v: dayScore===null?"—":`${dayScore>0?"+":""}${dayScore}`, c: dayScore>0?C.green:dayScore<0?C.red:C.dim, on:()=>setShowLog(true) },
-          { l:"Day score", v: scoreOf(day)===null?"—":`${scoreOf(day)}/10${day.ratingEst?" est":""}`, c:C.red, on:()=>setShowLog(true) },
-        ].map(s=> <button key={s.l} onClick={s.on} style={{ background:C.panel, border:`1px solid ${C.line}`, borderRadius:12, padding:"8px 16px", cursor:"pointer", textAlign:"center", minWidth:96 }}><div style={{ fontSize:18, fontWeight:700, color:s.c }}>{s.v}</div><div style={{ fontSize:10, color:C.dim, marginTop:3 }}>{s.l}</div></button>)}
+
+      {/* Scoreboard — the day score leads (it's the number Dan asked to be pushed on), with
+          discipline and plan adherence beside it. Tap any tile to open the day log. */}
+      {(()=>{ const sc=scoreOf(day);
+        const tile={ background:C.panel, border:`1px solid ${C.line}`, borderRadius:R.lg, cursor:"pointer", textAlign:"left", padding:"12px 14px", boxShadow:SH.card, color:C.ink, minWidth:0 };
+        const dcol = dayScore>0?C.green:dayScore<0?C.red:C.dim;
+        const acol = adh?(adh.pct>=70?C.green:adh.pct>=40?C.gold:C.red):C.faint;
+        return <div style={{ display:"grid", gridTemplateColumns:"1.25fr 1fr", gridTemplateRows:"auto auto", gap:SP.sm+2, marginBottom:SP.lg }}>
+          <button onClick={()=>setShowLog(true)} style={{ ...tile, gridRow:"1 / span 2", display:"flex", alignItems:"center", gap:SP.md }}>
+            <Ring pct={sc===null?0:sc/10} color={C.teal} value={sc===null?"—":sc} label={day.ratingEst?"est":"/ 10"} size={76}/>
+            <div style={{ minWidth:0 }}><div style={{ ...EYEBROW, marginBottom:4 }}>Day score</div><div style={{ fontSize:13, color:C.dim, lineHeight:1.35 }}>{sc===null?(isPast||isToday?"Not scored yet":"Score it tonight"):day.ratingEst?"Estimate — tap to score":"Logged"}</div></div>
+          </button>
+          <button onClick={()=>setShowLog(true)} style={tile}>
+            <div style={{ ...EYEBROW, fontSize:10 }}>Discipline</div>
+            <div style={{ fontSize:22, fontWeight:750, color:dcol, fontVariantNumeric:"tabular-nums", marginTop:2 }}>{dayScore===null?"—":`${dayScore>0?"+":""}${dayScore}`}</div>
+          </button>
+          <button onClick={()=>setShowLog(true)} style={tile}>
+            <div style={{ ...EYEBROW, fontSize:10 }}>Plan kept</div>
+            <div style={{ display:"flex", alignItems:"baseline", gap:6, marginTop:2 }}><span style={{ fontSize:22, fontWeight:750, color:acol, fontVariantNumeric:"tabular-nums" }}>{adh?`${adh.pct}%`:"—"}</span>{adh && <span style={{ fontSize:11, color:C.faint }}>{adh.done}/{adh.total}</span>}</div>
+          </button>
+        </div>; })()}
+
+      {/* Habits, one tap each, always visible — they used to live behind "Open day log". */}
+      <div style={{ marginBottom:SP.lg }}>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"0 4px", marginBottom:SP.sm }}>
+          <span style={EYEBROW}>Habits</span>
+          <span style={{ fontSize:12, color:C.faint, fontVariantNumeric:"tabular-nums" }}>{HABITS.filter(h=>habitDone(day,h.key,links)).length}/{HABITS.length}</span>
+        </div>
+        <div style={{ display:"flex", gap:SP.sm, flexWrap:"wrap" }}>
+          {HABITS.map(h=>{ const on=habitDone(day,h.key,links); const auto=on&&!(day.habits&&day.habits[h.key]);
+            const short={ bed:"Bed on time", eatwell:"Eat well", exercise:"Exercise", screen:"Screen < 3h", library:"Library" }[h.key]||h.label;
+            return <button key={h.key} onClick={()=>{ buzz(); toggleHabit(h.key); }} aria-pressed={on} title={h.label}
+              style={{ display:"inline-flex", alignItems:"center", gap:7, minHeight:40, padding:"0 14px 0 10px", borderRadius:R.pill, cursor:"pointer", fontSize:13, fontWeight:600,
+                border:`1px solid ${on?C.teal+"66":C.line}`, background:on?`${C.teal}1f`:C.panel, color:on?C.ink:C.dim }}>
+              <span style={{ width:18, height:18, borderRadius:R.pill, display:"flex", alignItems:"center", justifyContent:"center", fontSize:11, fontWeight:800,
+                background:on?C.teal:"transparent", border:on?"none":`1.5px solid ${C.faint}`, color:C.bg }}>{on?"✓":""}</span>
+              {short}{auto && <span style={{ fontSize:9, color:C.teal, fontWeight:700, letterSpacing:"0.06em" }}>AUTO</span>}</button>; })}
+        </div>
       </div>
 
       <Panel accent={C.pink} title="Day" right={
