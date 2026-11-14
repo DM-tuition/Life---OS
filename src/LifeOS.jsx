@@ -4,11 +4,24 @@ import { VAULT_PLAN, DEFAULT_DAYTYPES } from "./vault-plan";
 
 // ============ DESIGN TOKENS ============
 const C = {
-  bg: "#0E0F13", panel: "#15171D", panel2: "#1B1E26", line: "#262A34",
-  ink: "#E9E6DC", dim: "#8C92A0", faint: "#565C68",
-  teal: "#2BA8B8", sleep: "#9B5A3C", purple: "#7B4FB5", pink: "#E0529B",
-  blue: "#3E6FD6", green: "#2F9E44", gold: "#E6B800", red: "#E0524A", cyan: "#4FC3E0",
+  // Surfaces: four steps of one cool neutral, so depth reads without borders shouting.
+  bg: "#0B0C10", panel: "#14161C", panel2: "#1C1F27", line: "#252833",
+  ink: "#ECEDF0", dim: "#9AA0AC", faint: "#5E6470",
+  // One brand accent (teal) — everything interactive and "now" uses it.
+  teal: "#33C3D0",
+  // Category / semantic colours, tuned to sit at the same brightness on the dark ground.
+  sleep: "#B4704E", purple: "#9171E0", pink: "#E8609F",
+  blue: "#5B8CF0", green: "#3FBF6A", gold: "#F2C230", red: "#EF5A52", cyan: "#5CCFEA",
 };
+// Rhythm + shape tokens (8px grid, 4px half-steps). New code uses these; inline numbers that
+// predate them are being folded in as each screen is touched.
+const SP = { xs:4, sm:8, md:12, lg:16, xl:24, xxl:32 };
+const R  = { sm:8, md:12, lg:16, pill:999 };
+const SH = { card:"0 1px 0 rgba(255,255,255,.03) inset, 0 8px 24px rgba(0,0,0,.28)", pop:"0 12px 40px rgba(0,0,0,.55)" };
+const FONT = "'Inter',-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',system-ui,sans-serif";
+// Display type replaces the old handwritten face: heavy, tight, calm.
+const DISPLAY = { fontFamily:FONT, fontWeight:750, letterSpacing:"-0.025em" };
+const EYEBROW = { fontSize:11, fontWeight:650, letterSpacing:"0.08em", textTransform:"uppercase", color:C.faint };
 // Month-tab day colours (Dan, 19 Oct 2026): "make the colour holiday, don't make the text
 // holiday" — then, on seeing it: "make it subtle but noticeable, not gold and crystal
 // everywhere... the holiday itself, meaning off school, should be a colour, but if I'm going
@@ -545,18 +558,18 @@ function importBackup(file,onDone){
 
 // ============ UI PRIMITIVES ============
 const Panel = ({ accent,title,right,children,style })=>(
-  <div style={{ background:C.panel, border:`1px solid ${C.line}`, borderRadius:14, padding:18, ...style }}>
-    {title && <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:14 }}>
-      <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-        <div style={{ width:4,height:16,background:accent,borderRadius:2 }}/>
-        <span style={{ fontSize:13, fontWeight:700, letterSpacing:0.5, textTransform:"uppercase", color:accent }}>{title}</span>
+  <section style={{ background:C.panel, border:`1px solid ${C.line}`, borderRadius:R.lg, padding:SP.lg, boxShadow:SH.card, ...style }}>
+    {title && <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:SP.md, gap:SP.sm, minHeight:24 }}>
+      <div style={{ display:"flex", alignItems:"center", gap:SP.sm, minWidth:0 }}>
+        <span style={{ width:8,height:8,background:accent,borderRadius:R.pill, flexShrink:0, boxShadow:`0 0 0 3px ${accent}22` }}/>
+        <h2 style={{ margin:0, fontSize:15, fontWeight:650, letterSpacing:"-0.01em", color:C.ink, whiteSpace:"nowrap" }}>{title}</h2>
       </div>{right}
     </div>}
     {children}
-  </div>
+  </section>
 );
 const Check = ({ on,color,onClick,size=22 })=>(
-  <button onClick={(e)=>{ buzz(); onClick&&onClick(e); }} style={{ width:size,height:size,borderRadius:6,cursor:"pointer",flexShrink:0,
+  <button onClick={(e)=>{ buzz(); onClick&&onClick(e); }} style={{ width:size,height:size,borderRadius:Math.round(size*0.32),cursor:"pointer",flexShrink:0,
     border:`2px solid ${on?color:C.faint}`, background:on?color:"transparent", display:"flex",
     alignItems:"center", justifyContent:"center", color:"#fff", fontSize:size*0.6, fontWeight:700, padding:0 }}>{on?"✓":""}</button>
 );
@@ -573,8 +586,8 @@ const Ring = ({ pct,color,value,label,size=68 })=>{
     </div>
   </div>;
 };
-const inp = { background:"#101218", border:`1px solid ${C.line}`, borderRadius:8, padding:"9px 11px", color:C.ink, fontSize:13, outline:"none" };
-const addBtn = { width:"100%", padding:"9px", borderRadius:8, border:`1px dashed ${C.line}`, background:"transparent", color:C.dim, cursor:"pointer", fontSize:13 };
+const inp = { background:C.bg, border:`1px solid ${C.line}`, borderRadius:R.sm+2, padding:"10px 12px", color:C.ink, fontSize:14, outline:"none", transition:"border-color .15s ease" };
+const addBtn = { width:"100%", minHeight:40, padding:"9px 12px", borderRadius:R.sm+2, border:`1px solid ${C.line}`, background:C.panel2, color:C.dim, cursor:"pointer", fontSize:13, fontWeight:550 };
 const delBtn = { width:28,height:28,borderRadius:6,border:`1px solid ${C.line}`,background:"transparent",color:C.faint,cursor:"pointer",fontSize:16,flexShrink:0 };
 const stepBtn = { width:24,height:24,borderRadius:6,border:`1px solid ${C.line}`,background:C.panel2,color:C.dim,cursor:"pointer",fontSize:15,lineHeight:1,padding:0 };
 const Nav = ({ children,onClick })=>(
@@ -610,13 +623,15 @@ function Sheet({ close,title,children,right,maxWidth=420 }){
       <div onClick={e=>e.stopPropagation()} style={{ background:C.panel, border:`1px solid ${C.line}`, borderRadius:isMobile?"18px 18px 0 0":14, padding:isMobile?"6px 16px calc(18px + env(safe-area-inset-bottom))":20, width:"100%", maxWidth:isMobile?"100%":maxWidth, maxHeight:isMobile?"86vh":"84vh", overflowY:"auto", boxShadow:"0 -10px 40px rgba(0,0,0,.5)", transform:`translateY(${dy}px)`, transition:dy?"none":"transform .2s ease", animation:isMobile?"lo-up .22s cubic-bezier(.2,.9,.3,1)":"none" }}>
         {isMobile && <div onTouchStart={onTS} onTouchMove={onTM} onTouchEnd={onTE} style={{ padding:"8px 0 12px", display:"flex", justifyContent:"center", touchAction:"none" }}><div style={{ width:40, height:5, borderRadius:3, background:C.faint }}/></div>}
         {(title||right) && <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12, gap:10 }}>
-          <div style={{ fontFamily:"'Caveat',cursive", fontSize:26, color:C.teal, lineHeight:1 }}>{title}</div>{right}
+          <div style={{ fontFamily:DISPLAY.fontFamily, fontWeight:DISPLAY.fontWeight, letterSpacing:DISPLAY.letterSpacing, fontSize:20, color:C.ink, lineHeight:1 }}>{title}</div>{right}
         </div>}
         {children}
       </div>
     </div>
   );
 }
+// Brand mark: a ring closing on itself — "compound" — in the one accent colour.
+const Logo = ({ size=22 })=> <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke={C.line} strokeWidth="3"/><path d="M12 3a9 9 0 1 1-8.5 6" fill="none" stroke={C.teal} strokeWidth="3" strokeLinecap="round"/><circle cx="12" cy="12" r="2.6" fill={C.teal}/></svg>;
 const BOTTOM_TABS = [["today","Today"],["plan","Week"],["month","Month"],["todo","To Do"],["habits","Habits"],["more","More"]];
 const ICON_PATHS = {
   today:  "M12 3v2M12 19v2M5 12H3M21 12h-2M6.3 6.3 4.9 4.9M19.1 19.1l-1.4-1.4M6.3 17.7l-1.4 1.4M19.1 4.9l-1.4 1.4M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z",
@@ -740,10 +755,17 @@ export default function LifeOS(){
   );
 
   return (
-    <div style={{ background:C.bg, minHeight:"100vh", fontFamily:"'Inter',system-ui,sans-serif", color:C.ink }}>
+    <div style={{ background:C.bg, minHeight:"100vh", fontFamily:FONT, color:C.ink, overflowX:"hidden" }}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Caveat:wght@500;700&family=Inter:wght@400;500;600;700&display=swap');
-        *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;} input,textarea,select{font-family:inherit;}
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+        *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;} input,textarea,select,button{font-family:inherit;}
+        body{ -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale; text-rendering:optimizeLegibility; font-feature-settings:"cv11","ss01"; }
+        button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible{ outline:2px solid ${C.teal}; outline-offset:2px; }
+        input:focus, textarea:focus, select:focus{ border-color:${C.teal}88 !important; }
+        ::placeholder{ color:${C.faint}; }
+        .lo-view{ animation: lo-in .22s ease both; }
+        @keyframes lo-in{ from{ opacity:0; transform:translateY(4px);} to{ opacity:1; transform:none;} }
+        @media (prefers-reduced-motion: reduce){ *,*::before,*::after{ animation-duration:.001ms !important; transition-duration:.001ms !important; } }
         ::-webkit-scrollbar{width:8px;height:8px;} ::-webkit-scrollbar-thumb{background:${C.line};border-radius:4px;}
         button{ transition: background .15s ease, border-color .15s ease, color .15s ease, transform .06s ease; }
         button:active{ transform: scale(0.96); }
@@ -755,9 +777,9 @@ export default function LifeOS(){
         @keyframes lo-pop{ from{ opacity:0; transform:translateX(-50%) translateY(8px) scale(.96);} to{ opacity:1; transform:translateX(-50%) translateY(0) scale(1);} }
       `}</style>
 
-      <div style={{ borderBottom:`1px solid ${C.line}`, padding:isMobile?"14px 16px":"18px 24px", display:"flex", alignItems:"center", justifyContent:"space-between", position:"sticky", top:0, background:C.bg, zIndex:50, gap:10 }}>
+      <div style={{ borderBottom:`1px solid ${C.line}`, padding:isMobile?"14px 16px":"18px 24px", display:"flex", alignItems:"center", justifyContent:"space-between", position:"sticky", top:0, background:"rgba(11,12,16,.86)", backdropFilter:"blur(14px)", WebkitBackdropFilter:"blur(14px)", paddingTop:isMobile?"calc(12px + env(safe-area-inset-top))":18, zIndex:50, gap:10 }}>
         <div style={{ display:"flex", alignItems:"baseline", gap:12, minWidth:0 }}>
-          <span style={{ fontFamily:"'Caveat',cursive", fontSize:isMobile?28:34, color:C.teal, lineHeight:1 }}>Life OS</span>
+          <span style={{ display:"inline-flex", alignItems:"center", gap:SP.sm, ...DISPLAY, fontSize:isMobile?18:22, color:C.ink, lineHeight:1 }}><Logo/>Life OS</span>
           {!isMobile && <span style={{ fontSize:11, color:C.faint, letterSpacing:2, textTransform:"uppercase" }}>Plan · Track · Compound</span>}
         </div>
         <div style={{ display:"flex", gap:8, flexShrink:0 }}>
@@ -830,7 +852,7 @@ function BackupModal({ close,flash }){
   return (
     <div onClick={close} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,.6)", zIndex:200, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
       <div onClick={e=>e.stopPropagation()} style={{ background:C.panel, border:`1px solid ${C.line}`, borderRadius:14, padding:22, width:"100%", maxWidth:380 }}>
-        <div style={{ fontFamily:"'Caveat',cursive", fontSize:28, color:C.teal, marginBottom:6 }}>Backup & Restore</div>
+        <div style={{ fontFamily:DISPLAY.fontFamily, fontWeight:DISPLAY.fontWeight, letterSpacing:DISPLAY.letterSpacing, fontSize:22, color:C.ink, marginBottom:6 }}>Backup & Restore</div>
         <div style={{ fontSize:12, color:C.dim, lineHeight:1.6, marginBottom:18 }}>
           Your data lives only on this device. Export a backup file regularly and keep it somewhere safe (email it to yourself, save to cloud). You can restore it here or on a new phone.
         </div>
@@ -900,7 +922,7 @@ function CloudSyncModal({ close,flash }){
   return (
     <div onClick={close} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,.6)", zIndex:200, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
       <div onClick={e=>e.stopPropagation()} style={{ background:C.panel, border:`1px solid ${C.line}`, borderRadius:14, padding:22, width:"100%", maxWidth:420, maxHeight:"88vh", overflowY:"auto" }}>
-        <div style={{ fontFamily:"'Caveat',cursive", fontSize:28, color:C.teal, marginBottom:6 }}>Cloud Sync</div>
+        <div style={{ fontFamily:DISPLAY.fontFamily, fontWeight:DISPLAY.fontWeight, letterSpacing:DISPLAY.letterSpacing, fontSize:22, color:C.ink, marginBottom:6 }}>Cloud Sync</div>
         <div style={{ fontSize:12, color:C.dim, lineHeight:1.6, marginBottom:16 }}>
           Free auto-backup + sync across your phone and laptop, powered by Supabase. Set it up once (~10 min) — I gave you a step-by-step guide. Until you do, the app keeps working offline on this device.
         </div>
@@ -1326,7 +1348,7 @@ function TodayView({ day,date,setDate,upd,dayTypes,applyDayType,links,allDays,fl
       <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:18, marginBottom:10 }}>
         <Nav onClick={()=>setDate(addDays(date,-1))}>‹</Nav>
         <div style={{ textAlign:"center", minWidth:200, position:"relative" }}>
-          <div style={{ fontFamily:"'Caveat',cursive", fontSize:44, color:C.teal, lineHeight:0.9 }}>{dn}</div>
+          <div style={{ fontFamily:DISPLAY.fontFamily, fontWeight:DISPLAY.fontWeight, letterSpacing:DISPLAY.letterSpacing, fontSize:34, color:C.teal, lineHeight:0.9 }}>{dn}</div>
           <button onClick={()=>{ const el=dateRef.current; if(!el) return; try{ el.showPicker(); }catch{ el.focus(); el.click(); } }} style={{ background:"none", border:"none", cursor:"pointer", fontSize:12, color:C.dim, padding:0 }}>{fmt(date)} {isToday && <span style={{color:C.green}}>• today</span>} <span style={{ color:C.faint }}>▾</span></button>
           <input ref={dateRef} type="date" value={date} onChange={e=>e.target.value&&setDate(e.target.value)} style={{ position:"absolute", left:"50%", bottom:0, width:1, height:1, opacity:0, pointerEvents:"none" }}/>
         </div>
@@ -1482,7 +1504,7 @@ function TodayView({ day,date,setDate,upd,dayTypes,applyDayType,links,allDays,fl
           <Panel accent={C.red} title="Day Assessment" style={{ gridColumn:isMobile?"auto":"1 / -1" }}>
             <div style={{ display:"flex", gap:6, marginBottom:14, flexWrap:"wrap" }}>
               {[0,1,2,3,4,5,6,7,8,9,10].map(n=> <button key={n} onClick={()=>upd({rating:n, ratingZero:n===0, ratingEst:false, ratingWhy:""})} style={{ width:32,height:36,borderRadius:7,cursor:"pointer",fontWeight:700,fontSize:14, border:`1px solid ${(!day.ratingEst&&((n===0&&day.ratingZero)||(n>0&&day.rating>=n)))?C.red:C.line}`, background:(!day.ratingEst&&((n===0&&day.ratingZero)||(n>0&&day.rating>=n)))?`rgba(224,82,74,${0.25+0.05*n})`:"transparent", color:day.rating>=n?"#fff":C.faint }}>{n}</button>)}
-              <div style={{ display:"flex", alignItems:"center", fontFamily:"'Caveat',cursive", fontSize:26, color:C.red, marginLeft:4 }}>/10</div>
+              <div style={{ display:"flex", alignItems:"center", fontFamily:DISPLAY.fontFamily, fontWeight:DISPLAY.fontWeight, letterSpacing:DISPLAY.letterSpacing, fontSize:20, color:C.red, marginLeft:4 }}>/10</div>
             </div>
             {day.ratingEst && <Mini>Estimated {day.rating}/10{day.ratingWhy?` (${day.ratingWhy})`:""}. You didn't score this day. Tap a number to score it for real.</Mini>}
             <textarea value={day.feedback} onChange={e=>upd({feedback:e.target.value})} placeholder="Feedback: how did today actually go?" style={{ ...inp, minHeight:70, resize:"vertical", width:"100%" }}/>
@@ -1551,7 +1573,7 @@ function WeekPlanView({ date,setDate,setTab,allDays,ctx,moveBlock }){
       <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:18, marginBottom:18 }}>
         <Nav onClick={()=>setDate(addDays(wk,-7))}>‹</Nav>
         <div style={{ textAlign:"center", minWidth:200 }}>
-          <div style={{ fontFamily:"'Caveat',cursive", fontSize:40, color:C.teal, lineHeight:0.9 }}>Week of {pd(wk).getDate()} {MONTHS[pd(wk).getMonth()].slice(0,3)}</div>
+          <div style={{ fontFamily:DISPLAY.fontFamily, fontWeight:DISPLAY.fontWeight, letterSpacing:DISPLAY.letterSpacing, fontSize:28, color:C.ink, lineHeight:0.9 }}>Week of {pd(wk).getDate()} {MONTHS[pd(wk).getMonth()].slice(0,3)}</div>
           <div style={{ fontSize:12, color:C.dim, marginTop:4 }}>Week {isB?"B":"A"} · {planned ? `${planned} blocks from the Sunday plan` : "no Sunday plan yet"}</div>
         </div>
         <Nav onClick={()=>setDate(addDays(wk,7))}>›</Nav>
@@ -1574,7 +1596,7 @@ function WeekPlanView({ date,setDate,setTab,allDays,ctx,moveBlock }){
             <div key={iso} data-iso={iso} style={{ background:drag&&drag.over===iso&&drag.from!==iso?`${C.teal}22`:isT?C.panel2:C.panel, border:`1px solid ${drag&&drag.over===iso&&drag.from!==iso?C.teal:isT?C.teal:C.line}`, transition:"background .12s, border-color .12s", borderRadius:14, padding:"12px 14px", position:"relative", overflow:"hidden", opacity:past?0.7:1 }}>
               {kinds.length>0 && <div style={{ position:"absolute", top:0, left:0, right:0, height:3, display:"flex" }}>{kinds.map(k=> <div key={k} style={{ flex:1, background:DAY_KINDS[k].bar }}/>)}</div>}
               <button onClick={()=>go(iso)} style={{ display:"flex", alignItems:"baseline", gap:8, width:"100%", background:"none", border:"none", padding:0, cursor:"pointer", textAlign:"left", marginBottom:6 }}>
-                <span style={{ fontFamily:"'Caveat',cursive", fontSize:26, color:isT?C.teal:C.ink, lineHeight:1 }}>{dayNameOf(iso)}</span>
+                <span style={{ fontFamily:DISPLAY.fontFamily, fontWeight:DISPLAY.fontWeight, letterSpacing:DISPLAY.letterSpacing, fontSize:20, color:isT?C.teal:C.ink, lineHeight:1 }}>{dayNameOf(iso)}</span>
                 <span style={{ fontSize:12, color:C.dim }}>{pd(iso).getDate()} {MONTHS[pd(iso).getMonth()].slice(0,3)}</span>
                 {isT && <span style={{ fontSize:10, color:C.green, fontWeight:700 }}>TODAY</span>}
                 <span style={{ marginLeft:"auto", fontSize:12, color:C.faint }}>open ›</span>
@@ -1636,7 +1658,7 @@ function MonthView({ date,setDate,setTab,allDays,dayTypes,flash,weekAnchorA }){
     <div>
       <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:18, marginBottom:18 }}>
         <Nav onClick={prevM}>‹</Nav>
-        <div style={{ fontFamily:"'Caveat',cursive", fontSize:40, color:C.teal, minWidth:220, textAlign:"center" }}>{MONTHS[viewM]} {viewY}</div>
+        <div style={{ fontFamily:DISPLAY.fontFamily, fontWeight:DISPLAY.fontWeight, letterSpacing:DISPLAY.letterSpacing, fontSize:28, color:C.ink, minWidth:220, textAlign:"center" }}>{MONTHS[viewM]} {viewY}</div>
         <Nav onClick={nextM}>›</Nav>
       </div>
 
@@ -1722,7 +1744,7 @@ function TrendsView({ allDays,links,cfg }){
   return (
     <div>
       <div style={{ textAlign:"center", marginBottom:22 }}>
-        <div style={{ fontFamily:"'Caveat',cursive", fontSize:40, color:C.teal }}>Trends</div>
+        <div style={{ fontFamily:DISPLAY.fontFamily, fontWeight:DISPLAY.fontWeight, letterSpacing:DISPLAY.letterSpacing, fontSize:28, color:C.ink }}>Trends</div>
         <div style={{ fontSize:12, color:C.dim }}>{sorted.length} days logged · the long game</div>
       </div>
 
@@ -1778,7 +1800,7 @@ function DayTypesView({ dayTypes,save,weekMap,saveWeekMap,weekMapB,saveWeekMapB,
   return (
     <div>
       <div style={{ textAlign:"center", marginBottom:8 }}>
-        <div style={{ fontFamily:"'Caveat',cursive", fontSize:40, color:C.teal }}>Day Types</div>
+        <div style={{ fontFamily:DISPLAY.fontFamily, fontWeight:DISPLAY.fontWeight, letterSpacing:DISPLAY.letterSpacing, fontSize:28, color:C.ink }}>Day Types</div>
         <div style={{ fontSize:12, color:C.dim }}>Build a format once · apply it to any day from the Today tab</div>
       </div>
       <div style={{ display:"grid", gridTemplateColumns:isMobile?"1fr":"260px 1fr", gap:18 }}>
@@ -2036,7 +2058,7 @@ function HabitsView({ allDays, links, saveLinks, cfg, saveCfg, bad, saveBad, let
   return (
     <div>
       <div style={{ textAlign:"center", marginBottom:20 }}>
-        <div style={{ fontFamily:"'Caveat',cursive", fontSize:40, color:C.teal }}>Habits</div>
+        <div style={{ fontFamily:DISPLAY.fontFamily, fontWeight:DISPLAY.fontWeight, letterSpacing:DISPLAY.letterSpacing, fontSize:28, color:C.ink }}>Habits</div>
         <div style={{ fontSize:12, color:C.dim }}>Don't break the chain · last {GRID_WEEKS} weeks · ❄ freeze a day from the Today tab</div>
       </div>
       <DisciplineChart allDays={allDays} links={links} bad={bad}/>
@@ -2155,7 +2177,7 @@ function TodoListView({ todos,save,flash }){
   return (
     <div style={{ maxWidth:680, margin:"0 auto" }}>
       <div style={{ textAlign:"center", marginBottom:18 }}>
-        <div style={{ fontFamily:"'Caveat',cursive", fontSize:40, color:C.teal }}>To Do</div>
+        <div style={{ fontFamily:DISPLAY.fontFamily, fontWeight:DISPLAY.fontWeight, letterSpacing:DISPLAY.letterSpacing, fontSize:28, color:C.ink }}>To Do</div>
         <div style={{ fontSize:12, color:C.dim }}>{big.length} big · {small.length} daily · dated tasks also show on that day</div>
       </div>
 
