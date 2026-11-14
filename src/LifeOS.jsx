@@ -570,7 +570,7 @@ const Panel = ({ accent,title,sub,right,children,style })=>(
     {title && <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:sub?SP.xs:SP.md, gap:SP.sm, minHeight:24 }}>
       <div style={{ display:"flex", alignItems:"center", gap:SP.sm, minWidth:0 }}>
         <span style={{ width:8,height:8,background:accent,borderRadius:R.pill, flexShrink:0, boxShadow:`0 0 0 3px ${accent}22` }}/>
-        <h2 style={{ margin:0, fontSize:15, fontWeight:650, letterSpacing:"-0.01em", color:C.ink, whiteSpace:"nowrap" }}>{title}</h2>
+        <h2 style={{ margin:0, fontSize:15, fontWeight:650, letterSpacing:"-0.01em", color:C.ink, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis", minWidth:0 }}>{title}</h2>
       </div>{right}
     </div>}
     {title && sub && <div style={{ fontSize:12, color:C.dim, lineHeight:1.45, margin:`0 0 ${SP.md}px ${SP.lg}px` }}>{sub}</div>}
@@ -2086,6 +2086,11 @@ function FutureLetter({ letter, saveLetter, letters, saveLetters }){
 }
 
 // ============ BAD HABITS PANEL ============
+const HeatStrip = ({ weeks,cell })=>(
+  <div style={{ display:"grid", gridTemplateColumns:`repeat(${weeks.length},minmax(0,1fr))`, gridAutoFlow:"column", gridTemplateRows:"repeat(7,auto)", gap:3 }}>
+    {weeks.flat().map(iso=> <div key={iso} title={iso} style={{ aspectRatio:"1", maxWidth:18, width:"100%", borderRadius:3, ...cell(iso) }}/>)}
+  </div>
+);
 function BadHabitsPanel({ allDays, bad, saveBad, weeks }){
   const today=todayISO();
   const [name,setName]=useState("");
@@ -2108,12 +2113,8 @@ function BadHabitsPanel({ allDays, bad, saveBad, weeks }){
               <span style={{ fontSize:11, color:C.faint }}>clean for <b style={{ color:C.green }}>{s===null?"—":s}</b>{s===null?"":"d"}</span>
               {b.key!=="bs" && <button onClick={()=>remove(b.key)} style={delBtn} title="Remove">×</button>}
             </div>
-            <div style={{ display:"flex", gap:3, overflowX:"auto", paddingBottom:4 }}>
-              {weeks.map((col,wi)=> <div key={wi} style={{ display:"flex", flexDirection:"column", gap:3, flexShrink:0 }}>
-                {col.map(iso=>{ const d=allDays[iso]; const future=iso>today; const hit=badDone(d,b.key);
-                  return <div key={iso} title={iso} style={{ width:12, height:12, borderRadius:3, background: future?"transparent" : hit? C.red : d? `${C.green}33` : C.panel2 }}/>; })}
-              </div>)}
-            </div>
+            <HeatStrip weeks={weeks} cell={(iso)=>{ const d=allDays[iso]; const hit=badDone(d,b.key);
+              return { background: iso>today?"transparent" : hit? C.red : d? `${C.green}33` : C.panel2 }; }}/>
           </div>); })}
       </div>
       <div style={{ display:"flex", gap:8, marginTop:14 }}>
@@ -2143,7 +2144,7 @@ function HabitsView({ allDays, links, saveLinks, cfg, saveCfg, bad, saveBad, let
         target={8} targetLabel="8+" get={scoreOf} isEst={(d)=>!!d.ratingEst}
         note="Your own 0–10 score for the day, from the check-in or the Today tab."/>
       <FutureLetter letter={letter} saveLetter={saveLetter} letters={letters} saveLetters={saveLetters}/>
-      <div style={{ display:"flex", flexDirection:"column", gap:18 }}>
+      <div style={{ display:"flex", flexDirection:"column", gap:SP.lg, marginTop:SP.lg }}>
         {HABITS.map(h=>{
           const c={ ...DEFAULT_HCFG, ...(cfg[h.key]||{}) };
           const s=habitStatsFor(sorted,h.key,links,c);
@@ -2153,15 +2154,15 @@ function HabitsView({ allDays, links, saveLinks, cfg, saveCfg, bad, saveBad, let
           const streakWord=quit?"clean":"streak";
           return (
             <Panel key={h.key} accent={h.color} title={quit?`${h.label} · QUIT`:h.label} right={
-              <select value={links[h.key]||""} onChange={e=>saveLinks({ ...links, [h.key]: e.target.value })} style={{ ...inp, fontSize:11, padding:"5px 7px", cursor:"pointer" }}>
+              <select value={links[h.key]||""} onChange={e=>saveLinks({ ...links, [h.key]: e.target.value })} style={{ ...inp, fontSize:11, padding:"5px 7px", cursor:"pointer", flexShrink:0, maxWidth:132 }}>
                 <option value="">Manual tick</option>
                 {CAT_KEYS.map(cat=> <option key={cat} value={cat} style={{ background:C.panel }}>Auto: {cat} block</option>)}
               </select>}>
-              <div style={{ display:"flex", gap:18, alignItems:"center", flexWrap:"wrap", marginBottom:12 }}>
+              <div style={{ display:"flex", gap:SP.md, alignItems:"center", marginBottom:SP.md }}>
                 {s.mode==="weekly"
                   ? <Ring pct={s.now/s.per} color={h.color} value={`${s.now}/${s.per}`} label="this wk"/>
                   : <Ring pct={s.cur/30} color={h.color} value={s.cur} label={streakWord}/>}
-                <div style={{ display:"flex", gap:12, flexWrap:"wrap" }}>
+                <div style={{ flex:1, minWidth:0, display:"grid", gridTemplateColumns:"repeat(3,minmax(0,1fr))", gap:SP.sm }}>
                   <Stat label={quit?"Days clean":"Current"} value={s.cur} sub={unit} color={h.color}/>
                   <Stat label={quit?"Longest clean":"Longest"} value={s.lng} sub={unit} color={C.gold}/>
                   <Stat label="All-time" value={s.rate} sub="%" color={C.dim}/>
@@ -2173,16 +2174,14 @@ function HabitsView({ allDays, links, saveLinks, cfg, saveCfg, bad, saveBad, let
                 <div style={{ flex:1, height:7, background:C.panel2, borderRadius:4, overflow:"hidden" }}><div style={{ width:`${str}%`, height:"100%", background:h.color, opacity:0.8 }}/></div>
                 <span style={{ fontSize:12, color:str>=70?C.green:str>=35?C.gold:C.dim, fontWeight:600, width:34, textAlign:"right" }}>{str}%</span>
               </div>
-              <div style={{ display:"flex", gap:3, overflowX:"auto", paddingBottom:4, marginBottom:12 }}>
-                {weeks.map((col,wi)=> <div key={wi} style={{ display:"flex", flexDirection:"column", gap:3, flexShrink:0 }}>
-                  {col.map(iso=>{ const d=allDays[iso]; const future=iso>today; const done=habitDone(d,h.key,links);
-                    return <div key={iso} title={iso} style={{ width:12, height:12, borderRadius:3, border:d&&d.frozen?`1px solid ${C.blue}`:"none", background: future?"transparent" : d&&d.frozen?"transparent" : done? h.color : d? `${h.color}22` : C.panel2 }}/>; })}
-                </div>)}
+              <div style={{ marginBottom:SP.md }}>
+                <HeatStrip weeks={weeks} cell={(iso)=>{ const d=allDays[iso]; const done=habitDone(d,h.key,links);
+                  return { boxSizing:"border-box", border:d&&d.frozen?`1px solid ${C.blue}`:"none", background: iso>today?"transparent" : d&&d.frozen?"transparent" : done? h.color : d? `${h.color}2E` : C.panel2 }; }}/>
               </div>
               <div style={{ display:"flex", gap:8, flexWrap:"wrap", alignItems:"center" }}>
                 <span style={{ fontSize:11, color:C.faint }}>Goal:</span>
                 {[[7,"Daily"],[5,"5×/wk"],[4,"4×/wk"],[3,"3×/wk"],[2,"2×/wk"],[1,"1×/wk"]].map(([n,l])=>
-                  <button key={n} onClick={()=>updCfg(h.key,{per:n})} style={{ fontSize:11, padding:"4px 9px", borderRadius:12, cursor:"pointer", border:`1px solid ${c.per===n?h.color:C.line}`, background:c.per===n?h.color:"transparent", color:c.per===n?"#0b0b0b":C.dim }}>{l}</button>)}
+                  <button key={n} onClick={()=>updCfg(h.key,{per:n})} style={{ fontSize:11.5, fontWeight:600, minHeight:30, padding:"4px 10px", borderRadius:R.pill, cursor:"pointer", border:`1px solid ${c.per===n?h.color:C.line}`, background:c.per===n?h.color:"transparent", color:c.per===n?"#0b0b0b":C.dim }}>{l}</button>)}
                 <button onClick={()=>updCfg(h.key,{type:quit?"build":"quit"})} style={{ fontSize:11, padding:"4px 9px", borderRadius:12, cursor:"pointer", marginLeft:"auto", border:`1px solid ${quit?C.red:C.line}`, background:quit?C.red:"transparent", color:quit?"#fff":C.dim }}>{quit?"Quit habit ✓":"Make it a quit habit"}</button>
               </div>
             </Panel>
