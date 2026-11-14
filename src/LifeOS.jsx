@@ -819,7 +819,7 @@ export default function LifeOS(){
         </Sheet>
       )}
 
-      <div style={{ maxWidth:1180, margin:"0 auto", padding:isMobile?"16px 12px calc(92px + env(safe-area-inset-bottom))":bottomNav?"24px 24px calc(100px + env(safe-area-inset-bottom))":"24px" }}>
+      <div style={{ maxWidth:1180, margin:"0 auto", padding:isMobile?"16px 14px calc(96px + env(safe-area-inset-bottom))":bottomNav?"24px 24px calc(100px + env(safe-area-inset-bottom))":"24px" }}>
         {tab==="today" && <TodayView day={day} date={date} setDate={setDate} upd={upd} dayTypes={dayTypes} applyDayType={applyDayType} links={habitLinks} allDays={allDays} flash={flash} masterTodos={masterTodos} toggleMasterTodo={toggleMasterTodo} goTodos={()=>setTab("todo")} keyDates={keyDates} saveKeyDates={persistKeyDates} bad={badHabits} />}
         {tab==="plan" && <WeekPlanView date={date} setDate={setDate} setTab={setTab} allDays={allDays} ctx={dayCtx} moveBlock={moveBlockToDay} />}
         {tab==="todo" && <TodoListView todos={masterTodos} save={persistMasterTodos} flash={flash} />}
@@ -830,14 +830,14 @@ export default function LifeOS(){
       </div>
 
       {bottomNav && (
-        <nav style={{ position:"fixed", left:0, right:0, bottom:0, zIndex:90, display:"flex", background:"rgba(21,23,29,.94)", backdropFilter:"blur(14px)", WebkitBackdropFilter:"blur(14px)", borderTop:`1px solid ${C.line}`, paddingBottom:"env(safe-area-inset-bottom)" }}>
+        <nav aria-label="Main" style={{ position:"fixed", left:0, right:0, bottom:0, zIndex:90, display:"flex", padding:"6px 6px calc(6px + env(safe-area-inset-bottom))", background:"rgba(14,15,20,.88)", backdropFilter:"saturate(160%) blur(18px)", WebkitBackdropFilter:"saturate(160%) blur(18px)", borderTop:`1px solid ${C.line}` }}>
           {BOTTOM_TABS.map(([k,l])=>{ const on = k==="more" ? MORE_MOBILE.some(m=>m[0]===tab) : tab===k;
-            return <button key={k} onClick={()=>{ buzz(5); if(k==="more") setShowMore(true); else setTab(k); }}
-              style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:3, padding:"9px 0 8px", border:"none", background:"transparent", color:on?C.teal:C.faint, fontSize:10.5, fontWeight:600, cursor:"pointer" }}>
-              <TabIcon k={k} on={on}/>{l}</button>; })}
+            return <button key={k} aria-current={on?"page":undefined} onClick={()=>{ buzz(5); if(k==="more") setShowMore(true); else setTab(k); }}
+              style={{ flex:1, minWidth:0, minHeight:50, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:3, padding:"4px 0", border:"none", background:"transparent", color:on?C.ink:C.faint, fontSize:10.5, fontWeight:on?650:550, cursor:"pointer", letterSpacing:"0.01em" }}>
+              <span style={{ display:"flex", alignItems:"center", justifyContent:"center", width:52, height:28, borderRadius:R.pill, background:on?`${C.teal}24`:"transparent", color:on?C.teal:C.faint, transition:"background .2s ease, color .2s ease" }}><TabIcon k={k} on={on}/></span>{l}</button>; })}
         </nav>
       )}
-      {toast && <div style={{ position:"fixed", bottom:bottomNav?"calc(84px + env(safe-area-inset-bottom))":24, left:"50%", transform:"translateX(-50%)", background:C.teal, color:"#001014", padding:"10px 22px", borderRadius:30, fontWeight:600, fontSize:14, zIndex:100, boxShadow:"0 8px 30px rgba(0,0,0,.5)", animation:"lo-pop .18s ease", whiteSpace:"nowrap" }}>{toast}</div>}
+      {toast && <div style={{ position:"fixed", bottom:bottomNav?"calc(84px + env(safe-area-inset-bottom))":24, left:"50%", transform:"translateX(-50%)", background:C.ink, color:C.bg, padding:"11px 20px", borderRadius:R.pill, fontWeight:600, fontSize:14, zIndex:100, boxShadow:"0 8px 30px rgba(0,0,0,.5)", animation:"lo-pop .18s ease", whiteSpace:"nowrap" }}>{toast}</div>}
       {canUndo && <button onClick={undo} style={{ position:"fixed", bottom:bottomNav?"calc(84px + env(safe-area-inset-bottom))":24, left:isMobile?12:20, background:C.panel2, color:C.ink, border:`1px solid ${C.line}`, padding:"9px 16px", borderRadius:30, fontWeight:600, fontSize:13, zIndex:100, boxShadow:"0 8px 30px rgba(0,0,0,.5)", cursor:"pointer" }}>↶ Undo</button>}
     </div>
   );
@@ -1464,7 +1464,9 @@ function TodayView({ day,date,setDate,upd,dayTypes,applyDayType,links,allDays,fl
         </Sheet>
       )}
 
-      <button onClick={()=>setShowLog(s=>!s)} style={{ ...addBtn, marginTop:16 }}>{showLog?"Hide day log ▴":"Open day log (reps · habits · to-dos · review) ▾"}</button>
+      <button onClick={()=>setShowLog(s=>!s)} aria-expanded={showLog} style={{ ...addBtn, marginTop:SP.lg, minHeight:48, display:"flex", alignItems:"center", justifyContent:"space-between", textAlign:"left", padding:"0 16px", color:C.ink, borderRadius:R.md }}>
+        <span><span style={{ fontWeight:650 }}>Day log</span> <span style={{ color:C.faint, fontWeight:500 }}>· score, to-dos, hours, review</span></span>
+        <span style={{ color:C.faint, transform:showLog?"rotate(180deg)":"none", transition:"transform .2s ease" }}>▾</span></button>
 
       {showLog && (
         <div style={{ display:"grid", gridTemplateColumns:isMobile?"1fr":"1fr 1fr", gap:18, marginTop:16 }}>
