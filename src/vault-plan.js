@@ -1401,4 +1401,11 @@ export const VAULT_PLAN = [
   { key: "rt-2026-11-13", kind: "rating", date: "2026-11-13", value: 6 },
   // 14 Nov: Saturday library session (Dan typing from the library, ~14:00).
   { key: "hl-2026-11-14-lib", kind: "habitLog", date: "2026-11-14", habits: { library: true }, known: ["library"] },
+  // 14 Nov: interview plan to 4 Dec (Oxbridge-Prep → Cambridge Interview Prep, "Status 2026-11-14").
+  { key: "td-swap-mocks-julian-rohan", kind: "todo", due: "2026-11-18", star: true, list: "big",
+    text: "Ask Julian + Rohan: swap mock interviews w/c 23 Nov (25 min each way)" },
+  { key: "td-alevel-gaps-fields-shm-thermal", kind: "todo", due: "2026-11-22", list: "big",
+    text: "Interview: close claimed A-level gaps: fields, SHM, thermal physics (one per evening)" },
+  { key: "td-ps-defend-sheet", kind: "todo", due: "2026-11-29", list: "big",
+    text: "Interview: 45-min one-page sheet: every PS line I can defend" },
 ];
