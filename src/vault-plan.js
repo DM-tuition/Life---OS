@@ -1394,4 +1394,7 @@ export const VAULT_PLAN = [
   { key: "rm-td-ironman-bike", kind: "todo-remove", target: "td-ironman-bike" },
   { key: "td-ironman-bike-v2", kind: "todo", due: "2027-01-31", star: true, list: "big",
     text: "Ironman: bike sorted (biggest gap) — compact + 11-32/34, fit, clip-ins, turbo. Boxing Day sales" },
+  // 14 Nov: the redesigned countdown strip had no interview line. Window, not a date —
+  // no invite yet (brief rule). Mocks stay out until their dates are known.
+  { key: "kd-interview-window", kind: "keyDate", name: "Interview window opens", date: "2026-12-04" },
 ];
