@@ -565,14 +565,15 @@ function importBackup(file,onDone){
 }
 
 // ============ UI PRIMITIVES ============
-const Panel = ({ accent,title,right,children,style })=>(
+const Panel = ({ accent,title,sub,right,children,style })=>(
   <section style={{ background:C.panel, border:`1px solid ${C.line}`, borderRadius:R.lg, padding:SP.lg, boxShadow:SH.card, ...style }}>
-    {title && <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:SP.md, gap:SP.sm, minHeight:24 }}>
+    {title && <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:sub?SP.xs:SP.md, gap:SP.sm, minHeight:24 }}>
       <div style={{ display:"flex", alignItems:"center", gap:SP.sm, minWidth:0 }}>
         <span style={{ width:8,height:8,background:accent,borderRadius:R.pill, flexShrink:0, boxShadow:`0 0 0 3px ${accent}22` }}/>
         <h2 style={{ margin:0, fontSize:15, fontWeight:650, letterSpacing:"-0.01em", color:C.ink, whiteSpace:"nowrap" }}>{title}</h2>
       </div>{right}
     </div>}
+    {title && sub && <div style={{ fontSize:12, color:C.dim, lineHeight:1.45, margin:`0 0 ${SP.md}px ${SP.lg}px` }}>{sub}</div>}
     {children}
   </section>
 );
@@ -617,9 +618,9 @@ const Empty = ({ children,big })=> <div style={{ textAlign:"center", color:C.fai
 const Mini = ({ children })=> <div style={{ fontSize:11, color:C.faint, marginTop:8, textAlign:"center" }}>{children}</div>;
 const Label = ({ children })=> <div style={{ fontSize:11, color:C.faint, marginBottom:8 }}>{children}</div>;
 const Stat = ({ label,value,sub,color })=>(
-  <div style={{ background:C.panel2, borderRadius:10, padding:"14px 12px", textAlign:"center" }}>
-    <div style={{ fontSize:26, fontWeight:700, color }}>{value}<span style={{ fontSize:13, color:C.faint }}>{sub}</span></div>
-    <div style={{ fontSize:11, color:C.dim, marginTop:4 }}>{label}</div>
+  <div style={{ background:C.panel2, borderRadius:R.md, padding:`${SP.md}px ${SP.md}px`, textAlign:"left", minWidth:0 }}>
+    <div style={{ fontSize:26, fontWeight:750, letterSpacing:"-0.02em", lineHeight:1.05, color, fontVariantNumeric:"tabular-nums", whiteSpace:"nowrap" }}>{value}<span style={{ fontSize:13, fontWeight:600, color:C.faint, marginLeft:1 }}>{sub}</span></div>
+    <div style={{ ...EYEBROW, fontSize:10, letterSpacing:"0.06em", color:C.dim, marginTop:6, lineHeight:1.3 }}>{label}</div>
   </div>
 );
 function Stepper({ v,set,big }){
@@ -1799,7 +1800,13 @@ function TrendsView({ allDays,links,cfg }){
   const sorted = useMemo(()=>Object.values(allDays).filter(Boolean).sort((a,b)=>a.date.localeCompare(b.date)),[allDays]);
   if(sorted.length<2) return <Empty big>Log at least 2 days to see trends. Your behaviour patterns accumulate here over weeks and months — including your BS-day count, the metric to actually beat.</Empty>;
   const last30 = sorted.slice(-30);
-  const Bars = ({ data,color,max })=> <div style={{ display:"flex", alignItems:"flex-end", gap:2, height:90, marginTop:8 }}>{data.map((v,i)=> <div key={i} style={{ flex:1, minWidth:3, height:`${(v/max*100)||2}%`, background:color, borderRadius:2, opacity:0.85 }}/>)}</div>;
+  // Bar strip with a baseline and a dashed target; an all-zero series gets an honest empty state.
+  const Bars = ({ data,color,max,target })=> data.every(v=>!v)
+    ? <div style={{ height:90, marginTop:8, display:"flex", alignItems:"center", justifyContent:"center", border:`1px dashed ${C.line}`, borderRadius:R.sm, fontSize:12, color:C.dim }}>Nothing logged in the last 30 days</div>
+    : <div style={{ position:"relative", display:"flex", alignItems:"flex-end", gap:2, height:90, marginTop:8, borderBottom:`1px solid ${C.line}` }}>
+        {target!=null && <div style={{ position:"absolute", left:0, right:0, bottom:`${target/max*100}%`, borderTop:`1px dashed ${C.faint}`, pointerEvents:"none" }}/>}
+        {data.map((v,i)=> <div key={i} title={String(v)} style={{ flex:1, minWidth:3, height:v?`${Math.max(3,v/max*100)}%`:0, background:color, borderRadius:"3px 3px 0 0", opacity:i===data.length-1?1:0.8 }}/>)}
+      </div>;
   const ratings=last30.map(d=>d.rating||0), prod=last30.map(d=>+d.prodHours||0), sleepH=last30.map(d=>d.breakdown.Sleep||0);
   const maxProd=Math.max(8,...prod), maxSleep=Math.max(10,...sleepH);
   const streaks = HABITS.map(h=>{ const s=habitStatsFor(sorted,h.key,links,(cfg||{})[h.key]); return {...h,streak:s.cur,unit:s.mode==="weekly"?"wk":""}; });
@@ -1818,33 +1825,36 @@ function TrendsView({ allDays,links,cfg }){
     <div>
       <PageHeader eyebrow={`${sorted.length} days logged`} title="Trends" sub="The long game — what the logs say over weeks, not days."/>
 
-      <Panel accent={C.teal} title="Plan Adherence" style={{ marginBottom:18 }} right={<span style={{ fontSize:11, color:C.faint }}>of what you drew, how much you did — drive this up</span>}>
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:14 }}>
+      <Panel accent={C.teal} title="Plan adherence" style={{ marginBottom:SP.lg }} sub="of what you drew, how much you did — drive this up">
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(3,minmax(0,1fr))", gap:SP.sm }}>
           <Stat label="Adherence" value={adhPct} sub="%" color={adhPct>=70?C.green:adhPct>=40?C.gold:C.red}/>
           <Stat label="Blocks kept" value={adhD} sub={`/${adhT}`} color={C.teal}/>
           <Stat label="Days planned" value={adhDaysCount} color={C.dim}/>
         </div>
       </Panel>
 
-      <Panel accent={C.red} title="The BS Metric" style={{ marginBottom:18 }} right={<span style={{ fontSize:11, color:C.faint }}>wasted mornings — drive this down</span>}>
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:14 }}>
+      <Panel accent={C.red} title="The BS metric" style={{ marginBottom:SP.lg }} sub="wasted mornings — drive this down">
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(3,minmax(0,1fr))", gap:SP.sm }}>
           <Stat label="BS days total" value={bsTotal} color={C.red}/>
           <Stat label="BS rate" value={bsRate} sub="%" color={C.red}/>
           <Stat label="Current BS-free streak" value={bsFreeStreak} color={C.green}/>
         </div>
       </Panel>
 
-      <Panel accent={C.gold} title="Current Streaks" style={{ marginBottom:18 }}>
-        <div style={{ display:"grid", gridTemplateColumns:isMobile?"repeat(3,1fr)":"repeat(5,1fr)", gap:12 }}>
-          {streaks.map(s=> <div key={s.key} style={{ background:C.panel2, borderRadius:10, padding:"14px 10px", textAlign:"center" }}><div style={{ fontSize:30, fontWeight:700, color:s.streak>0?s.color:C.faint, lineHeight:1 }}>{s.streak}<span style={{ fontSize:12, color:C.faint }}>{s.unit}</span></div><div style={{ fontSize:11, color:C.dim, marginTop:6 }}>{s.label}</div></div>)}
+      <Panel accent={C.gold} title="Current streaks" style={{ marginBottom:SP.lg }}>
+        <div style={{ display:"grid", gridTemplateColumns:isMobile?"repeat(3,minmax(0,1fr))":"repeat(5,minmax(0,1fr))", gap:SP.sm }}>
+          {streaks.map(s=> <div key={s.key} style={{ background:C.panel2, borderRadius:R.md, padding:`${SP.md}px ${SP.sm}px`, display:"flex", flexDirection:"column", alignItems:"center", gap:6, minWidth:0 }}>
+            <Ring pct={s.streak/(s.unit?8:30)} color={s.streak>0?s.color:C.faint} value={<>{s.streak}<span style={{ fontSize:10, color:C.faint }}>{s.unit||"d"}</span></>} label="streak" size={60}/>
+            <div style={{ fontSize:11, color:C.dim, textAlign:"center", lineHeight:1.3 }}>{s.label}</div>
+          </div>)}
         </div>
       </Panel>
 
-      <div style={{ display:"grid", gridTemplateColumns:isMobile?"1fr":"1fr 1fr", gap:18 }}>
-        <Panel accent={C.red} title="Day Score (last 30)"><Bars data={ratings} color={C.red} max={10}/><Mini>Avg {(ratings.reduce((a,b)=>a+b,0)/ratings.length).toFixed(1)}/10</Mini></Panel>
-        <Panel accent={C.green} title="Productive Hours (last 30)"><Bars data={prod} color={C.green} max={maxProd}/><Mini>Total {prod.reduce((a,b)=>a+b,0)}h · avg {(prod.reduce((a,b)=>a+b,0)/prod.length).toFixed(1)}h/day</Mini></Panel>
-        <Panel accent={C.sleep} title="Sleep Hours (last 30)"><Bars data={sleepH} color={C.sleep} max={maxSleep}/><Mini>Avg {(sleepH.reduce((a,b)=>a+b,0)/sleepH.length).toFixed(1)}h — target 8h+</Mini></Panel>
-        <Panel accent={C.purple} title="Consistency (all time)">
+      <div style={{ display:"grid", gridTemplateColumns:isMobile?"1fr":"1fr 1fr", gap:SP.lg }}>
+        <Panel accent={C.teal} title="Day score" sub="Last 30 logged days · dashed line = 7"><Bars data={ratings} color={C.teal} max={10} target={7}/><Mini>Avg {(ratings.reduce((a,b)=>a+b,0)/ratings.length).toFixed(1)}/10</Mini></Panel>
+        <Panel accent={C.green} title="Productive hours" sub="Last 30 logged days"><Bars data={prod} color={C.green} max={maxProd}/><Mini>Total {prod.reduce((a,b)=>a+b,0)}h · avg {(prod.reduce((a,b)=>a+b,0)/prod.length).toFixed(1)}h/day</Mini></Panel>
+        <Panel accent={C.sleep} title="Sleep hours" sub="Last 30 logged days · dashed line = 8h"><Bars data={sleepH} color={C.sleep} max={maxSleep} target={8}/><Mini>Avg {(sleepH.reduce((a,b)=>a+b,0)/sleepH.length).toFixed(1)}h — target 8h+</Mini></Panel>
+        <Panel accent={C.purple} title="Consistency" sub="Share of logged days each habit was done">
           {habitRate.map(h=> <div key={h.key} style={{ marginBottom:9 }}><div style={{ display:"flex", justifyContent:"space-between", fontSize:12, marginBottom:4 }}><span style={{ color:C.dim }}>{h.label}</span><span style={{ color:h.color }}>{h.rate}%</span></div><div style={{ height:7, background:C.panel2, borderRadius:4, overflow:"hidden" }}><div style={{ width:`${h.rate}%`, height:"100%", background:h.color }}/></div></div>)}
           <div style={{ marginBottom:2 }}><div style={{ display:"flex", justifyContent:"space-between", fontSize:12, marginBottom:4 }}><span style={{ color:C.dim }}>Daily reps</span><span style={{ color:C.green }}>{repsRate}%</span></div><div style={{ height:7, background:C.panel2, borderRadius:4, overflow:"hidden" }}><div style={{ width:`${repsRate}%`, height:"100%", background:C.green }}/></div></div>
         </Panel>
@@ -2087,7 +2097,7 @@ function BadHabitsPanel({ allDays, bad, saveBad, weeks }){
   const count=(k,n)=>{ let c=0; for(let i=0;i<n;i++) if(badDone(allDays[addDays(today,-i)],k)) c++; return c; };
   const since=(k)=>{ for(let i=0;i<400;i++){ if(badDone(allDays[addDays(today,-i)],k)) return i; } return null; };
   return (
-    <Panel accent={C.red} title="Bad habits" style={{ marginTop:18 }} right={<span style={{ fontSize:11, color:C.faint }}>tick when it happens · each one drags the day down</span>}>
+    <Panel accent={C.red} title="Bad habits" style={{ marginTop:18 }} sub="tick when it happens · each one drags the day down">
       <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
         {list.map(b=>{ const s=since(b.key); return (
           <div key={b.key}>
@@ -2255,11 +2265,11 @@ function TodoListView({ todos,save,flash }){
         </div>
       </Panel>
 
-      <Panel accent={C.purple} title={`Big picture · ${big.length}`} style={{ marginBottom:16 }} right={<span style={{ fontSize:11, color:C.faint }}>the things that matter this term</span>}>
+      <Panel accent={C.purple} title={`Big picture · ${big.length}`} style={{ marginBottom:16 }} sub="the things that matter this term">
         {big.length===0 ? <Empty>Nothing big on the list. Projects and goals go here — DofE, the interview, the ISA.</Empty> : big.map(t=> <Row key={t.id} t={t} bigRow/>)}
       </Panel>
 
-      <Panel accent={C.teal} title={`Daily / small · ${small.length}`} style={{ marginBottom:14 }} right={<span style={{ fontSize:11, color:C.faint }}>⇅ moves a task across</span>}>
+      <Panel accent={C.teal} title={`Daily / small · ${small.length}`} style={{ marginBottom:14 }} sub="⇅ moves a task across">
         {small.length===0 && <Empty>Nothing small waiting.</Empty>}
         {smallGroups.map(g=> g.items.length>0 && (
           <div key={g.key} style={{ marginBottom:8 }}>
