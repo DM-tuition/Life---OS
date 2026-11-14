@@ -1487,101 +1487,14 @@ function TodayView({ day,date,setDate,upd,dayTypes,applyDayType,links,allDays,fl
         </Sheet>
       )}
 
-      <button onClick={()=>setShowLog(s=>!s)} aria-expanded={showLog} style={{ ...addBtn, marginTop:SP.lg, minHeight:48, display:"flex", alignItems:"center", justifyContent:"space-between", textAlign:"left", padding:"0 16px", color:C.ink, borderRadius:R.md }}>
-        <span><span style={{ fontWeight:650 }}>Day log</span> <span style={{ color:C.faint, fontWeight:500 }}>· score, to-dos, hours, review</span></span>
-        <span style={{ color:C.faint, transform:showLog?"rotate(180deg)":"none", transition:"transform .2s ease" }}>▾</span></button>
-
-      {showLog && (
-        <div style={{ display:"grid", gridTemplateColumns:isMobile?"1fr":"1fr 1fr", gap:18, marginTop:16 }}>
-          <Panel accent={C.green} title="Daily Reps">
-            <div style={{ display:"flex", alignItems:"center", gap:14 }}>
-              <Check on={day.reps.done} color={C.green} onClick={()=>upd({ reps:{ ...day.reps, done:!day.reps.done } })} size={28}/>
-              <div style={{ flex:1 }}>
-                <div style={{ fontSize:13, color:C.ink }}>Push-ups + pull-ups</div>
-                <div style={{ fontSize:11, color:C.faint }}>Target scales with day of year</div>
-              </div>
-              <div style={{ display:"flex", alignItems:"center", gap:6 }}>
-                <input type="number" value={day.reps.target} onChange={e=>upd({ reps:{ ...day.reps, target:+e.target.value } })} style={{ ...inp, width:64, textAlign:"center", fontSize:18, fontWeight:700, color:C.green }}/>
-                <span style={{ fontSize:12, color:C.faint }}>reps</span>
-              </div>
-            </div>
-          </Panel>
-
-          <Panel accent={C.purple} title="Habit Tracker" right={<span style={{ fontSize:13, fontWeight:700, color:dayScore>0?C.green:dayScore<0?C.red:C.dim }}>{dayScore>0?"+":""}{dayScore}</span>}>
-            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"10px 14px" }}>
-              {HABITS.map(h=>{ const on=habitDone(day,h.key,links); const auto=on&&!(day.habits&&day.habits[h.key]); return <div key={h.key} style={{ display:"flex", alignItems:"center", gap:10 }}><Check on={on} color={h.color} onClick={()=>toggleHabit(h.key)} /><span style={{ fontSize:13, color:on?C.ink:C.dim }}>{h.label}{auto && <span style={{ fontSize:9, color:h.color, marginLeft:4 }}>auto</span>}</span></div>; })}
-              {habitDone(day,"library",links) && (()=>{ const L=day.library||{}; const set=(p)=>upd({ library:{ ...L, ...p } });
-                const chip=(on,label,col,fn)=> <button onClick={fn} style={{ fontSize:11, padding:"3px 9px", borderRadius:10, cursor:"pointer", border:`1px solid ${on?col:C.line}`, background:on?`${col}33`:"transparent", color:on?C.ink:C.dim }}>{label}</button>;
-                return <div style={{ display:"flex", gap:6, flexWrap:"wrap", alignItems:"center", marginLeft:30 }}>
-                  {chip(L.hours>=3,"3h+",C.purple,()=>set({ hours: L.hours>=3 ? 1 : 3 }))}
-                  {chip(L.productive===true,"Locked in",C.green,()=>set({ productive: L.productive===true ? null : true }))}
-                  {chip(L.productive===false,"Pissed about",C.red,()=>set({ productive: L.productive===false ? null : false }))}
-                  <span style={{ fontSize:11, color:C.faint }}>{(()=>{ const v=libPoints(day); return v>0?`+${v}`:String(v); })()}</span>
-                </div>; })()}
-            </div>
-            <div style={{ borderTop:`1px solid ${C.line}`, marginTop:12, paddingTop:10 }}>
-              <div style={{ fontSize:10, fontWeight:700, letterSpacing:0.6, textTransform:"uppercase", color:C.red, marginBottom:8 }}>Bad habits · tick if it happened</div>
-              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"10px 14px" }}>
-                {(bad||DEFAULT_BAD).map(b=>{ const on=badDone(day,b.key); return <div key={b.key} style={{ display:"flex", alignItems:"center", gap:10 }}><Check on={on} color={C.red} onClick={()=>toggleBad(b.key)} /><span style={{ fontSize:13, color:on?C.red:C.dim }}>{b.label}</span></div>; })}
-              </div>
-            </div>
-          </Panel>
-
-          <Panel accent={C.green} title="To Do" style={{ gridColumn:isMobile?"auto":"1 / -1" }} right={<button onClick={pullTodos} style={{ background:"none", border:"none", color:C.dim, cursor:"pointer", fontSize:11 }}>↓ carry over unfinished</button>}>
-            {(dueToday.length>0 || overdue.length>0) && (
-              <div style={{ background:C.panel2, borderRadius:10, padding:12, marginBottom:14, border:`1px solid ${overdue.length?C.red:C.teal}44` }}>
-                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
-                  <span style={{ fontSize:11, fontWeight:700, letterSpacing:0.5, textTransform:"uppercase", color:overdue.length?C.red:C.teal }}>📌 From your To Do list</span>
-                  <button onClick={goTodos} style={{ background:"none", border:"none", color:C.dim, cursor:"pointer", fontSize:11 }}>View all →</button>
-                </div>
-                {overdue.map(t=> <div key={t.id} style={{ display:"flex", alignItems:"center", gap:8, marginBottom:6 }}><Check on={false} color={C.red} onClick={()=>toggleMasterTodo(t.id)} size={17}/><span style={{ flex:1, fontSize:13, color:C.ink, fontWeight:t.star?700:400 }}>{t.star?"★ ":""}{t.text}</span><span style={{ fontSize:10, color:C.red }}>overdue · {fmt(t.due)}</span></div>)}
-                {dueToday.map(t=> <div key={t.id} style={{ display:"flex", alignItems:"center", gap:8, marginBottom:6 }}><Check on={false} color={C.teal} onClick={()=>toggleMasterTodo(t.id)} size={17}/><span style={{ flex:1, fontSize:13, color:C.ink, fontWeight:t.star?700:400 }}>{t.star?"★ ":""}{t.text}</span><span style={{ fontSize:10, color:C.faint }}>due today</span></div>)}
-              </div>
-            )}
-            <input value={newTask} onChange={e=>setNewTask(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addTask("shortImp")} placeholder="Add task + Enter (→ Short/Important)…" style={{ ...inp, width:"100%", marginBottom:14 }}/>
-            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14 }}>
-              <TodoBucket label="Short · Important" color={C.gold} items={day.todos.shortImp} bucket="shortImp" toggle={toggleTask} del={delTask}/>
-              <TodoBucket label="Long · Important" color={C.blue} items={day.todos.longImp} bucket="longImp" toggle={toggleTask} del={delTask}/>
-              <TodoBucket label="Short · Unimportant" color={C.faint} items={day.todos.shortUnimp} bucket="shortUnimp" toggle={toggleTask} del={delTask}/>
-              <TodoBucket label="Long · Unimportant" color={C.faint} items={day.todos.longUnimp} bucket="longUnimp" toggle={toggleTask} del={delTask}/>
-            </div>
-          </Panel>
-
-          <Panel accent={C.sleep} title="Hourly Breakdown" right={<span style={{ fontSize:11, color:C.faint }}>auto · adjust ±</span>}>
-            {BREAKDOWN.map(k=>{ const adj=(day.breakdownAdj&&day.breakdownAdj[k])||0; return (
-              <div key={k} style={{ display:"flex", alignItems:"center", gap:10, marginBottom:9 }}>
-                <span style={{ width:70, fontSize:13, color:C.dim }}>{k}</span>
-                <div style={{ flex:1, height:8, background:C.panel2, borderRadius:4, overflow:"hidden" }}><div style={{ width:`${Math.min(100,(day.breakdown[k]/12)*100)}%`, height:"100%", background:C.sleep }}/></div>
-                <span style={{ width:34, textAlign:"right", fontSize:13, color:C.ink, fontVariantNumeric:"tabular-nums" }}>{day.breakdown[k]}h</span>
-                <div style={{ display:"flex", alignItems:"center", gap:4 }}>
-                  <button onClick={()=>adjustBd(k,-1)} style={stepBtn}>–</button>
-                  <button onClick={()=>adjustBd(k,1)} style={stepBtn}>+</button>
-                </div>
-                {adj!==0 && <span style={{ fontSize:10, color:adj>0?C.green:C.red, width:24 }}>{adj>0?`+${adj}`:adj}</span>}
-              </div>
-            ); })}
-            {day.sleep
-              ? <Mini>Garmin: asleep {day.sleep.bed} → up {day.sleep.wake} · {Math.floor(day.sleep.hours)}h{String(Math.round((day.sleep.hours%1)*60)).padStart(2,"0")}{day.sleep.score!=null?` · score ${day.sleep.score}`:""}. Rest auto-filled from your timeline. Tap ± to tweak.</Mini>
-              : <Mini>Auto-filled from your timeline (sleep defaults to 8h). Tap ± to tweak any day.</Mini>}
-          </Panel>
-
-          <Panel accent={C.teal} title="Productive Hours">
-            <div style={{ display:"flex", gap:14 }}>
-              <div style={{ flex:1, background:C.panel2, borderRadius:10, padding:14, textAlign:"center" }}><div style={{ fontSize:11, color:C.green, marginBottom:6 }}>PRODUCTIVE</div><Stepper v={day.prodHours} set={(v)=>upd({prodHours:Math.max(0,v)})} big/></div>
-              <div style={{ flex:1, background:C.panel2, borderRadius:10, padding:14, textAlign:"center" }}><div style={{ fontSize:11, color:C.red, marginBottom:6 }}>UNPRODUCTIVE</div><Stepper v={day.unprodHours} set={(v)=>upd({unprodHours:Math.max(0,v)})} big/></div>
-            </div>
-          </Panel>
-
-          <Panel accent={C.red} title="Day Assessment" style={{ gridColumn:isMobile?"auto":"1 / -1" }}>
-            <div style={{ display:"flex", gap:6, marginBottom:14, flexWrap:"wrap" }}>
-              {[0,1,2,3,4,5,6,7,8,9,10].map(n=> <button key={n} onClick={()=>upd({rating:n, ratingZero:n===0, ratingEst:false, ratingWhy:""})} style={{ flex:"1 0 40px", height:44,borderRadius:R.sm+2,cursor:"pointer",fontWeight:700,fontSize:15, fontVariantNumeric:"tabular-nums", border:`1px solid ${(!day.ratingEst&&((n===0&&day.ratingZero)||(n>0&&day.rating>=n)))?C.teal:C.line}`, background:(!day.ratingEst&&((n===0&&day.ratingZero)||(n>0&&day.rating>=n)))?`rgba(51,195,208,${0.18+0.05*n})`:C.panel2, color:day.rating>=n?"#fff":C.faint }}>{n}</button>)}
-              <div style={{ display:"flex", alignItems:"center", fontFamily:DISPLAY.fontFamily, fontWeight:DISPLAY.fontWeight, letterSpacing:DISPLAY.letterSpacing, fontSize:20, color:C.faint, marginLeft:4 }}>/10</div>
-            </div>
-            {day.ratingEst && <Mini>Estimated {day.rating}/10{day.ratingWhy?` (${day.ratingWhy})`:""}. You didn't score this day. Tap a number to score it for real.</Mini>}
-            <textarea value={day.feedback} onChange={e=>upd({feedback:e.target.value})} placeholder="Feedback: how did today actually go?" style={{ ...inp, minHeight:70, resize:"vertical", width:"100%" }}/>
-          </Panel>
+      {/* Day log removed 14 Nov (Dan: "never use it") — only the 0–10 score stays. */}
+      <Panel accent={C.red} title="Day score" style={{ marginTop:SP.lg }}>
+        <div style={{ display:"flex", gap:6, marginBottom:14, flexWrap:"wrap" }}>
+          {[0,1,2,3,4,5,6,7,8,9,10].map(n=> <button key={n} onClick={()=>upd({rating:n, ratingZero:n===0, ratingEst:false, ratingWhy:""})} style={{ flex:"1 0 40px", height:44,borderRadius:R.sm+2,cursor:"pointer",fontWeight:700,fontSize:15, fontVariantNumeric:"tabular-nums", border:`1px solid ${(!day.ratingEst&&((n===0&&day.ratingZero)||(n>0&&day.rating>=n)))?C.teal:C.line}`, background:(!day.ratingEst&&((n===0&&day.ratingZero)||(n>0&&day.rating>=n)))?`rgba(51,195,208,${0.18+0.05*n})`:C.panel2, color:day.rating>=n?"#fff":C.faint }}>{n}</button>)}
+          <div style={{ display:"flex", alignItems:"center", fontFamily:DISPLAY.fontFamily, fontWeight:DISPLAY.fontWeight, letterSpacing:DISPLAY.letterSpacing, fontSize:20, color:C.faint, marginLeft:4 }}>/10</div>
         </div>
-      )}
+        {day.ratingEst && <Mini>Estimated {day.rating}/10{day.ratingWhy?` (${day.ratingWhy})`:""}. You didn't score this day. Tap a number to score it for real.</Mini>}
+      </Panel>
     </div>
   );
 }
