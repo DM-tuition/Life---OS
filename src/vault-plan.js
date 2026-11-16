@@ -1532,4 +1532,9 @@ export const VAULT_PLAN = [
     { t: 18, e: 18.5, label: "Week setup", cat: "Other", note: "Bag, kit, check the Week tab for w/c 23 Nov (Week B)." },
     { t: 22.5, e: 23, label: "Wind-down · phone out of the room", cat: "Other", note: "Bed 23:00 (school tomorrow)." },
   ]},
+  // 16 Nov: Dan booked a school mock interview with a teacher, Thu P2 (10:15–11:10).
+  { key: "ev-mock2-teacher-19nov", kind: "event", date: "2026-11-19", text: "🎤 Mock interview 2 — teacher, P2 10:15–11:10" },
+  { key: "kd-mock2-19nov", kind: "keyDate", name: "Mock interview 2", date: "2026-11-19" },
+  { key: "td-mock2-debrief", kind: "todo", due: "2026-11-19", star: true,
+    text: "Debrief mock 2 in the 14:50 library block: every question, silences, hints" },
 ];
