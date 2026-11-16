@@ -1483,4 +1483,53 @@ export const VAULT_PLAN = [
     { t: 18, e: 18.5, label: "Week setup", cat: "Other", note: "Bag, kit, check the Week tab for w/c 23 Nov (Week B)." },
     { t: 22.5, e: 23, label: "Wind-down · phone out of the room", cat: "Other", note: "Bed 23:00 (school tomorrow)." },
   ]},
+
+  // --- appended 2026-11-16 · Dan's answers to the 15 Nov planner questions ---
+  // Back at Mum's from Sun 15; bus ~08:10. No 6-a-side or training last week, unlikely this week.
+  // Sat 21: no school match, a football / kho-kho tournament instead (time not given). Sun 22 match stands.
+  // Sat 14: skills NOT done (forgot gym shirts), 1 km swim instead; library ~2h, ~1h30 interview research.
+  { key: "hl-2026-11-14-v2", kind: "habitLog", date: "2026-11-14", habits: { exercise: true, library: true },
+    known: ["exercise", "library"], library: { hours: 2, productive: true } },
+  { key: "rm-wp-2026-11-17-fb", kind: "plan-remove", date: "2026-11-17", target: "wp-2026-11-17" },
+  { key: "wp-2026-11-17-v2", kind: "plan", date: "2026-11-17", blocks: [
+    { t: 7, e: 7.25, label: "Morning: front lever + stretch + sets", cat: "Other" },
+    { t: 7.25, e: 8 + 10/60, label: "Breakfast · bus 08:10", cat: "Other", note: "From Mum's (Dan, 15 Nov: bus ~08:10)." },
+    { t: 14 + 20/60, e: 14.75, label: "Travel · snack", cat: "Other", note: "Week A Tuesday: P5 free, school ends 14:20." },
+    { t: 14.75, e: 15.75, label: "Library · interview hour — out loud", cat: "Revision", note: "The daily hour: 0–5 one Fermi question aloud · 5–45 two unseen problems, 20 min each, phone recording, narrating (stuck → say what you'd want to know, take one hint aloud) · 45–60 play back 3 min, log one silence. No AI for the attempt. Write on the whiteboard notebook while talking." },
+    { t: 15.75, e: 16.5, label: "Library · A-level gap: SHM", cat: "Revision", note: "Claimed gap. a = −ω²x from F = −kx; energy swapping; damped and driven (resonance curve — a 'what is this graph?' classic)." },
+    { t: 16.5, e: 17.75, label: "Library · A-level homework", cat: "Revision", note: "Whatever is due first. 3h in the library = +2 if it was productive." },
+    { t: 18, e: 18.75, label: "Dinner", cat: "Other" },
+    { t: 19.5, e: 20.25, label: "Pool + sauna (optional)", cat: "Sport", note: "Rest day, and the 6-a-side is off this week." },
+    { t: 22.5, e: 23, label: "Wind-down · phone out of the room", cat: "Other", note: "Bed 23:00." },
+  ]},
+  { key: "rm-wp-2026-11-19-fb", kind: "plan-remove", date: "2026-11-19", target: "wp-2026-11-19" },
+  { key: "wp-2026-11-19-v2", kind: "plan", date: "2026-11-19", blocks: [
+    { t: 7, e: 7.25, label: "Morning: front lever + stretch", cat: "Other" },
+    { t: 7.5, e: 8.5, label: "Swim 1 km (easy)", cat: "Sport", note: "Every Thursday (late school start). Ironman base." },
+    { t: 8.5, e: 9 + 20/60, label: "Breakfast · to school", cat: "Other", note: "School starts 09:20 on Thursdays." },
+    { t: 14 + 25/60, e: 14 + 50/60, label: "Travel · snack", cat: "Other", note: "Thursday: 55-min lessons, P5 free, school ends 14:25." },
+    { t: 14 + 50/60, e: 15 + 50/60, label: "Library · interview hour — out loud", cat: "Revision", note: "The daily hour: 0–5 one Fermi question aloud · 5–45 two unseen problems, 20 min each, phone recording, narrating (stuck → say what you'd want to know, take one hint aloud) · 45–60 play back 3 min, log one silence. No AI for the attempt. Write on the whiteboard notebook while talking." },
+    { t: 15 + 50/60, e: 16 + 35/60, label: "Library · curve sketching set 1", cat: "Revision", note: "The maths interview's most common opener. Four unseen functions: intercepts, asymptotes, limits, symmetry — say each step aloud." },
+    { t: 16 + 35/60, e: 17.75, label: "Library · A-level homework", cat: "Revision" },
+    { t: 18, e: 18.75, label: "Dinner — proper meal, no baking", cat: "Other", note: "Last Thursday went to brownies and junk from 17:00." },
+    { t: 22.5, e: 23, label: "Wind-down · phone out of the room", cat: "Other", note: "Bed 23:00 — no training this week, so tonight it's possible." },
+  ]},
+  { key: "rm-wp-2026-11-21-match", kind: "plan-remove", date: "2026-11-21", target: "wp-2026-11-21" },
+  { key: "wp-2026-11-21-v2", kind: "plan", date: "2026-11-21", blocks: [
+    { t: 8.5, e: 9.25, label: "Breakfast", cat: "Other", note: "Up ~08:30 (assumed)." },
+    { t: 10, e: 15, label: "Football / kho-kho tournament", cat: "Sport", note: "Dan, 15 Nov. Time not given — 10:00–15:00 assumed. Replaces the school match." },
+    { t: 15.5, e: 16.25, label: "Pool + sauna (optional)", cat: "Sport", note: "Recovery after the tournament." },
+    { t: 23.5, e: 24, label: "Wind-down", cat: "Other", note: "Saturday: bed midnight." },
+  ]},
+  { key: "rm-wp-2026-11-22-v1", kind: "plan-remove", date: "2026-11-22", target: "wp-2026-11-22" },
+  { key: "wp-2026-11-22-v2", kind: "plan", date: "2026-11-22", blocks: [
+    { t: 8.25, e: 9, label: "Breakfast · to the match", cat: "Other" },
+    { t: 9.25, e: 11.75, label: "Football match", cat: "Sport", note: "Meet 09:15, kick-off 10:00 (confirmed as like last week, Dan 15 Nov)." },
+    { t: 12, e: 12.75, label: "Lunch · answer the planner's questions", cat: "Other" },
+    { t: 13.5, e: 14.5, label: "Mock-style problem — recorded", cat: "Revision", note: "One 20-min unseen problem under interview conditions, then watch the whole recording. Warm-up for the live mocks w/c 23 Nov." },
+    { t: 14.5, e: 15.25, label: "Curve sketching set 2", cat: "Revision", note: "Moved from Saturday (tournament). 45 min, every step aloud." },
+    { t: 15.25, e: 16.25, label: "A-level homework", cat: "Revision", note: "Anything due Monday." },
+    { t: 18, e: 18.5, label: "Week setup", cat: "Other", note: "Bag, kit, check the Week tab for w/c 23 Nov (Week B)." },
+    { t: 22.5, e: 23, label: "Wind-down · phone out of the room", cat: "Other", note: "Bed 23:00 (school tomorrow)." },
+  ]},
 ];
