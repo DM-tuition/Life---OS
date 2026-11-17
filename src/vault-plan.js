@@ -1654,4 +1654,29 @@ export const VAULT_PLAN = [
     text: "Email the assembly deck (PPTX + PDF) to Mr Cammack tonight" },
   { key: "fix-cup-bth-25nov", kind: "event-remove", date: "2026-11-25", text: "⚽ National Cup vs BTH — home, school (time tbc)" },
   { key: "ev-cup-bth-25nov-v2", kind: "event", date: "2026-11-25", text: "⚽ National Cup vs BTH — home, KO ~13:00" },
+
+  // --- appended 2026-11-17 · Dan: Y13 mocks 19–29 Jan 2027; A-level dates from the FINAL Pearson
+  // Edexcel GCE Summer 2027 and AQA May/June 2027 timetables (am 09:00, pm 13:30). FM options assumed
+  // FS1 (3B) + D1 (3D) from "Further Statistics + Decision" — if he takes FS2/D2 (4B/4D) it's Mon 21 Jun pm.
+  { key: "ev-y13-mocks-start-2027", kind: "event", date: "2027-01-19", text: "📝 Y13 mocks begin (19–29 Jan)" },
+  { key: "ev-y13-mocks-end-2027", kind: "event", date: "2027-01-29", text: "📝 Y13 mocks end" },
+  { key: "kd-y13-mocks-2027", kind: "keyDate", name: "Y13 mocks", date: "2027-01-19" },
+  { key: "kd-alevels-2027", kind: "keyDate", name: "A-levels start", date: "2027-05-10" },
+  { key: "kd-last-alevel-2027", kind: "keyDate", name: "Last A-level", date: "2027-06-16" },
+  { key: "ev-alevel-contingency-2027", kind: "event", date: "2027-06-23", text: "A-level contingency day (only used if exams are disrupted)" },
+  { key: "ev-alevel-results-2027", kind: "event", date: "2027-08-12", text: "🎓 A-level results day" },
+  { key: "kd-alevel-results-2027", kind: "keyDate", name: "A-level results", date: "2027-08-12" },
+  { key: "ev-alevel-2027-05-10", kind: "event", date: "2027-05-10", text: "📝 09:00 Economics Paper 1 — Markets and market failure (AQA 7136/1, 2h)" },
+  { key: "ev-alevel-2027-05-12", kind: "event", date: "2027-05-12", text: "📝 13:30 Further Maths — Core Pure 1 (Edexcel 9FM0/01, 1h30)" },
+  { key: "ev-alevel-2027-05-17", kind: "event", date: "2027-05-17", text: "📝 13:30 Economics Paper 2 — National and international economy (AQA 7136/2, 2h)" },
+  { key: "ev-alevel-2027-05-20", kind: "event", date: "2027-05-20", text: "📝 13:30 Further Maths — Core Pure 2 (Edexcel 9FM0/02, 1h30)" },
+  { key: "ev-alevel-2027-05-21", kind: "event", date: "2027-05-21", text: "📝 09:00 Physics Paper 1 (AQA 7408/1, 2h)" },
+  { key: "ev-alevel-2027-05-26", kind: "event", date: "2027-05-26", text: "📝 13:30 Maths Paper 1 — Pure 1 (Edexcel 9MA0/01, 2h)" },
+  { key: "ev-alevel-2027-05-27", kind: "event", date: "2027-05-27", text: "📝 13:30 Physics Paper 2 (AQA 7408/2, 2h)" },
+  { key: "ev-alevel-2027-06-07", kind: "event", date: "2027-06-07", text: "📝 09:00 Economics Paper 3 — Economic principles and issues (AQA 7136/3, 2h)" },
+  { key: "ev-alevel-2027-06-08", kind: "event", date: "2027-06-08", text: "📝 09:00 Physics Paper 3 (AQA 7408/3, 2h — incl. Engineering Physics)" },
+  { key: "ev-alevel-2027-06-09", kind: "event", date: "2027-06-09", text: "📝 13:30 Maths Paper 2 — Pure 2 (Edexcel 9MA0/02, 2h)" },
+  { key: "ev-alevel-2027-06-10", kind: "event", date: "2027-06-10", text: "📝 13:30 Further Maths — Further Statistics 1 (Edexcel 9FM0/3B, 1h30) · option assumed" },
+  { key: "ev-alevel-2027-06-15", kind: "event", date: "2027-06-15", text: "📝 13:30 Further Maths — Decision 1 (Edexcel 9FM0/3D, 1h30) · option assumed" },
+  { key: "ev-alevel-2027-06-16", kind: "event", date: "2027-06-16", text: "📝 13:30 Maths Paper 3 — Statistics & Mechanics (Edexcel 9MA0/03, 2h) · last A-level → school ends" },
 ];
