@@ -1605,4 +1605,9 @@ export const VAULT_PLAN = [
     { t: 19.25, e: 20, label: "Home · dinner", cat: "Other" },
     { t: 22, e: 22.5, label: "Wind-down", cat: "Other", note: "Early night: Sunday match meets at 09:15." },
   ]},
+  // --- appended 2026-11-17 · Mon 16 Nov detail: library 2h productive (+1, under the 3h bar) ---
+  { key: "hl-2026-11-16-v2", kind: "habitLog", date: "2026-11-16",
+    habits: { library: true }, known: ["library"], library: { hours: 2, productive: true } },
+  { key: "td-utsav-confirm-total", kind: "todo", due: "2026-11-26", list: "small",
+    text: "Utsav run: check the real JustGiving total (~£100?) before announcing it at Utsav on 27 Nov" },
 ];
