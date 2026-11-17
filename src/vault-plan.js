@@ -1544,4 +1544,9 @@ export const VAULT_PLAN = [
     text: "Monthly Garmin data export (last 30 days) → send to Claude with Hevy screenshots" },
   { key: "td-garmin-export-12mar", kind: "todo", due: "2027-03-12",
     text: "Monthly Garmin data export (last 30 days) → send to Claude with Hevy screenshots" },
+  // --- appended 2026-11-17 · habit check-in, Mon 16 Nov ---
+  // "Pretty perfect… I kind of did everything" (ESAT results in the same day). Only miss: bed late,
+  // then didn't get up for breakfast Tue. "8.5." Gym A + library per the plan.
+  { key: "hl-2026-11-16", kind: "habitLog", date: "2026-11-16", rating: 8.5,
+    habits: { eatwell: true, exercise: true }, known: ["bed", "eatwell", "exercise", "library"] },
 ];
