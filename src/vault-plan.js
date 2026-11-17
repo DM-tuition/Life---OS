@@ -1610,4 +1610,41 @@ export const VAULT_PLAN = [
     habits: { library: true }, known: ["library"], library: { hours: 2, productive: true } },
   { key: "td-utsav-confirm-total", kind: "todo", due: "2026-11-26", list: "small",
     text: "Utsav run: check the real JustGiving total (~£100?) before announcing it at Utsav on 27 Nov" },
+
+  // --- appended 2026-11-17 · Dan: Wed match away, ~13:00 KO; Gym B → Thursday (light legs);
+  // Zonals "not serious", home ~18–19:00; Wed 25 Nov national cup vs BTH at home (time tbc).
+  { key: "ev-cup-bth-25nov", kind: "event", date: "2026-11-25", text: "⚽ National Cup vs BTH — home, school (time tbc)" },
+  { key: "rm-wp-2026-11-18-v2", kind: "plan-remove", date: "2026-11-18", target: "wp-2026-11-18-v2" },
+  { key: "wp-2026-11-18-v3", kind: "plan", date: "2026-11-18", blocks: [
+    { t: 7, e: 7.25, label: "Morning: handstand + stretch + sets", cat: "Other" },
+    { t: 7.25, e: 8 + 10/60, label: "Breakfast · bus 08:10", cat: "Other", note: "Assembly today: you're presenting." },
+    { t: 12 + 20/60, e: 16, label: "Away match vs Sale Grammar", cat: "Sport", note: "Kick-off ~13:00, away (Dan, 17 Nov). Leaving after P3 and back ~16:00 are assumed. Misses P4–P5." },
+    { t: 16.5, e: 17.5, label: "Interview hour + mock 2 run-up", cat: "Revision", note: "First the Lennard-Jones question cold and out loud, then the 5-min Z/Higgs run-through, then one unseen problem. Nothing new after this." },
+    { t: 18, e: 18.75, label: "Home · dinner", cat: "Other" },
+    { t: 22.5, e: 23, label: "Wind-down · phone out of the room", cat: "Other", note: "Bed 23:00: mock tomorrow." },
+  ]},
+  { key: "rm-wp-2026-11-19-v3", kind: "plan-remove", date: "2026-11-19", target: "wp-2026-11-19-v3" },
+  { key: "wp-2026-11-19-v4", kind: "plan", date: "2026-11-19", blocks: [
+    { t: 7, e: 7.25, label: "Morning: front lever + stretch", cat: "Other" },
+    { t: 7.5, e: 8.5, label: "Swim 1 km (easy)", cat: "Sport" },
+    { t: 8.5, e: 9 + 20/60, label: "Breakfast · to school", cat: "Other", note: "Bring the whiteboard notebook." },
+    { t: 10.25, e: 11 + 10/60, label: "🎤 Mock interview 2 — Mr Squire", cat: "Revision", note: "P2. Ask to clarify, narrate everything, take hints out loud." },
+    { t: 14 + 25/60, e: 14 + 50/60, label: "Travel · snack", cat: "Other" },
+    { t: 14 + 50/60, e: 15 + 20/60, label: "Library · debrief mock 2", cat: "Revision", note: "Every question, where you went silent, and what the hint was. Send it to the planning chat." },
+    { t: 15 + 20/60, e: 16 + 5/60, label: "Library · A-level gap: thermal physics", cat: "Revision", note: "Specific vs latent heat, kinetic theory, ½mc² = 3/2 kT." },
+    { t: 16.25, e: 17 + 40/60, label: "Gym B — light legs", cat: "Gym", note: "Moved from Wed (match). Dan: light on legs. Full pull work, legs at ~half load, because the match was yesterday and Zonals is Saturday." },
+    { t: 18, e: 18.75, label: "Home · dinner — proper meal, no baking", cat: "Other" },
+    { t: 22.5, e: 23, label: "Wind-down · phone out of the room", cat: "Other", note: "Bed 23:00." },
+  ]},
+  { key: "rm-wp-2026-11-21-v3", kind: "plan-remove", date: "2026-11-21", target: "wp-2026-11-21-v3" },
+  { key: "wp-2026-11-21-v4", kind: "plan", date: "2026-11-21", blocks: [
+    { t: 5.75, e: 6.5, label: "Up · breakfast · to the meet", cat: "Other", note: "Up 05:45 (assumed)." },
+    { t: 6.5, e: 18, label: "Zonals — THS football/kho-kho, Birmingham", cat: "Sport", note: "Meet 06:30. Not serious (Dan). Home ~18:00–19:00." },
+    { t: 18.75, e: 19.5, label: "Home · dinner", cat: "Other" },
+    { t: 22.5, e: 23, label: "Wind-down", cat: "Other", note: "Sunday match meets at 09:15." },
+  ]},
+  { key: "rm-wp-2026-11-22-v2", kind: "plan-remove", date: "2026-11-22", target: "wp-2026-11-22-v2", labels: ["Curve sketching set 2"] },
+  { key: "wp-2026-11-22-v3", kind: "plan", date: "2026-11-22", blocks: [
+    { t: 14.5, e: 15.25, label: "Curve sketching (Thu's set moved here)", cat: "Revision", note: "Thursday's slot went to Gym B. One 45-min set, every step aloud." },
+  ]},
 ];
