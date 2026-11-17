@@ -1549,4 +1549,60 @@ export const VAULT_PLAN = [
   // then didn't get up for breakfast Tue. "8.5." Gym A + library per the plan.
   { key: "hl-2026-11-16", kind: "habitLog", date: "2026-11-16", rating: 8.5,
     habits: { eatwell: true, exercise: true }, known: ["bed", "eatwell", "exercise", "library"] },
+
+  // --- appended 2026-11-17 · Planning chat: captures from another chat that never reached the app ---
+  // Dan, 17 Nov: dinner is always LAST (school → gym/library/activities → home → dinner → sleep).
+  // Julian reciprocal mock today; Wed 18 school match vs Sale Grammar (time tbc) + Dan presents the
+  // assembly; Sat 21 Zonals (THS football/kho-kho, Birmingham, meet 06:30, all day); Thu 19 P2 mock
+  // with Mr Squire. Alumni asked for a mock (no reply yet); Blue Education still owes 2.
+  { key: "ev-assembly-18nov", kind: "event", date: "2026-11-18", text: "🎙 Dan presents the school assembly" },
+  { key: "ev-match-sale-18nov", kind: "event", date: "2026-11-18", text: "⚽ School match vs Sale Grammar (time tbc)" },
+  { key: "ev-zonals-21nov", kind: "event", date: "2026-11-21", text: "🏅 Zonals — THS football/kho-kho, Birmingham, meet 06:30 (all day)" },
+  { key: "ev-mock-julian-17nov", kind: "event", date: "2026-11-17", text: "🎤 Reciprocal mock with Julian" },
+  { key: "rm-wp-2026-11-17-v2", kind: "plan-remove", date: "2026-11-17", target: "wp-2026-11-17-v2" },
+  { key: "wp-2026-11-17-v3", kind: "plan", date: "2026-11-17", blocks: [
+    { t: 7, e: 7.25, label: "Morning: front lever + stretch + sets", cat: "Other" },
+    { t: 7.25, e: 8 + 10/60, label: "Breakfast · bus 08:10", cat: "Other" },
+    { t: 14 + 20/60, e: 14.75, label: "Travel · snack", cat: "Other" },
+    { t: 14.75, e: 15.75, label: "Library · reciprocal mock with Julian", cat: "Revision", note: "Today's interview rep. Take turns as interviewer. Afterwards, note every question you fumbled, where you went silent, and any hint you needed." },
+    { t: 15.75, e: 16.5, label: "Library · plan tomorrow's assembly", cat: "Other", note: "Dan presents the assembly on Wed 18." },
+    { t: 16.5, e: 17.75, label: "Library · A-level homework", cat: "Revision", note: "SHM gap dropped today: the mock and the assembly took its slot." },
+    { t: 18, e: 18.75, label: "Pool + sauna (optional)", cat: "Sport" },
+    { t: 19, e: 19.75, label: "Home · dinner", cat: "Other", note: "Dinner last (Dan, 17 Nov)." },
+    { t: 22.5, e: 23, label: "Wind-down · phone out of the room", cat: "Other", note: "Bed 23:00." },
+  ]},
+  { key: "rm-wp-2026-11-18-v1", kind: "plan-remove", date: "2026-11-18", target: "wp-2026-11-18" },
+  { key: "wp-2026-11-18-v2", kind: "plan", date: "2026-11-18", blocks: [
+    { t: 7, e: 7.25, label: "Morning: handstand + stretch + sets", cat: "Other" },
+    { t: 7.25, e: 8 + 10/60, label: "Breakfast · bus 08:10", cat: "Other", note: "Assembly today: you're presenting." },
+    { t: 15 + 20/60, e: 17.5, label: "School match vs Sale Grammar", cat: "Sport", note: "Time not given, so 15:30–17:30 is assumed. Replaces Gym B this week, because the lock-in rule puts football first." },
+    { t: 17.75, e: 18.25, label: "Mock 2 run-up", cat: "Revision", note: "The Lennard-Jones question cold and out loud, then the 5-min Z/Higgs run-through. Nothing new after this." },
+    { t: 18.5, e: 19.25, label: "Home · dinner", cat: "Other", note: "Dinner last." },
+    { t: 22.5, e: 23, label: "Wind-down · phone out of the room", cat: "Other", note: "Bed 23:00: mock tomorrow." },
+  ]},
+  { key: "rm-wp-2026-11-19-v2", kind: "plan-remove", date: "2026-11-19", target: "wp-2026-11-19-v2" },
+  { key: "wp-2026-11-19-v3", kind: "plan", date: "2026-11-19", blocks: [
+    { t: 7, e: 7.25, label: "Morning: front lever + stretch", cat: "Other" },
+    { t: 7.5, e: 8.5, label: "Swim 1 km (easy)", cat: "Sport" },
+    { t: 8.5, e: 9 + 20/60, label: "Breakfast · to school", cat: "Other", note: "Bring the whiteboard notebook." },
+    { t: 10.25, e: 11 + 10/60, label: "🎤 Mock interview 2 — Mr Squire", cat: "Revision", note: "P2. Ask to clarify, narrate everything, take hints out loud." },
+    { t: 14 + 25/60, e: 14 + 50/60, label: "Travel · snack", cat: "Other" },
+    { t: 14 + 50/60, e: 15 + 20/60, label: "Library · debrief mock 2", cat: "Revision", note: "Write down every question, where you went silent, and what the hint was. Send it to the planning chat, because it steers next week's reps." },
+    { t: 15 + 20/60, e: 16 + 5/60, label: "Library · A-level gap: thermal physics", cat: "Revision", note: "Moved from Wed (match). Specific vs latent heat, kinetic theory, ½mc² = 3/2 kT." },
+    { t: 16 + 5/60, e: 16 + 50/60, label: "Library · curve sketching set 1", cat: "Revision" },
+    { t: 16 + 50/60, e: 17 + 50/60, label: "Library · A-level homework", cat: "Revision" },
+    { t: 18.25, e: 19, label: "Home · dinner — proper meal, no baking", cat: "Other" },
+    { t: 22.5, e: 23, label: "Wind-down · phone out of the room", cat: "Other", note: "Bed 23:00." },
+  ]},
+  { key: "rm-wp-2026-11-20-v1", kind: "plan-remove", date: "2026-11-20", target: "wp-2026-11-20", labels: ["Wind-down · phone out of the room"] },
+  { key: "wp-2026-11-20-v2", kind: "plan", date: "2026-11-20", blocks: [
+    { t: 22, e: 22.5, label: "Wind-down · bag packed for Zonals", cat: "Other", note: "Up ~05:45 for the 06:30 meet tomorrow, so bed 22:30, not midnight." },
+  ]},
+  { key: "rm-wp-2026-11-21-v2", kind: "plan-remove", date: "2026-11-21", target: "wp-2026-11-21-v2" },
+  { key: "wp-2026-11-21-v3", kind: "plan", date: "2026-11-21", blocks: [
+    { t: 5.75, e: 6.5, label: "Up · breakfast · to the meet", cat: "Other", note: "Up 05:45 (assumed)." },
+    { t: 6.5, e: 19, label: "Zonals — THS football/kho-kho, Birmingham", cat: "Sport", note: "Meet 06:30, all day. Finish and return times not given, so 19:00 home is assumed." },
+    { t: 19.25, e: 20, label: "Home · dinner", cat: "Other" },
+    { t: 22, e: 22.5, label: "Wind-down", cat: "Other", note: "Early night: Sunday match meets at 09:15." },
+  ]},
 ];
