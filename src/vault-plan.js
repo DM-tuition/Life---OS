@@ -1647,4 +1647,9 @@ export const VAULT_PLAN = [
   { key: "wp-2026-11-22-v3", kind: "plan", date: "2026-11-22", blocks: [
     { t: 14.5, e: 15.25, label: "Curve sketching (Thu's set moved here)", cat: "Revision", note: "Thursday's slot went to Gym B. One 45-min set, every step aloud." },
   ]},
+  // 17 Nov: assembly logistics from Mr Cammack's email
+  { key: "fix-assembly-18nov", kind: "event-remove", date: "2026-11-18", text: "🎙 Dan presents the school assembly" },
+  { key: "ev-assembly-18nov-v2", kind: "event", date: "2026-11-18", text: "🎙 Y8 assembly — meet Mr Cammack at Stamford Hall 08:40" },
+  { key: "td-email-deck-cammack", kind: "todo", due: "2026-11-17", star: true, list: "small",
+    text: "Email the assembly deck (PPTX + PDF) to Mr Cammack tonight" },
 ];
