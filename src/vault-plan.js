@@ -1679,4 +1679,24 @@ export const VAULT_PLAN = [
   { key: "ev-alevel-2027-06-10", kind: "event", date: "2027-06-10", text: "📝 13:30 Further Maths — Further Statistics 1 (Edexcel 9FM0/3B, 1h30) · option assumed" },
   { key: "ev-alevel-2027-06-15", kind: "event", date: "2027-06-15", text: "📝 13:30 Further Maths — Decision 1 (Edexcel 9FM0/3D, 1h30) · option assumed" },
   { key: "ev-alevel-2027-06-16", kind: "event", date: "2027-06-16", text: "📝 13:30 Maths Paper 3 — Statistics & Mechanics (Edexcel 9MA0/03, 2h) · last A-level → school ends" },
+
+  // --- appended 2026-11-17 · AGSB term dates 2026-27 (school's own PDF) + exam/interview windows
+  // on the Month tab (Dan: "highlight the window... a clearer image of the next few months").
+  { key: "fix-term-end-guess", kind: "event-remove", date: "2026-12-18", text: "Last day of term (~ unconfirmed)" },
+  { key: "ev-term-end-17dec", kind: "event", date: "2026-12-17", text: "🏁 Last day of term (ends 12:20)" },
+  { key: "ev-spring-term-4jan", kind: "event", date: "2027-01-04", text: "🏫 Spring term starts" },
+  { key: "hol-xmas-2026", kind: "holiday", type: "off", start: "2026-12-18", end: "2027-01-03", label: "Christmas holidays" },
+  { key: "hol-feb-ht-2027", kind: "holiday", type: "off", start: "2027-02-13", end: "2027-02-21", label: "February half term" },
+  { key: "hol-easter-2027", kind: "holiday", type: "off", start: "2027-03-26", end: "2027-04-11", label: "Easter holidays" },
+  { key: "hol-may-bh-2027", kind: "holiday", type: "off", start: "2027-05-03", end: "2027-05-03", label: "May bank holiday (school closed)" },
+  { key: "hol-may-ht-2027", kind: "holiday", type: "off", start: "2027-05-29", end: "2027-06-06", label: "May half term" },
+  { key: "hol-after-alevels-2027", kind: "holiday", type: "off", start: "2027-06-17", end: "2027-08-31", label: "School's over (after the last A-level)" },
+  { key: "win-interviews-2026", kind: "holiday", type: "interview", start: "2026-12-04", end: "2026-12-18", label: "Cambridge interview window" },
+  { key: "win-mocks-2027", kind: "holiday", type: "exam", start: "2027-01-19", end: "2027-01-29", label: "Y13 mocks" },
+  { key: "win-alevels-2027", kind: "holiday", type: "exam", start: "2027-05-10", end: "2027-06-16", label: "A-levels" },
+  // FM options confirmed (Dan, 17 Nov: four FM papers — CP1, CP2, Further Stats, Decision; checked against the spec).
+  { key: "fix-alevel-2027-06-10", kind: "event-remove", date: "2027-06-10", text: "📝 13:30 Further Maths — Further Statistics 1 (Edexcel 9FM0/3B, 1h30) · option assumed" },
+  { key: "ev-alevel-2027-06-10-v2", kind: "event", date: "2027-06-10", text: "📝 13:30 Further Maths — Further Statistics 1 (Edexcel 9FM0/3B, 1h30)" },
+  { key: "fix-alevel-2027-06-15", kind: "event-remove", date: "2027-06-15", text: "📝 13:30 Further Maths — Decision 1 (Edexcel 9FM0/3D, 1h30) · option assumed" },
+  { key: "ev-alevel-2027-06-15-v2", kind: "event", date: "2027-06-15", text: "📝 13:30 Further Maths — Decision 1 (Edexcel 9FM0/3D, 1h30)" },
 ];

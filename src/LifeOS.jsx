@@ -32,6 +32,10 @@ const EYEBROW = { fontSize:11, fontWeight:650, letterSpacing:"0.08em", textTrans
 const DAY_KINDS = {
   off:  { bar:"#E6B800", tint:"rgba(230,184,0,.055)", label:"off school" },  // amber
   away: { bar:"#7B4FB5", tint:"rgba(123,79,181,.07)", label:"away" },        // purple
+  // Dan, 17 Nov: "highlight the window so I can see it on the month view... a clearer image of
+  // what the next few months look like." Exam and interview windows get their own colours.
+  exam: { bar:"#E0524F", tint:"rgba(224,82,79,.09)", label:"exams" },        // red
+  interview: { bar:"#2B8FD8", tint:"rgba(43,143,216,.08)", label:"interviews" }, // blue
 };
 // Day-type colours live in stored data (DEFAULT_DAYTYPES and anything Dan has saved), picked
 // against the old palette. Remap them at render time only, so storage never changes: the old
@@ -211,7 +215,7 @@ function applyEntry(e){
       const cur=readLS("holidays:v1",[]);
       if(cur.some(h=>h&&(h.seed===e.key||(h.start===e.start&&h.end===e.end)))) return;
       writeLS("holidays:v1",[...cur,{ start:e.start, end:e.end, label:e.label||"Holiday",
-        type:e.type==="away"?"away":"off", seed:e.key }]);
+        type:DAY_KINDS[e.type]?e.type:"off", seed:e.key }]);
       return;
     }
     case "holiday-remove": {              // retract a range this file got wrong; `target` is its key,
@@ -1698,6 +1702,8 @@ function MonthView({ date,setDate,setTab,allDays,dayTypes,flash,weekAnchorA }){
       <div style={{ display:"flex", flexWrap:"wrap", justifyContent:"center", gap:"6px 14px", marginTop:SP.lg, fontSize:11, color:C.dim }}>
         <span style={{ display:"inline-flex", alignItems:"center", gap:5 }}><span style={{ width:14, height:3, borderRadius:2, background:DAY_KINDS.off.bar }}/>off school</span>
         <span style={{ display:"inline-flex", alignItems:"center", gap:5 }}><span style={{ width:14, height:3, borderRadius:2, background:DAY_KINDS.away.bar }}/>away</span>
+        <span style={{ display:"inline-flex", alignItems:"center", gap:5 }}><span style={{ width:14, height:3, borderRadius:2, background:DAY_KINDS.exam.bar }}/>exams</span>
+        <span style={{ display:"inline-flex", alignItems:"center", gap:5 }}><span style={{ width:14, height:3, borderRadius:2, background:DAY_KINDS.interview.bar }}/>interviews</span>
         <span style={{ display:"inline-flex", alignItems:"center", gap:5 }}><span style={{ width:10, height:10, borderRadius:3, background:`${C.pink}33` }}/>event</span>
         <span style={{ display:"inline-flex", alignItems:"center", gap:5 }}><span style={{ color:C.green, fontWeight:650 }}>7</span>day score</span>
         <span style={{ display:"inline-flex", alignItems:"center", gap:5 }}><span style={{ width:4, height:4, borderRadius:R.pill, background:C.faint }}/>planned</span>
