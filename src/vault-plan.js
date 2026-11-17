@@ -1537,4 +1537,11 @@ export const VAULT_PLAN = [
   { key: "kd-mock2-19nov", kind: "keyDate", name: "Mock interview 2", date: "2026-11-19" },
   { key: "td-mock2-debrief", kind: "todo", due: "2026-11-19", star: true,
     text: "Debrief mock 2 in the 14:50 library block: every question, silences, hints" },
+  // --- appended 2026-11-17 · Dan doesn't use Google Calendar, so the monthly Garmin export lives here ---
+  { key: "td-garmin-export-12jan", kind: "todo", due: "2027-01-12",
+    text: "Monthly Garmin data export (last 30 days) → send to Claude with Hevy screenshots" },
+  { key: "td-garmin-export-12feb", kind: "todo", due: "2027-02-12",
+    text: "Monthly Garmin data export (last 30 days) → send to Claude with Hevy screenshots" },
+  { key: "td-garmin-export-12mar", kind: "todo", due: "2027-03-12",
+    text: "Monthly Garmin data export (last 30 days) → send to Claude with Hevy screenshots" },
 ];
