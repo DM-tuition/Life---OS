@@ -1652,4 +1652,6 @@ export const VAULT_PLAN = [
   { key: "ev-assembly-18nov-v2", kind: "event", date: "2026-11-18", text: "🎙 Y8 assembly — meet Mr Cammack at Stamford Hall 08:40" },
   { key: "td-email-deck-cammack", kind: "todo", due: "2026-11-17", star: true, list: "small",
     text: "Email the assembly deck (PPTX + PDF) to Mr Cammack tonight" },
+  { key: "fix-cup-bth-25nov", kind: "event-remove", date: "2026-11-25", text: "⚽ National Cup vs BTH — home, school (time tbc)" },
+  { key: "ev-cup-bth-25nov-v2", kind: "event", date: "2026-11-25", text: "⚽ National Cup vs BTH — home, KO ~13:00" },
 ];
