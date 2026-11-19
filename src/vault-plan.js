@@ -1706,4 +1706,7 @@ export const VAULT_PLAN = [
     text: "Interview photo ID: find passport (or school ID) and keep it with interview kit" },
   { key: "td-school-question-log", kind: "todo", due: "2026-11-22", star: true,
     text: "Get the school's past interview-question log from Mr Squire" },
+  // 19 Nov: interview is online. Test the set-up before the window opens.
+  { key: "td-online-interview-setup", kind: "todo", due: "2026-12-02", star: true,
+    text: "Online interview: full-dress tech run — room, wired/hotspot, camera eye level, ID, writing-to-camera" },
 ];
