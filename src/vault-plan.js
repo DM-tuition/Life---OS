@@ -1699,4 +1699,11 @@ export const VAULT_PLAN = [
   { key: "ev-alevel-2027-06-10-v2", kind: "event", date: "2027-06-10", text: "📝 13:30 Further Maths — Further Statistics 1 (Edexcel 9FM0/3B, 1h30)" },
   { key: "fix-alevel-2027-06-15", kind: "event-remove", date: "2027-06-15", text: "📝 13:30 Further Maths — Decision 1 (Edexcel 9FM0/3D, 1h30) · option assumed" },
   { key: "ev-alevel-2027-06-15-v2", kind: "event", date: "2027-06-15", text: "📝 13:30 Further Maths — Decision 1 (Edexcel 9FM0/3D, 1h30)" },
+  // 19 Nov: Queens' invited Dan to interview. Full details due by 30 Nov.
+  { key: "ev-queens-invite-19nov", kind: "event", date: "2026-11-19", text: "🎉 Invited to interview — Queens' NatSci" },
+  { key: "ev-queens-details-due", kind: "event", date: "2026-11-30", text: "Queens' interview details due (date, time, no. of interviews) → attendance form" },
+  { key: "td-interview-photo-id", kind: "todo", due: "2026-11-30", star: true,
+    text: "Interview photo ID: find passport (or school ID) and keep it with interview kit" },
+  { key: "td-school-question-log", kind: "todo", due: "2026-11-22", star: true,
+    text: "Get the school's past interview-question log from Mr Squire" },
 ];
