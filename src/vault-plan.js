@@ -1716,4 +1716,7 @@ export const VAULT_PLAN = [
     text: "Swap mock with Rohan (25 min each way)" },
   { key: "td-bed-2300-from-29nov", kind: "todo", due: "2026-11-29", star: true,
     text: "Interview run-in: bed 23:00 hard from Sun 29 Nov" },
+  // --- appended 2026-11-20 · Thu 19 Nov: Gym B happened (Dan), app had exercise unticked; bed ~23:50 ---
+  { key: "hl-2026-11-19", kind: "habitLog", date: "2026-11-19",
+    habits: { exercise: true }, known: ["bed", "exercise"] },
 ];
