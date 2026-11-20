@@ -1709,4 +1709,11 @@ export const VAULT_PLAN = [
   // 19 Nov: interview is online. Test the set-up before the window opens.
   { key: "td-online-interview-setup", kind: "todo", due: "2026-12-02", star: true,
     text: "Online interview: full-dress tech run — room, wired/hotspot, camera eye level, ID, writing-to-camera" },
+  // 20 Nov: interview plan (Oxbridge-Prep → Interview Plan Nov-Dec).
+  { key: "td-book-blue-ed-mocks", kind: "todo", due: "2026-11-27", star: true,
+    text: "Book both remaining Blue Education mocks (online) — w/c 30 Nov + w/c 7 Dec" },
+  { key: "td-rohan-swap-mock", kind: "todo", due: "2026-11-29", list: "big",
+    text: "Swap mock with Rohan (25 min each way)" },
+  { key: "td-bed-2300-from-29nov", kind: "todo", due: "2026-11-29", star: true,
+    text: "Interview run-in: bed 23:00 hard from Sun 29 Nov" },
 ];
