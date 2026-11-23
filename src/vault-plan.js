@@ -1820,4 +1820,8 @@ export const VAULT_PLAN = [
   { key: "rm-td-rohan-swap-mock", kind: "todo-remove", target: "td-rohan-swap-mock" },
   { key: "td-rohan-hw-x1x", kind: "todo", due: "2026-11-24",
     text: "Rohan's homework: differentiate + sketch x^(1/x) — limits at 0 and ∞" },
+  // --- appended 2026-11-23 · Dan: "put on the to do to set up my hevy app" (the 12 Nov one never got done) ---
+  { key: "rm-td-gym-app-setup-12nov", kind: "todo-remove", target: "td-gym-app-setup-12nov" },
+  { key: "td-hevy-setup-24nov", kind: "todo", due: "2026-11-24", star: true,
+    text: "Set up Hevy: enter Gym A, Gym B and Skills as routines, then log every set from Wednesday's Gym B" },
 ];
