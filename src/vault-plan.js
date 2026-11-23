@@ -1808,4 +1808,12 @@ export const VAULT_PLAN = [
     { t: 10.5, e: 11.25, label: "Weekend mock (45 min)", cat: "Revision", note: "A full mock alone: Claude as interviewer giving hints, or 2 recorded problems back to back." },
     { t: 11.25, e: 12.25, label: "Mechanics ×2: Isaac C1–C2", cat: "Revision", note: "The week's second mechanics session. Out loud." },
   ]},
+  // --- appended 2026-11-23 · to-do session -------------------------------------------------
+  // Dan: "book my Queens' tech check by today, currently the form is down" / "finish 6 easy
+  // pieces by Sunday this week. I must be honest I haven't started it."
+  { key: "td-queens-techcheck", kind: "todo", due: "2026-11-23", star: true,
+    text: "Book the Queens' interview tech check TODAY (form was down this morning — keep retrying; email Admissions if it's still down)" },
+  { key: "rm-td-six-easy-pieces-ht", kind: "todo-remove", target: "td-six-easy-pieces-ht" },
+  { key: "td-six-easy-pieces-29nov", kind: "todo", list: "big", due: "2026-11-29", star: true,
+    text: "Read Six Easy Pieces by Sun 29 Nov — not started; one chapter a day Mon–Sat, Sun spare. It's in your PS" },
 ];
