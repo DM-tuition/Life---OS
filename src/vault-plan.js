@@ -1792,4 +1792,20 @@ export const VAULT_PLAN = [
     { t: 18.5, e: 19.25, label: "Dinner", cat: "Other" },
     { t: 22.5, e: 23, label: "Wind-down · phone out of the room", cat: "Other", note: "Bed 23:00 HARD from tonight (interview run-in)." },
   ]},
+
+  // --- appended 2026-11-23 · Dan: Utsav 18:00–23:00; Jude's party 21:00–24:00, he leaves Utsav a
+  // little early and is at Jude's ~23:00–00:00. Wed cup: home, done ~15:00 ✓. Sat 28 unknown;
+  // he's asking Julian and Rohan about the swap mocks.
+  { key: "ev-jude-party-27nov", kind: "event", date: "2026-11-27", text: "🎉 Jude's party (~23:00–00:00, after Utsav)" },
+  { key: "rm-wp-2026-11-27-eve", kind: "plan-remove", date: "2026-11-27", target: "wp-2026-11-27", labels: ["🪔 Utsav 2026 show", "Wind-down"] },
+  { key: "wp-2026-11-27-v2", kind: "plan", date: "2026-11-27", blocks: [
+    { t: 18, e: 22.75, label: "🪔 Utsav 2026 show", cat: "Social", note: "18:00–23:00 (Dan). Announce the Utsav run's total on stage. Leave a little early for Jude's." },
+    { t: 23, e: 24, label: "🎉 Jude's party", cat: "Social", note: "Party runs 21:00–24:00; you're there ~23:00–00:00 (Dan, 23 Nov). Bed ~00:30, so Saturday starts late." },
+  ]},
+  { key: "rm-wp-2026-11-28-am", kind: "plan-remove", date: "2026-11-28", target: "wp-2026-11-28", labels: ["Breakfast", "Weekend mock (45 min)", "Mechanics ×2: Isaac C1–C2"] },
+  { key: "wp-2026-11-28-v2", kind: "plan", date: "2026-11-28", blocks: [
+    { t: 9.25, e: 10, label: "Breakfast", cat: "Other", note: "Up ~09:00 after Jude's. Saturday fixture unknown (Dan, 23 Nov): re-plan if one appears." },
+    { t: 10.5, e: 11.25, label: "Weekend mock (45 min)", cat: "Revision", note: "A full mock alone: Claude as interviewer giving hints, or 2 recorded problems back to back." },
+    { t: 11.25, e: 12.25, label: "Mechanics ×2: Isaac C1–C2", cat: "Revision", note: "The week's second mechanics session. Out loud." },
+  ]},
 ];
