@@ -1824,4 +1824,12 @@ export const VAULT_PLAN = [
   { key: "rm-td-gym-app-setup-12nov", kind: "todo-remove", target: "td-gym-app-setup-12nov" },
   { key: "td-hevy-setup-24nov", kind: "todo", due: "2026-11-24", star: true,
     text: "Set up Hevy: enter Gym A, Gym B and Skills as routines, then log every set from Wednesday's Gym B" },
+  // 23 Nov: Dan booked both remaining Blue Education mocks (Tom Wade, online).
+  { key: "rm-td-book-blue-ed-mocks", kind: "todo-remove", target: "td-book-blue-ed-mocks" },
+  { key: "ev-mock-blueed-27nov", kind: "event", date: "2026-11-27", text: "🎤 Mock interview — Blue Ed (Tom Wade) 18:30–19:15, online · ⚠️ Utsav show same evening" },
+  { key: "kd-mock-blueed-27nov", kind: "keyDate", name: "Mock (Blue Ed)", date: "2026-11-27" },
+  { key: "ev-mock-blueed-2dec", kind: "event", date: "2026-12-02", text: "🎤 Mock interview — Blue Ed (Tom Wade) 18:30–19:15, online · full-dress tech run" },
+  { key: "kd-mock-blueed-2dec", kind: "keyDate", name: "Mock (Blue Ed) 2", date: "2026-12-02" },
+  { key: "td-utsav-clash-27nov", kind: "todo", due: "2026-11-25", star: true,
+    text: "Check Utsav show time vs 18:30 Blue Ed mock on Fri 27 — rebook on Calendly if they clash" },
 ];
