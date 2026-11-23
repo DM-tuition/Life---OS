@@ -1832,4 +1832,9 @@ export const VAULT_PLAN = [
   { key: "kd-mock-blueed-2dec", kind: "keyDate", name: "Mock (Blue Ed) 2", date: "2026-12-02" },
   { key: "td-utsav-clash-27nov", kind: "todo", due: "2026-11-25", star: true,
     text: "Check Utsav show time vs 18:30 Blue Ed mock on Fri 27 — rebook on Calendly if they clash" },
+  // 23 Nov: Dan moved the 27 Nov mock to Mon 7 Dec (Utsav clash resolved).
+  { key: "rm-ev-mock-blueed-27nov", kind: "event-remove", date: "2026-11-27", text: "🎤 Mock interview — Blue Ed (Tom Wade) 18:30–19:15, online · ⚠️ Utsav show same evening" },
+  { key: "rm-td-utsav-clash-27nov", kind: "todo-remove", target: "td-utsav-clash-27nov" },
+  { key: "ev-mock-blueed-7dec", kind: "event", date: "2026-12-07", text: "🎤 Mock interview — Blue Ed (Tom Wade) 18:30–19:15, online" },
+  { key: "kd-mock-blueed-7dec", kind: "keyDate", name: "Mock (Blue Ed) 3", date: "2026-12-07" },
 ];
