@@ -1816,4 +1816,8 @@ export const VAULT_PLAN = [
   { key: "rm-td-six-easy-pieces-ht", kind: "todo-remove", target: "td-six-easy-pieces-ht" },
   { key: "td-six-easy-pieces-29nov", kind: "todo", list: "big", due: "2026-11-29", star: true,
     text: "Read Six Easy Pieces by Sun 29 Nov — not started; one chapter a day Mon–Sat, Sun spare. It's in your PS" },
+  // 23 Nov: Rohan swap done; he set homework.
+  { key: "rm-td-rohan-swap-mock", kind: "todo-remove", target: "td-rohan-swap-mock" },
+  { key: "td-rohan-hw-x1x", kind: "todo", due: "2026-11-24",
+    text: "Rohan's homework: differentiate + sketch x^(1/x) — limits at 0 and ∞" },
 ];
