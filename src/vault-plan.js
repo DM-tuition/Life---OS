@@ -1850,4 +1850,9 @@ export const VAULT_PLAN = [
     text: "Tonight 22:30: set the Garmin alarm for 07:00, phone on charge OUTSIDE the room. Lights out 23:00" },
   // --- appended 2026-11-24 · Dan: "I just set everything up on HEVY" ---
   { key: "done-td-hevy-setup-24nov", kind: "todo-done", target: "td-hevy-setup-24nov" },
+  // 24 Nov: Queens' tech check booked (Zoom details in Dan's email).
+  { key: "ev-queens-techcheck-30nov", kind: "event", date: "2026-11-30", text: "💻 Queens' interview TECH CHECK 15:45–15:50 (Zoom) — from HOME, home Wi-Fi" },
+  { key: "kd-queens-techcheck", kind: "keyDate", name: "Queens' tech check", date: "2026-11-30" },
+  { key: "td-techcheck-get-home", kind: "todo", due: "2026-11-27", star: true,
+    text: "Tech check Mon 15:45 vs school ending 15:20: ask to leave P5 early or rebook a later slot" },
 ];
