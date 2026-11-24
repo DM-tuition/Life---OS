@@ -1844,4 +1844,8 @@ export const VAULT_PLAN = [
   { key: "hc-wake-2wk-24nov", kind: "habitCfg", habit: "wake", cfg: { per: 2, type: "build" } },
   { key: "td-alarm-clock-24nov", kind: "todo", due: "2026-11-28", star: true,
     text: "Buy a cheap alarm clock (~£10) so the phone can charge outside the bedroom (it never moved after the 14 Nov promise)" },
+  // 24 Nov pm: clock bought but junk → the watch is the alarm (vault: Sleep.md, night routine v1).
+  { key: "rm-td-alarm-clock-24nov", kind: "todo-remove", target: "td-alarm-clock-24nov" },
+  { key: "td-watch-alarm-24nov", kind: "todo", due: "2026-11-24", star: true,
+    text: "Tonight 22:30: set the Garmin alarm for 07:00, phone on charge OUTSIDE the room. Lights out 23:00" },
 ];
