@@ -1837,4 +1837,7 @@ export const VAULT_PLAN = [
   { key: "rm-td-utsav-clash-27nov", kind: "todo-remove", target: "td-utsav-clash-27nov" },
   { key: "ev-mock-blueed-7dec", kind: "event", date: "2026-12-07", text: "🎤 Mock interview — Blue Ed (Tom Wade) 18:30–19:15, online" },
   { key: "kd-mock-blueed-7dec", kind: "keyDate", name: "Mock (Blue Ed) 3", date: "2026-12-07" },
+  // --- appended 2026-11-24 · protein tub from Harron (vault: Personal/wiki/Nutrition.md) ---
+  { key: "td-beefxp-check-24nov", kind: "todo", due: "2026-11-24",
+    text: "Beef-XP tub: check the best-before date and that the powder isn't clumped" },
 ];
