@@ -1840,4 +1840,8 @@ export const VAULT_PLAN = [
   // --- appended 2026-11-24 · protein tub from Harron (vault: Personal/wiki/Nutrition.md) ---
   { key: "td-beefxp-check-24nov", kind: "todo", due: "2026-11-24",
     text: "Beef-XP tub: check the best-before date and that the powder isn't clumped" },
+  // --- appended 2026-11-24 · Sleep page (vault: Personal/wiki/Sleep.md) — Dan: "Sure 8:30 I'll try" ---
+  { key: "hc-wake-2wk-24nov", kind: "habitCfg", habit: "wake", cfg: { per: 2, type: "build" } },
+  { key: "td-alarm-clock-24nov", kind: "todo", due: "2026-11-28", star: true,
+    text: "Buy a cheap alarm clock (~£10) so the phone can charge outside the bedroom (it never moved after the 14 Nov promise)" },
 ];

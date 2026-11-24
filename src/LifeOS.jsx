@@ -69,7 +69,12 @@ const HABITS = [
   { key:"bed",label:"Bed by 23:00 (Fri/Sat 00:00)",color:C.purple }, { key:"eatwell",label:"Eat Well",color:C.purple },
   { key:"exercise",label:"Exercise",color:C.purple }, { key:"screen",label:"Screen < 3hrs",color:C.purple },
   { key:"library",label:"Library",color:C.purple },   // Dan, 12 Nov: a day at the library counts
+  // Dan, 24 Nov: "8:30, I'll try" — weekend wake anchor (Sleep page lever 1). Sat/Sun only: shown and
+  // judged on weekends, never a weekday miss. Garmin's wake time decides it when the night is in.
+  { key:"wake",label:"Up by 08:30 (Sat/Sun)",color:C.purple,weekend:true },
 ];
+const isWeekend = (iso)=>{ const wd=pd(iso).getDay(); return wd===0||wd===6; };
+const habitsFor = (iso)=> HABITS.filter(h=>!h.weekend || isWeekend(iso));
 const BREAKDOWN = ["Sleep","Lessons","Revision","Gym","Activity"];
 const DEFAULT_WEEK = {
   Monday:"school-a-mon", Tuesday:"school-a-tue", Wednesday:"school-a-wed",
@@ -382,7 +387,7 @@ const blankDay = (iso)=>({
   reps:{ target:dayOfYear(iso), done:false },
   breakdown:{ Sleep:0,Lessons:0,Revision:0,Gym:0,Activity:0 },
   breakdownAdj:{ Sleep:0,Lessons:0,Revision:0,Gym:0,Activity:0 },
-  habits:{ bed:false,eatwell:false,exercise:false,screen:false,library:false }, bad:{}, habitKnown:{},
+  habits:{ bed:false,eatwell:false,exercise:false,screen:false,library:false,wake:false }, bad:{}, habitKnown:{},
   todos:{ shortImp:[],longImp:[],shortUnimp:[],longUnimp:[] },
   rating:0, feedback:"", prodHours:0, unprodHours:0,
 });
@@ -495,6 +500,7 @@ const asleepMins=(t)=>{ const [h,m]=String(t).split(":").map(Number); const x=h*
 function habitTruth(allDays,iso,key,links){
   const d=allDays[iso]; if(!d) return null;
   if(key==="bed"){ const nx=allDays[addDays(iso,1)]; if(nx&&nx.sleep&&nx.sleep.bed) return asleepMins(nx.sleep.bed)<=bedLimit(iso); }
+  if(key==="wake"){ if(!isWeekend(iso)) return null; if(d.sleep&&d.sleep.wake){ const [h,m]=String(d.sleep.wake).split(":").map(Number); return h*60+m<=8*60+30; } }
   if(habitDone(d,key,links)) return true;
   if(d.habitKnown&&d.habitKnown[key]) return false;
   if(key==="exercise" && (d.sleep || (allDays[addDays(iso,1)]||{}).sleep)) return false;
@@ -1452,11 +1458,11 @@ function TodayView({ day,date,setDate,upd,dayTypes,applyDayType,links,allDays,fl
       <div style={{ marginBottom:SP.lg }}>
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"0 4px", marginBottom:SP.sm }}>
           <span style={EYEBROW}>Habits</span>
-          <span style={{ fontSize:12, color:C.faint, fontVariantNumeric:"tabular-nums" }}>{HABITS.filter(h=>habitDone(day,h.key,links)).length}/{HABITS.length}</span>
+          <span style={{ fontSize:12, color:C.faint, fontVariantNumeric:"tabular-nums" }}>{habitsFor(day.date).filter(h=>habitDone(day,h.key,links)).length}/{habitsFor(day.date).length}</span>
         </div>
         <div style={{ display:"flex", gap:SP.sm, flexWrap:"wrap" }}>
-          {HABITS.map(h=>{ const on=habitDone(day,h.key,links); const auto=on&&!(day.habits&&day.habits[h.key]);
-            const short={ bed:"Bed on time", eatwell:"Eat well", exercise:"Exercise", screen:"Screen < 3h", library:"Library" }[h.key]||h.label;
+          {habitsFor(day.date).map(h=>{ const on=habitDone(day,h.key,links); const auto=on&&!(day.habits&&day.habits[h.key]);
+            const short={ bed:"Bed on time", eatwell:"Eat well", exercise:"Exercise", screen:"Screen < 3h", library:"Library", wake:"Up by 08:30" }[h.key]||h.label;
             return <button key={h.key} onClick={()=>{ buzz(); toggleHabit(h.key); }} aria-pressed={on} title={h.label}
               style={{ display:"inline-flex", alignItems:"center", gap:7, minHeight:40, padding:"0 14px 0 10px", borderRadius:R.pill, cursor:"pointer", fontSize:13, fontWeight:600,
                 border:`1px solid ${on?C.teal+"66":C.line}`, background:on?`${C.teal}1f`:C.panel, color:on?C.ink:C.dim }}>
