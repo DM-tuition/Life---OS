@@ -1855,4 +1855,8 @@ export const VAULT_PLAN = [
   { key: "kd-queens-techcheck", kind: "keyDate", name: "Queens' tech check", date: "2026-11-30" },
   { key: "td-techcheck-get-home", kind: "todo", due: "2026-11-27", star: true,
     text: "Tech check Mon 15:45 vs school ending 15:20: ask to leave P5 early or rebook a later slot" },
+  // 25 Nov: Dan decided to leave school early on Mon 30 for the tech check.
+  { key: "rm-td-techcheck-get-home", kind: "todo-remove", target: "td-techcheck-get-home" },
+  { key: "td-techcheck-tell-school", kind: "todo", due: "2026-11-27", star: true,
+    text: "Tell school/P5 teacher you're leaving early Mon 30 for the Queens' tech check (15:45)" },
 ];
