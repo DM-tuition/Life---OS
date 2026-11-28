@@ -646,11 +646,14 @@ function Stepper({ v,set,big }){
 function Sheet({ close,title,children,right,maxWidth=420 }){
   const isMobile = useIsMobile();
   const [dy,setDy] = useState(0); const start = useRef(null);
+  // the tap that opened a sheet is followed by the phone's delayed click — on the backdrop, which
+  // used to shut the sheet again straight away. Ignore backdrop taps for the first moment.
+  const born = useRef(Date.now());
   const onTS=(e)=>{ start.current=e.touches[0].clientY; };
   const onTM=(e)=>{ if(start.current===null) return; setDy(Math.max(0,e.touches[0].clientY-start.current)); };
   const onTE=()=>{ if(dy>90) close(); setDy(0); start.current=null; };
   return (
-    <div onClick={close} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,.55)", zIndex:200, display:"flex", alignItems:isMobile?"flex-end":"center", justifyContent:"center", padding:isMobile?0:20, animation:"lo-fade .15s ease" }}>
+    <div onClick={()=>{ if(Date.now()-born.current>450) close(); }} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,.55)", zIndex:200, display:"flex", alignItems:isMobile?"flex-end":"center", justifyContent:"center", padding:isMobile?0:20, animation:"lo-fade .15s ease" }}>
       <div onClick={e=>e.stopPropagation()} style={{ background:C.panel, border:`1px solid ${C.line}`, borderRadius:isMobile?"18px 18px 0 0":14, padding:isMobile?"6px 16px calc(18px + env(safe-area-inset-bottom))":20, width:"100%", maxWidth:isMobile?"100%":maxWidth, maxHeight:isMobile?"86vh":"84vh", overflowY:"auto", boxShadow:"0 -10px 40px rgba(0,0,0,.5)", transform:`translateY(${dy}px)`, transition:dy?"none":"transform .2s ease", animation:isMobile?"lo-up .22s cubic-bezier(.2,.9,.3,1)":"none" }}>
         {isMobile && <div onTouchStart={onTS} onTouchMove={onTM} onTouchEnd={onTE} style={{ padding:"8px 0 12px", display:"flex", justifyContent:"center", touchAction:"none" }}><div style={{ width:40, height:5, borderRadius:3, background:C.faint }}/></div>}
         {(title||right) && <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12, gap:10 }}>
@@ -1018,6 +1021,58 @@ const PENS = [C.cyan, C.gold, C.pink, C.ink];
 const QUICK_LABELS = ["Interview problems — out loud","A-level homework","Gym A (upper)","Gym B (legs heavier)","Gym skills (no legs)",
   "Football training","Football match","6-a-side · Tom","Dinner","Travel","Library","Free time","Wind-down · phone out of the room"];
 
+// ----- label memory: auto-category, usual length, and his real most-used titles -----
+// Dan, 28 Nov: "when I put something in to label it, it should automatically categorise what it is
+// for me, just categorise my most common titles." Learned from every saved day on the device: each
+// title remembers the category he gave it (a bare "Other" only counts when nothing better exists)
+// and its usual length. Unknown titles fall back to keyword rules. A category he taps himself on a
+// block (catSet) is never overridden.
+const normLabel = (s)=> String(s||"").toLowerCase().replace(/[·:+—–\-()]/g," ").replace(/\d+\s*m\b/g," ").replace(/\s+/g," ").trim();
+const CAT_RULES = [
+  [/\b(sleep|bed|nap|wind ?down)\b/, "Sleep"],
+  [/\b(gym|lift|weights|pool|sauna|handstand|front lever|stretch|mobility|hevy|push|pull|legs|upper|lower)\b/, "Gym"],
+  [/\b(football|swim|run|running|basketball|volleyball|tennis|cricket|rugby|cycle|bike|match|training|5 a side|6 a side|park ?run|hike|climb)\b/, "Sport"],
+  [/\b(tutor|tutoring|tuition|dm|lesson prep|client|invoice|work|job|shift|ads|charity)\b/, "Work"],
+  [/\b(revis|revision|homework|hw|library|study|past paper|paper|esat|tmua|interview|mock|maths|physics|economics|further|f maths|notes|flashcards|anki|objective|reading|essay|problems)/, "Revision"],
+  [/\b(form|registration|assembly|period|class|school)\b/, "School"],
+  [/\b(friends|party|pub|cinema|dinner with|date|social|game night|england game|birthday|hang|call with|pizza)\b/, "Social"],
+  [/\b(dofe|driving|open day|work experience|volunteer|trip|appointment|dentist|doctor|haircut|shopping)\b/, "Activity"],
+];
+let _labelMemo = { at:0, stats:null };
+function labelStats(){
+  if(_labelMemo.stats && Date.now()-_labelMemo.at<20000) return _labelMemo.stats;
+  const by = {};   // norm -> { label, n, cats:{}, durs:[], last }
+  try{ for(let i=0;i<localStorage.length;i++){ const k=localStorage.key(i); if(!k||!k.startsWith("lifeos:day:")) continue;
+    let d; try{ d=JSON.parse(localStorage.getItem(k)); }catch{ continue; } const date=k.slice(11);
+    for(const b of (d&&d.blocks)||[]){ const l=String(b.label||"").trim(); const nl=normLabel(l); if(!nl || ["new","same","untitled"].includes(nl)) continue;
+      const s=by[nl]||(by[nl]={ label:l, n:0, cats:{}, durs:[], last:"" }); s.n++; if(date>=s.last){ s.last=date; s.label=l; }
+      if(b.cat) s.cats[b.cat]=(s.cats[b.cat]||0)+1; if(b.e>b.t) s.durs.push(b.e-b.t); } } }catch{}
+  for(const nl in by){ const s=by[nl]; const ranked=Object.entries(s.cats).sort((a,b)=>b[1]-a[1]);
+    s.cat=(ranked.find(([c])=>c!=="Other")||ranked[0]||[null])[0];
+    const ds=[...s.durs].sort((a,b)=>a-b); s.dur=ds.length?snap(ds[Math.floor(ds.length/2)]):null; }
+  _labelMemo={ at:Date.now(), stats:by }; return by;
+}
+function guessCat(label){
+  const nl=normLabel(label); if(!nl) return null; const st=labelStats();
+  if(st[nl]&&st[nl].cat&&st[nl].cat!=="Other") return st[nl].cat;
+  for(const [re,c] of CAT_RULES) if(re.test(nl)) return c;
+  // same first word as something he's labelled before ("Swim 300 m" → his other swims)
+  const w=nl.split(" ")[0]; if(w.length>=3){ const tally={}; for(const k in st){ if(k.split(" ")[0]===w&&st[k].cat&&st[k].cat!=="Other") tally[st[k].cat]=(tally[st[k].cat]||0)+st[k].n; }
+    const top=Object.entries(tally).sort((a,b)=>b[1]-a[1])[0]; if(top) return top[0]; }
+  return null;
+}
+// suggestions for the label field: his own titles (minus timetabled lessons), ranked by how often
+// and how recently he uses them, filtered by what he has typed so far
+function labelSuggestions(typed){
+  const st=labelStats(); const q=normLabel(typed); const today=todayISO();
+  const ago=(d)=>{ const ms=Date.parse(today)-Date.parse(d); return isNaN(ms)?999:ms/864e5; };
+  let rows=Object.entries(st).filter(([,s])=>s.cat!=="School").map(([nl,s])=>({ nl, label:s.label, cat:s.cat, dur:s.dur, score:s.n*(ago(s.last)<30?2:1)/(1+ago(s.last)/60) }));
+  for(const l of QUICK_LABELS){ const nl=normLabel(l); if(!st[nl]) rows.push({ nl, label:l, cat:guessCat(l), dur:null, score:0.01 }); }
+  if(q) rows=rows.filter(r=>r.nl!==q && r.nl.includes(q)).sort((a,b)=>(b.nl.startsWith(q)-a.nl.startsWith(q))||(b.score-a.score));
+  else rows.sort((a,b)=>b.score-a.score);
+  return rows.slice(0,12);
+}
+
 // snap a freehand stroke to a clean straight line or rectangle (shape-builder)
 function _bounds(P){ let a=Infinity,b=Infinity,c=-Infinity,d=-Infinity; for(const p of P){ a=Math.min(a,p.x); b=Math.min(b,p.y); c=Math.max(c,p.x); d=Math.max(d,p.y); } return {x:a,y:b,w:c-a,h:d-b}; }
 function _perim(P){ let s=0; for(let i=1;i<P.length;i++) s+=Math.hypot(P[i].x-P[i-1].x,P[i].y-P[i-1].y); return s; }
@@ -1044,7 +1099,7 @@ function layoutColumns(blocks){
   return out;
 }
 const durLabel = (d)=>{ const m=Math.round(d*60); const H=Math.floor(m/60), M=m%60; return H?(M?`${H}h ${M}m`:`${H}h`):`${M}m`; };
-const DURATIONS = [[0.25,"15m"],[0.5,"30m"],[0.75,"45m"],[1,"1h"],[1.5,"1½h"],[2,"2h"]];
+const DURATIONS = [[0.5,"30m"],[1,"1h"],[1.5,"1½h"],[2,"2h"],[3,"3h"]];
 
 // Dan, 28 Nov: "make it easier to increase or decrease the size of my blocks, it's super jarring
 // and often takes many attempts. Make it cleaner." The invisible 9–14px edge strips are gone on
@@ -1073,6 +1128,7 @@ function Timeline({ blocks,onChange,isToday=false,isPast=false,sketch,onSketch,o
   const [, force] = useState(0); const rerender = ()=> force(n=>n+1);
   const [editing,setEditing] = useState(null);
   const [selected,setSelected] = useState(null);   // the block showing resize handles
+  const [fresh,setFresh] = useState(null);         // a block just made by tapping the grid (one-tap suggestions fill it)
   const [pen,setPen] = useState(false);
   const [penColor,setPenColor] = useState(PENS[0]);
   const [now,setNow] = useState(nowDec());
@@ -1087,6 +1143,13 @@ function Timeline({ blocks,onChange,isToday=false,isPast=false,sketch,onSketch,o
   useEffect(()=>{ const m=()=>setRailW(railRef.current?railRef.current.clientWidth:1); m(); window.addEventListener("resize",m); return ()=>window.removeEventListener("resize",m); },[]);
   useEffect(()=>{ if(scrollRef.current){ scrollRef.current.scrollTop = timeToY(isToday ? Math.max(DAY_START, nowDec()-1.5) : 7.5); } },[]); // open near the relevant time
   useEffect(()=>()=>cancelAnimationFrame(autoRef.current),[]);
+  // Dan, 28 Nov (2nd pass): "it only goes 15 mins per attempt." On iPhone the old drag switched the
+  // scroll box to overflow:hidden mid-gesture, and Safari answers that by cancelling the touch — so a
+  // resize stopped dead after its first step. The box now never changes; instead this listener, there
+  // from page load (iOS only honours preventDefault from a non-passive listener that existed when the
+  // finger landed), stops the scroll while a block is held. Handles use pointer capture on top.
+  useEffect(()=>{ const stop=(e)=>{ const d=dragRef.current; if(d&&d.lifted&&e.cancelable) e.preventDefault(); };
+    window.addEventListener("touchmove",stop,{ passive:false }); return ()=>window.removeEventListener("touchmove",stop); },[]);
 
   const updBlock=(id,patch)=> onChange(prev=>prev.map(b=>b.id===id?{...b,...patch}:b));
   const delBlock=(id)=>{ if(onDeleteId) onDeleteId(id); else onChange(prev=>prev.filter(b=>b.id!==id)); setEditing(null); };
@@ -1172,17 +1235,38 @@ function Timeline({ blocks,onChange,isToday=false,isPast=false,sketch,onSketch,o
     window.addEventListener("mousemove",move); window.addEventListener("touchmove",move,{passive:false}); window.addEventListener("mouseup",up); window.addEventListener("touchend",up); window.addEventListener("touchcancel",up);
   };
 
+  // ----- resize from a handle: pointer events + capture, so the finger can wander anywhere and the
+  // browser can't steal the gesture. Stays live until the finger lifts, however far it goes.
+  const startResize=(e,blk,mode)=>{ e.stopPropagation(); if(pen || (e.pointerType==="mouse" && e.button)) return;
+    if(e.cancelable) e.preventDefault();        // no compat mousedown, no text selection
+    const el=e.currentTarget; try{ el.setPointerCapture(e.pointerId); }catch{}
+    const touch=e.pointerType!=="mouse"; const rail=railRef.current.getBoundingClientRect();
+    const d={ id:blk.id, mode, touch, sx:e.clientX, sy:e.clientY, y:e.clientY, oT:blk.t, oE:blk.e, oStatus:blk.status, pt:blk.t, pe:blk.e,
+      grab:e.clientY-rail.top-timeToY(mode==="resize-b"?blk.e:blk.t), axis:"v", lifted:true, sel:true, dx:0, moved:false, last:null, started:false };
+    dragRef.current=d; if(touch) buzz(8); autoRef.current=requestAnimationFrame(autoScroll); rerender();
+    let done=false;
+    const move=(ev)=>{ if(ev.pointerId!==e.pointerId) return; d.y=ev.clientY; if(!d.moved && Math.abs(ev.clientY-d.sy)<3) return; d.moved=true; placeFromPointer(d); };
+    const fin=(ev)=>{ if(done || (ev && ev.pointerId!==e.pointerId)) return; done=true;
+      window.removeEventListener("pointermove",move); window.removeEventListener("pointerup",fin); window.removeEventListener("pointercancel",fin);
+      cancelAnimationFrame(autoRef.current); autoRef.current=0;
+      if(d.moved){ commitDrag(d); buzz(6); } touchAt.current=Date.now(); suppressRef.current=d.moved;
+      if(dragRef.current===d) dragRef.current=null; rerender(); };
+    window.addEventListener("pointermove",move); window.addEventListener("pointerup",fin); window.addEventListener("pointercancel",fin);
+  };
+  const nudge=(b,dt)=>{ const e2=Math.max(b.t+0.25,Math.min(DAY_END,snap(b.e+dt))); if(e2!==b.e){ updBlock(b.id,{ e:e2 }); buzz(5); } };
+
   // ----- tap empty space to add a block (no drag, so the page never scrolls out from under you) -----
   const startCreate=(e)=>{ if(pen||ghost(e)) return; if(e.target!==railRef.current) return;
     const rect=railRef.current.getBoundingClientRect(); const p=e.touches?e.touches[0]:e;
     const sx=p.clientX, sy=p.clientY; let moved=false;
     const move=(ev)=>{ const q=ev.touches?ev.touches[0]:ev; if(Math.hypot(q.clientX-sx,q.clientY-sy)>8) moved=true; };
-    const up=()=>{ window.removeEventListener("mousemove",move); window.removeEventListener("touchmove",move); window.removeEventListener("mouseup",up); window.removeEventListener("touchend",up);
-      if(moved) return;                              // it was a scroll, not a tap — leave it alone
+    const up=(ev)=>{ window.removeEventListener("mousemove",move); window.removeEventListener("touchmove",move); window.removeEventListener("mouseup",up); window.removeEventListener("touchend",up);
+      if(moved) return;
+      if(ev && ev.type==="touchend" && ev.cancelable) ev.preventDefault();   // no ghost click onto the sheet that's about to open                              // it was a scroll, not a tap — leave it alone
       if(selected!=null){ setSelected(null); return; }   // first tap off a selected block just deselects
       let t=snap(Math.floor(yToTime(sy-rect.top)*2)/2); const dur=1; t=Math.min(DAY_END-dur,t); const id=Date.now();
-      onChange(prev=>[...prev,{ id,t,e:t+dur,label:"",cat:"Other" }]); setEditing(id); buzz(); rerender(); };
-    window.addEventListener("mousemove",move); window.addEventListener("touchmove",move); window.addEventListener("mouseup",up); window.addEventListener("touchend",up);
+      onChange(prev=>[...prev,{ id,t,e:t+dur,label:"",cat:"Other" }]); setFresh(id); setEditing(id); buzz(); rerender(); };
+    window.addEventListener("mousemove",move); window.addEventListener("touchmove",move); window.addEventListener("mouseup",up); window.addEventListener("touchend",up,{ passive:false });
   };
 
   // ----- freehand pencil layer -----
@@ -1198,7 +1282,7 @@ function Timeline({ blocks,onChange,isToday=false,isPast=false,sketch,onSketch,o
     window.addEventListener("mousemove",move); window.addEventListener("touchmove",move,{passive:false}); window.addEventListener("mouseup",up); window.addEventListener("touchend",up);
   };
 
-  const dd=dragRef.current; const locked=!!(dd && dd.lifted && dd.axis==="v");
+  const dd=dragRef.current;
   const inner=Math.max(1,railW-12);
   return (
     <div>
@@ -1210,7 +1294,7 @@ function Timeline({ blocks,onChange,isToday=false,isPast=false,sketch,onSketch,o
           {pen && <button onClick={()=>onSketch([])} style={{ ...addBtn, width:"auto", padding:"6px 10px", borderColor:C.red, color:C.red }}>Clear</button>}
         </div>
       )}
-      <div ref={scrollRef} className="lo-scroll" style={{ position:"relative", ...(isMobile?{ maxHeight:"64vh", overflowY:locked?"hidden":"auto", overflowX:"hidden", overscrollBehavior:"contain" }:{}) }}>
+      <div ref={scrollRef} className="lo-scroll" style={{ position:"relative", ...(isMobile?{ maxHeight:"64vh", overflowY:"auto", overflowX:"hidden", overscrollBehavior:"contain" }:{}) }}>
       <div style={{ display:"flex", position:"relative" }}>
         <div style={{ width:46, position:"relative", height, flexShrink:0 }}>
           {hours.map(h=> <div key={h} style={{ position:"absolute", top:timeToY(h)-7, right:8, fontSize:10, color:C.faint, fontVariantNumeric:"tabular-nums" }}>{hhmm(h)}</div>)}
@@ -1256,21 +1340,37 @@ function Timeline({ blocks,onChange,isToday=false,isPast=false,sketch,onSketch,o
             );
           })}
 
-          {/* resize handles for the selected block: a small dot you see, a 56×44 target you hit */}
+          {/* resize handles for the selected block. Each is a strip the full width of the block
+              straddling its edge (up to 22px inside, 22px outside), so a thumb anywhere near the edge
+              catches it; the pill in the middle is just the visual. Below it, −15 / +15 for exact
+              changes without dragging at all. */}
           {(()=>{ const b=blocks.find(x=>x.id===selected); if(!b||pen||b.status==="missed") return null;
-            const live=dd&&dd.id===b.id&&dd.axis==="v"&&dd.started; const pv=live?{ t:dd.pt, e:dd.pe }:b;
-            const lay=cols[b.id]||{ col:0, n:1 }; const w=inner/lay.n; const left=6+lay.col*w, right=left+w-(lay.n>1?4:0);
-            const col=CATS[b.cat]||C.dim; const top=timeToY(pv.t), bot=top+blockH(pv);
-            const H=(mode,y,x,top)=> <div key={mode} aria-label={mode==="resize-t"?"Drag to change the start":"Drag to change the end"}
-              onMouseDown={(e)=>startBlock(e,b,mode)} onTouchStart={(e)=>startBlock(e,b,mode)} onClick={(e)=>e.stopPropagation()}
-              style={{ position:"absolute", top:top?y-30:y-12, left:x-26, width:52, height:42, zIndex:40, display:"flex", alignItems:top?"flex-end":"flex-start", justifyContent:"center", padding:"5px 0",
-                touchAction:"none", cursor:"ns-resize", transition:live?"none":"top .14s ease-out" }}>
-              <div style={{ width:13, height:13, borderRadius:"50%", background:C.panel, border:`2.5px solid ${col}`, boxShadow:"0 1px 5px rgba(0,0,0,.55)" }}/>
-            </div>;
-            // both on the right edge: the bin hides while selected, so nothing else lives there, and
-            // the hit areas sit mostly outside the block so they never swallow a tap on the title
-            const x=Math.max(left+22,right-22);
-            return <>{H("resize-t",top+1,x,true)}{H("resize-b",bot-1,x,false)}</>; })()}
+            const live=dd&&dd.id===b.id&&dd.axis==="v"&&dd.started; const pv=live?{ t:dd.pt, e:dd.pe }:b; const lbl=live?snapped(dd):b;
+            const lay=cols[b.id]||{ col:0, n:1 }; const w=inner/lay.n; const left=6+lay.col*w, bw=w-(lay.n>1?4:0);
+            const col=CATS[b.cat]||C.dim; const top=timeToY(pv.t), bh=blockH(pv), bot=top+bh;
+            const inside=Math.max(6,Math.min(22,bh/3)), out=22;
+            const H=(mode)=>{ const isTop=mode==="resize-t"; const y=isTop?top-out:bot-inside;
+              return <div key={mode} aria-label={isTop?"Drag to change the start":"Drag to change the end"}
+                onPointerDown={(e)=>startResize(e,b,mode)} onClick={(e)=>e.stopPropagation()} onContextMenu={(e)=>e.preventDefault()}
+                style={{ position:"absolute", top:y, left:Math.max(0,left-8), width:bw+16, height:inside+out, zIndex:40, display:"flex", alignItems:"center", justifyContent:"center",
+                  touchAction:"none", cursor:"ns-resize", userSelect:"none", WebkitUserSelect:"none", WebkitTouchCallout:"none" }}>
+                <div style={{ position:"absolute", top:isTop?out-3:inside-3, width:34, height:6, borderRadius:3, background:col, boxShadow:"0 1px 5px rgba(0,0,0,.55)" }}/>
+              </div>; };
+            const busy=dd&&dd.id===b.id;
+            const nb={ height:30, minWidth:44, padding:"0 10px", borderRadius:15, border:`1px solid ${C.line}`, background:C.panel2, color:C.ink, fontSize:13, fontWeight:650, cursor:"pointer" };
+            const stop=(e)=>e.stopPropagation();
+            return <>{H("resize-t")}{H("resize-b")}
+              {!busy && <div onMouseDown={stop} onTouchStart={stop} onPointerDown={stop}
+                style={{ position:"absolute", top:bot+out+2, left:left+bw/2, transform:"translateX(-50%)", zIndex:41, display:"flex", alignItems:"center", gap:6,
+                  background:C.panel, border:`1px solid ${C.line}`, borderRadius:20, padding:3, boxShadow:"0 6px 20px rgba(0,0,0,.5)" }}>
+                <button aria-label="15 minutes shorter" onClick={(e)=>{ e.stopPropagation(); nudge(b,-0.25); }} style={nb}>−15</button>
+                <span style={{ fontSize:12, color:C.dim, fontVariantNumeric:"tabular-nums", minWidth:44, textAlign:"center" }}>{durLabel(lbl.e-lbl.t)}</span>
+                <button aria-label="15 minutes longer" onClick={(e)=>{ e.stopPropagation(); nudge(b,0.25); }} style={nb}>+15</button>
+              </div>}
+              {live && <div style={{ position:"absolute", top:(dd.mode==="resize-t"?top-out-26:bot+out+2), left:left+bw/2, transform:"translateX(-50%)", zIndex:41, pointerEvents:"none",
+                  background:col, color:"#0b0b0b", borderRadius:12, padding:"3px 10px", fontSize:12.5, fontWeight:750, fontVariantNumeric:"tabular-nums", whiteSpace:"nowrap" }}>
+                {hhmm(lbl.t)}–{hhmm(lbl.e)} · {durLabel(lbl.e-lbl.t)}</div>}
+            </>; })()}
 
           {isToday && now>=DAY_START && now<=DAY_END && (
             <div style={{ position:"absolute", top:timeToY(now), left:0, right:0, borderTop:`2px solid ${C.red}`, zIndex:7, pointerEvents:"none" }}>
@@ -1284,27 +1384,38 @@ function Timeline({ blocks,onChange,isToday=false,isPast=false,sketch,onSketch,o
             {strokeRef.current && <path d={pathD(strokeRef.current.pts)} stroke={strokeRef.current.color} strokeWidth={2.5} fill="none" strokeLinecap="round" strokeLinejoin="round"/>}
           </svg>
 
-          {blocks.length===0 && !pen && <div style={{ position:"absolute", top:40, left:0, right:0, textAlign:"center", color:C.faint, fontSize:12, pointerEvents:"none", padding:"0 12px" }}>Tap the grid to add a block · hold a block to pick it up · drag its round handles to resize</div>}
+          {blocks.length===0 && !pen && <div style={{ position:"absolute", top:40, left:0, right:0, textAlign:"center", color:C.faint, fontSize:12, pointerEvents:"none", padding:"0 12px" }}>Tap the grid to add a block · hold a block to move it · tap it, then drag its top or bottom edge to resize</div>}
         </div>
       </div>
       </div>
-      {editing && (()=>{ const b=blocks.find(x=>x.id===editing); if(!b) return null; const col=CATS[b.cat]||C.dim; return (
-        <Sheet close={()=>setEditing(null)} title={null}>
-          <input value={b.label} onChange={e=>updBlock(b.id,{label:e.target.value})} placeholder="What is it?" autoFocus={!b.label}
-            style={{ ...inp, width:"100%", marginBottom:10, fontSize:19, fontWeight:700, padding:"12px 12px", borderLeft:`4px solid ${col}` }}/>
-          <div className="lo-tabs" style={{ display:"flex", gap:5, marginBottom:14, overflowX:"auto", paddingBottom:2 }}>
-            {QUICK_LABELS.map(l=> <button key={l} onClick={()=>updBlock(b.id,{label:l})} style={{ flexShrink:0, fontSize:12, padding:"6px 10px", borderRadius:14, cursor:"pointer", border:`1px solid ${b.label===l?C.teal:C.line}`, background:b.label===l?C.teal:"transparent", color:b.label===l?"#001014":C.dim, fontWeight:b.label===l?700:400, whiteSpace:"nowrap" }}>{l}</button>)}
+      {editing && (()=>{ const b=blocks.find(x=>x.id===editing); if(!b) return null; const col=CATS[b.cat]||C.dim;
+        const isFresh=fresh===b.id; const close=()=>{ setEditing(null); setFresh(null); };
+        // typing picks the category for him unless he has chosen one on this block himself
+        const setLabel=(label)=>{ const patch={ label }; if(!b.catSet){ const g=guessCat(label); if(g) patch.cat=g; } updBlock(b.id,patch); };
+        // a suggestion on a block he just made is the whole job: title, category, his usual length, done
+        const pick=(sg)=>{ const patch={ label:sg.label }; if(!b.catSet){ const g=sg.cat&&sg.cat!=="Other"?sg.cat:guessCat(sg.label); if(g) patch.cat=g; }
+          if(isFresh && sg.dur) patch.e=Math.min(DAY_END,b.t+sg.dur); updBlock(b.id,patch); buzz(); if(isFresh) close(); };
+        const sugg=labelSuggestions(b.label);
+        return (
+        <Sheet close={close} title={null}>
+          <input value={b.label} onChange={e=>setLabel(e.target.value)} onKeyDown={e=>{ if(e.key==="Enter"){ e.preventDefault(); close(); } }} placeholder="What is it?" autoFocus={!b.label} enterKeyHint="done"
+            style={{ ...inp, width:"100%", marginBottom:6, fontSize:19, fontWeight:700, padding:"12px 12px", borderLeft:`4px solid ${col}` }}/>
+          {b.label && !b.catSet && guessCat(b.label) && <div style={{ fontSize:11, color:C.faint, margin:"0 0 8px 2px" }}>Filed under <span style={{ color:col, fontWeight:700 }}>{b.cat}</span> automatically — tap a category below to change it</div>}
+          <div className="lo-tabs" style={{ display:"flex", gap:5, marginBottom:14, marginTop:b.label&&!b.catSet&&guessCat(b.label)?0:4, overflowX:"auto", paddingBottom:2 }}>
+            {sugg.map(sg=>{ const on=b.label===sg.label; const sc=CATS[sg.cat]||C.dim; return <button key={sg.nl} onClick={()=>pick(sg)} style={{ flexShrink:0, fontSize:12.5, padding:"7px 11px", borderRadius:15, cursor:"pointer", border:`1px solid ${on?C.teal:C.line}`, borderLeft:`3px solid ${sc}`, background:on?C.teal:"transparent", color:on?"#001014":C.ink, fontWeight:on?700:500, whiteSpace:"nowrap" }}>{sg.label}{isFresh&&sg.dur?<span style={{ color:on?"#001014":C.faint, fontWeight:400 }}> · {durLabel(sg.dur)}</span>:null}</button>; })}
           </div>
           <div style={{ display:"flex", gap:8, marginBottom:10 }}>
             <div style={{ flex:1 }}><Label>Start</Label><input type="time" step="900" value={hhmm(b.t)} onChange={e=>{ if(!e.target.value) return; const [H,M]=e.target.value.split(":").map(Number); const t=H+M/60; const dur=b.e-b.t; updBlock(b.id,{ t, e:Math.min(DAY_END,t+dur) }); }} style={{ ...inp, width:"100%", fontSize:16 }}/></div>
             <div style={{ flex:1 }}><Label>End</Label><input type="time" step="900" value={hhmm(b.e)} onChange={e=>{ if(!e.target.value) return; const [H,M]=e.target.value.split(":").map(Number); const v=H+M/60; if(v>b.t) updBlock(b.id,{e:v}); }} style={{ ...inp, width:"100%", fontSize:16 }}/></div>
           </div>
           <div style={{ display:"flex", gap:5, marginBottom:14, flexWrap:"wrap" }}>
+            <button onClick={()=>nudge(b,-0.25)} aria-label="15 minutes shorter" style={{ minWidth:44, fontSize:12, padding:"7px 8px", borderRadius:8, cursor:"pointer", border:`1px solid ${C.line}`, background:C.panel2, color:C.ink, fontWeight:700 }}>−15</button>
             {DURATIONS.map(([d,l])=>{ const on=Math.abs((b.e-b.t)-d)<0.01; return <button key={l} onClick={()=>updBlock(b.id,{ e:Math.min(DAY_END,b.t+d) })} style={{ flex:1, minWidth:44, fontSize:12, padding:"7px 0", borderRadius:8, cursor:"pointer", border:`1px solid ${on?col:C.line}`, background:on?`${col}33`:"transparent", color:on?C.ink:C.dim, fontWeight:600 }}>{l}</button>; })}
+            <button onClick={()=>nudge(b,0.25)} aria-label="15 minutes longer" style={{ minWidth:44, fontSize:12, padding:"7px 8px", borderRadius:8, cursor:"pointer", border:`1px solid ${C.line}`, background:C.panel2, color:C.ink, fontWeight:700 }}>+15</button>
           </div>
           <Label>Category</Label>
           <div style={{ display:"flex", flexWrap:"wrap", gap:5, marginBottom:14 }}>
-            {CAT_KEYS.map(c=> <button key={c} onClick={()=>updBlock(b.id,{cat:c})} style={{ fontSize:12, padding:"7px 11px", borderRadius:14, cursor:"pointer", border:`1px solid ${b.cat===c?CATS[c]:C.line}`, background:b.cat===c?CATS[c]:"transparent", color:b.cat===c?"#0b0b0b":C.dim, fontWeight:b.cat===c?700:400 }}>{c}</button>)}
+            {CAT_KEYS.map(c=> <button key={c} onClick={()=>updBlock(b.id,{cat:c,catSet:true})} style={{ fontSize:12, padding:"7px 11px", borderRadius:14, cursor:"pointer", border:`1px solid ${b.cat===c?CATS[c]:C.line}`, background:b.cat===c?CATS[c]:"transparent", color:b.cat===c?"#0b0b0b":C.dim, fontWeight:b.cat===c?700:400 }}>{c}</button>)}
           </div>
           <Label>Notes</Label>
           <textarea value={b.note||""} onChange={e=>updBlock(b.id,{note:e.target.value})} placeholder="What to bring, who with, details…" style={{ ...inp, width:"100%", minHeight:60, resize:"vertical", marginBottom:12 }}/>
@@ -1313,7 +1424,7 @@ function Timeline({ blocks,onChange,isToday=false,isPast=false,sketch,onSketch,o
           <div style={{ display:"flex", gap:8 }}>
             <button onClick={()=>{ buzz(); delBlock(b.id); }} style={{ ...addBtn, flex:1, borderStyle:"solid", borderColor:`${C.red}66`, color:C.red }}>Delete</button>
             <button onClick={()=>dupBlock(b)} style={{ ...addBtn, flex:1, borderStyle:"solid" }}>Duplicate</button>
-            <button onClick={()=>setEditing(null)} style={{ ...addBtn, flex:1.4, borderStyle:"solid", borderColor:C.teal, background:C.teal, color:"#001014", fontWeight:700 }}>Done</button>
+            <button onClick={close} style={{ ...addBtn, flex:1.4, borderStyle:"solid", borderColor:C.teal, background:C.teal, color:"#001014", fontWeight:700 }}>Done</button>
           </div>
         </Sheet>
       ); })()}
