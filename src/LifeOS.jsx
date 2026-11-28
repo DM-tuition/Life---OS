@@ -1043,8 +1043,16 @@ function layoutColumns(blocks){
   if(cluster.length) flush();
   return out;
 }
+const durLabel = (d)=>{ const m=Math.round(d*60); const H=Math.floor(m/60), M=m%60; return H?(M?`${H}h ${M}m`:`${H}h`):`${M}m`; };
 const DURATIONS = [[0.25,"15m"],[0.5,"30m"],[0.75,"45m"],[1,"1h"],[1.5,"1½h"],[2,"2h"]];
 
+// Dan, 28 Nov: "make it easier to increase or decrease the size of my blocks, it's super jarring
+// and often takes many attempts. Make it cleaner." The invisible 9–14px edge strips are gone on
+// touch. Now it works like the iPhone calendar: HOLD a block (or tap it) to select it, and two
+// round handles appear on its right edge (top and bottom) with big hit areas, which resize straight away
+// without fighting the scroll. While selected, the body drags at once too. The block follows your
+// finger smoothly and only snaps to 15 minutes when you let go, so it is saved once, not every step,
+// and overlapping blocks no longer reshuffle mid-drag. Tap empty space to deselect.
 // Dan, 29 Oct: "make the boxes and stuff easier to move about... more like a real app."
 // Touch now works like a native calendar: a finger on a block scrolls the day as normal;
 // HOLD it (~¼ s, you feel a tick) to pick it up, then drag. Drag near the top or bottom edge
@@ -1057,9 +1065,14 @@ function Timeline({ blocks,onChange,isToday=false,isPast=false,sketch,onSketch,o
   const strokeRef = useRef(null);    // current freehand stroke
   const suppressRef = useRef(false); // swallow the click that follows a drag
   const autoRef = useRef(0);         // edge auto-scroll animation frame
+  // Phones fire a fake mousedown/click after a touch ends. Without this the "mouse" restarted the
+  // gesture and undid the touch's (hold → select, tap → create twice, a resize that didn't stick).
+  const touchAt = useRef(0);
+  const ghost = (e)=>{ if(e.touches){ touchAt.current=Date.now(); return false; } return Date.now()-touchAt.current<900; };
   const isMobile = useIsMobile();
   const [, force] = useState(0); const rerender = ()=> force(n=>n+1);
   const [editing,setEditing] = useState(null);
+  const [selected,setSelected] = useState(null);   // the block showing resize handles
   const [pen,setPen] = useState(false);
   const [penColor,setPenColor] = useState(PENS[0]);
   const [now,setNow] = useState(nowDec());
@@ -1085,12 +1098,20 @@ function Timeline({ blocks,onChange,isToday=false,isPast=false,sketch,onSketch,o
 
   // where the finger is, as a snapped time — read against the rail's live position, so it stays
   // right while the day auto-scrolls underneath
+  // The block follows the finger smoothly (d.pt/d.pe, unsnapped); only the time label snaps, with a
+  // light tick each 15 min. Nothing is saved until the finger lifts — see commitDrag.
   const placeFromPointer=(d)=>{ const rail=railRef.current; if(!rail) return;
-    const y=d.y-rail.getBoundingClientRect().top; let patch=null;
-    if(d.mode==="move"){ const dur=d.oE-d.oT; let nt=snap(yToTime(y-d.grab)); nt=Math.max(DAY_START,Math.min(DAY_END-dur,nt)); if(nt!==d.last){ d.last=nt; patch={ t:nt, e:nt+dur }; } }
-    else if(d.mode==="resize-b"){ let ne=snap(yToTime(y)); ne=Math.max(d.oT+0.25,Math.min(DAY_END,ne)); if(ne!==d.last){ d.last=ne; patch={ e:ne }; } }
-    else { let nt=snap(yToTime(y)); nt=Math.max(DAY_START,Math.min(d.oE-0.25,nt)); if(nt!==d.last){ d.last=nt; patch={ t:nt }; } }
-    if(patch){ if(d.touch && d.started) buzz(3); d.started=true; updBlock(d.id,patch); } };
+    const y=d.y-rail.getBoundingClientRect().top; const dur=d.oE-d.oT; let key;
+    if(d.mode==="move"){ const nt=Math.max(DAY_START,Math.min(DAY_END-dur,yToTime(y-d.grab))); d.pt=nt; d.pe=nt+dur; key=snap(nt); }
+    else if(d.mode==="resize-b"){ d.pe=Math.max(d.oT+0.25,Math.min(DAY_END,yToTime(y-d.grab))); key=snap(d.pe); }   // grab = finger's offset from the edge, so it never jumps
+    else { d.pt=Math.max(DAY_START,Math.min(d.oE-0.25,yToTime(y-d.grab))); key=snap(d.pt); }
+    if(key!==d.last){ if(d.touch && d.last!=null) buzz(3); d.last=key; }
+    d.started=true; rerender(); };
+  const snapped=(d)=>{ const dur=d.oE-d.oT;
+    if(d.mode==="move"){ const t=Math.max(DAY_START,Math.min(DAY_END-dur,snap(d.pt))); return { t, e:t+dur }; }
+    if(d.mode==="resize-b") return { t:d.oT, e:Math.max(d.oT+0.25,Math.min(DAY_END,snap(d.pe))) };
+    return { t:Math.max(DAY_START,Math.min(d.oE-0.25,snap(d.pt))), e:d.oE }; };
+  const commitDrag=(d)=>{ if(!d.started) return; const v=snapped(d); if(v.t!==d.oT||v.e!==d.oE) updBlock(d.id,v); };
   const autoScroll=()=>{ const d=dragRef.current; if(!d||!d.lifted||d.axis!=="v"){ autoRef.current=0; return; }
     const sc=scrollRef.current, inBox=isMobile&&sc; const r=inBox?sc.getBoundingClientRect():{ top:0, bottom:window.innerHeight };
     const edge=56, sp=(dist)=>Math.ceil((edge-dist)/5);
@@ -1098,16 +1119,19 @@ function Timeline({ blocks,onChange,isToday=false,isPast=false,sketch,onSketch,o
     if(step){ if(inBox) sc.scrollTop+=step; else window.scrollBy(0,step); placeFromPointer(d); }
     autoRef.current=requestAnimationFrame(autoScroll); };
 
-  const startBlock=(e,blk,mode)=>{ e.stopPropagation(); if(pen) return;
+  const startBlock=(e,blk,forced)=>{ e.stopPropagation(); if(pen||ghost(e)) return;
     suppressRef.current=false;   // a touch drag fires no click, so a stale flag would eat the next tap
     const touch=!!e.touches; const p=touch?e.touches[0]:e; if(!touch && e.button) return;
     const rail=railRef.current.getBoundingClientRect();
-    // which edge? decided by where the finger is on the block, not by which strip the browser
-    // happens to hit-test — touch targeting is fuzzy and kept landing on the thin grips
-    const bt=rail.top+timeToY(blk.t), bh=blockH(blk), off=p.clientY-bt;
-    if(bh<34) mode="move"; else if(off>=bh-(touch?14:10)) mode="resize-b"; else if(bh>=48 && off<=(touch?9:7)) mode="resize-t"; else mode="move";   // short blocks only move; resize them in the editor
-    const d={ id:blk.id, mode, touch, sx:p.clientX, sy:p.clientY, y:p.clientY, oT:blk.t, oE:blk.e, oStatus:blk.status,
-      grab:p.clientY-rail.top-timeToY(blk.t), axis:mode==="move"?null:"v", lifted:!touch||mode!=="move", dx:0, moved:false, last:null, started:false };
+    // Handles resize. A finger on the block body never resizes (that's what made it fiddly).
+    // A mouse still gets a thin edge zone on blocks tall enough to have one.
+    const bt=rail.top+timeToY(blk.t), bh=blockH(blk), off=p.clientY-bt; let mode="move";
+    if(forced==="resize-t"||forced==="resize-b") mode=forced;
+    else if(!touch && bh>=34){ if(off>=bh-7) mode="resize-b"; else if(bh>=48 && off<=5) mode="resize-t"; }
+    const sel=selected===blk.id;
+    const instant=mode!=="move" || !touch || sel;          // selected blocks drag without a hold
+    const d={ id:blk.id, mode, touch, sx:p.clientX, sy:p.clientY, y:p.clientY, oT:blk.t, oE:blk.e, oStatus:blk.status, pt:blk.t, pe:blk.e,
+      grab:p.clientY-rail.top-timeToY(mode==="resize-b"?blk.e:blk.t), axis:(mode!=="move"||(touch&&sel))?"v":null, lifted:instant, sel, dx:0, moved:false, last:null, started:false };
     dragRef.current=d;
     if(d.lifted && mode!=="move" && touch) buzz(8);
     // Once the browser takes a touch over as a scroll it may stop sending us touchmove/touchend
@@ -1116,12 +1140,12 @@ function Timeline({ blocks,onChange,isToday=false,isPast=false,sketch,onSketch,o
     const scrollPos=()=>{ const sc=scrollRef.current; return (sc?sc.scrollTop:0)+window.scrollY; };
     const s0=scrollPos();
     const onScroll=()=>{ if(!d.lifted) end(); };
-    if(touch && mode==="move"){
+    if(touch && mode==="move" && !sel){
       scrollRef.current && scrollRef.current.addEventListener("scroll",onScroll,{ passive:true }); window.addEventListener("scroll",onScroll,{ passive:true });
       d.timer=setTimeout(()=>{ if(dragRef.current!==d || d.axis) return; if(Math.abs(scrollPos()-s0)>2){ end(); return; }
-        d.lifted=true; d.axis="v"; buzz(14); rerender(); autoRef.current=requestAnimationFrame(autoScroll); }, 260);
+        d.lifted=true; d.axis="v"; setSelected(blk.id); buzz(14); rerender(); autoRef.current=requestAnimationFrame(autoScroll); }, 260);
     }
-    else if(mode!=="move") autoRef.current=requestAnimationFrame(autoScroll);
+    else if(d.axis==="v") autoRef.current=requestAnimationFrame(autoScroll);
     const move=(ev)=>{ const q=ev.touches?ev.touches[0]:ev; const dx=q.clientX-d.sx, dy=q.clientY-d.sy; d.y=q.clientY;
       if(!d.lifted){                                     // a finger that hasn't been held yet
         if(Math.hypot(dx,dy)<9) return;
@@ -1129,6 +1153,7 @@ function Timeline({ blocks,onChange,isToday=false,isPast=false,sketch,onSketch,o
         if(Math.abs(dx)>Math.abs(dy)*1.3){ d.lifted=true; d.axis="h"; }   // sideways = swipe to skip
         else { end(); return; }                                          // up/down = it's a scroll
       }
+      if(!d.moved && d.axis && Math.hypot(dx,dy)<6) return;   // a wobbly tap isn't a drag
       if(!d.axis){ if(Math.hypot(dx,dy)<7) return; d.axis=Math.abs(dx)>Math.abs(dy)?"h":"v"; if(d.axis==="v") autoRef.current=requestAnimationFrame(autoScroll); }
       d.moved=true; if(ev.cancelable) ev.preventDefault();
       if(d.axis==="h" && d.mode==="move"){ d.dx=dx; rerender(); return; }
@@ -1137,20 +1162,24 @@ function Timeline({ blocks,onChange,isToday=false,isPast=false,sketch,onSketch,o
       scrollRef.current && scrollRef.current.removeEventListener("scroll",onScroll); window.removeEventListener("scroll",onScroll);
       window.removeEventListener("mousemove",move); window.removeEventListener("touchmove",move); window.removeEventListener("mouseup",up); window.removeEventListener("touchend",up); window.removeEventListener("touchcancel",up);
       if(dragRef.current===d) dragRef.current=null; rerender(); };
-    const up=()=>{ if(d.axis==="h" && Math.abs(d.dx)>70){ updBlock(d.id,{status: d.oStatus==="missed"?undefined:"missed"}); buzz(10); }
+    const up=(ev)=>{ if(d.touch) touchAt.current=Date.now();
+      if(d.touch && d.lifted && ev && ev.cancelable) ev.preventDefault();   // no fake click landing on the sheet we're about to open
+      if(d.axis==="h" && Math.abs(d.dx)>70){ updBlock(d.id,{status: d.oStatus==="missed"?undefined:"missed"}); buzz(10); }
+      if(d.axis==="v" && d.moved){ commitDrag(d); if(!d.touch) setSelected(d.id); }
       if(d.moved) suppressRef.current=true;
-      else if(d.touch && d.lifted && d.mode==="move"){ suppressRef.current=true; setEditing(d.id); }   // held and let go = open it
+      else if(d.touch && d.lifted){ suppressRef.current=true; if(d.sel||d.mode!=="move") setEditing(d.id); }   // held and let go = selected (handles show); tap a selected block = open it
       end(); };
     window.addEventListener("mousemove",move); window.addEventListener("touchmove",move,{passive:false}); window.addEventListener("mouseup",up); window.addEventListener("touchend",up); window.addEventListener("touchcancel",up);
   };
 
   // ----- tap empty space to add a block (no drag, so the page never scrolls out from under you) -----
-  const startCreate=(e)=>{ if(pen) return; if(e.target!==railRef.current) return;
+  const startCreate=(e)=>{ if(pen||ghost(e)) return; if(e.target!==railRef.current) return;
     const rect=railRef.current.getBoundingClientRect(); const p=e.touches?e.touches[0]:e;
     const sx=p.clientX, sy=p.clientY; let moved=false;
     const move=(ev)=>{ const q=ev.touches?ev.touches[0]:ev; if(Math.hypot(q.clientX-sx,q.clientY-sy)>8) moved=true; };
     const up=()=>{ window.removeEventListener("mousemove",move); window.removeEventListener("touchmove",move); window.removeEventListener("mouseup",up); window.removeEventListener("touchend",up);
       if(moved) return;                              // it was a scroll, not a tap — leave it alone
+      if(selected!=null){ setSelected(null); return; }   // first tap off a selected block just deselects
       let t=snap(Math.floor(yToTime(sy-rect.top)*2)/2); const dur=1; t=Math.min(DAY_END-dur,t); const id=Date.now();
       onChange(prev=>[...prev,{ id,t,e:t+dur,label:"",cat:"Other" }]); setEditing(id); buzz(); rerender(); };
     window.addEventListener("mousemove",move); window.addEventListener("touchmove",move); window.addEventListener("mouseup",up); window.addEventListener("touchend",up);
@@ -1190,8 +1219,10 @@ function Timeline({ blocks,onChange,isToday=false,isPast=false,sketch,onSketch,o
           style={{ flex:1, position:"relative", height, borderLeft:`1px solid ${C.line}`, cursor:pen?"crosshair":"copy", touchAction:pen?"none":"pan-y" }}>
           {hours.map(h=> <div key={h} style={{ position:"absolute", top:timeToY(h), left:0, right:0, height:1, background:C.line, opacity:0.5, pointerEvents:"none" }}/>)}
 
-          {blocks.map(b=>{ const top=timeToY(b.t); const h=blockH(b); const col=CATS[b.cat]||C.dim;
-            const st=effState(b); const mine=dd&&dd.id===b.id; const dx=(mine&&dd.axis==="h")?dd.dx:0;
+          {blocks.map(b=>{ const mine=dd&&dd.id===b.id; const live=mine&&dd.axis==="v"&&dd.started;
+            const pv=live?{ t:dd.pt, e:dd.pe }:b; const lbl=live?snapped(dd):b;
+            const top=timeToY(pv.t); const h=blockH(pv); const col=CATS[b.cat]||C.dim;
+            const st=effState(b); const dx=(mine&&dd.axis==="h")?dd.dx:0; const sel=selected===b.id;
             const lifted=mine&&dd.lifted&&dd.axis!=="h"; const missed=st==="missed", plan=st==="plan";
             const lay=cols[b.id]||{ col:0, n:1 }; const w=inner/lay.n;
             const compact=h<34 && !lifted;                       // one line: label + start time
@@ -1199,30 +1230,47 @@ function Timeline({ blocks,onChange,isToday=false,isPast=false,sketch,onSketch,o
             return (
               <div key={b.id} onMouseDown={(e)=>startBlock(e,b,"move")} onTouchStart={(e)=>startBlock(e,b,"move")}
                 onContextMenu={(e)=>e.preventDefault()}
-                onClick={(e)=>{ e.stopPropagation(); if(suppressRef.current){ suppressRef.current=false; return; } setEditing(editing===b.id?null:b.id); }}
+                onClick={(e)=>{ e.stopPropagation(); if(suppressRef.current){ suppressRef.current=false; return; } setSelected(b.id); setEditing(editing===b.id?null:b.id); }}
                 style={{ position:"absolute", top:top+1, left:6+lay.col*w, width:w-(lay.n>1?4:0), height:h-2,
                   transform:`translateX(${dx}px) scale(${lifted?1.02:1})`, transformOrigin:"center",
                   background: `linear-gradient(${lifted?col+"44":plan?col+"17":col+"2A"},${lifted?col+"44":plan?col+"17":col+"2A"}) ${C.panel}`, borderLeft:`3px solid ${col}`,   // solid, so hour lines don't show through
                   borderRadius:8, padding:compact?"0 30px 0 9px":"6px 34px 6px 10px", display:compact?"flex":"block", alignItems:"center",
-                  cursor:lifted?"grabbing":"grab", overflow:"hidden", touchAction:lifted?"none":"pan-y",
+                  cursor:lifted?"grabbing":"grab", overflow:"hidden", touchAction:(lifted||sel)?"none":"pan-y",
+                  outline: sel&&!missed?`1.5px solid ${col}`:"none", outlineOffset:-1,
                   userSelect:"none", WebkitUserSelect:"none", WebkitTouchCallout:"none",
                   boxShadow: lifted?"0 12px 30px rgba(0,0,0,.6)":"none",
-                  opacity: missed? 0.35 : (1 - Math.min(0.65, Math.abs(dx)/170)), transition: (dx||lifted)?"box-shadow .12s, transform .12s":"opacity .15s, transform .15s, box-shadow .15s", zIndex:lifted?30:5 }}>
+                  opacity: missed? 0.35 : (1 - Math.min(0.65, Math.abs(dx)/170)), transition: live?"box-shadow .12s":(dx||lifted)?"box-shadow .12s, transform .12s":"top .14s ease-out, height .14s ease-out, opacity .15s, transform .15s, box-shadow .15s", zIndex:lifted?30:sel?20:5 }}>
                 <div style={{ display:"flex", alignItems:"baseline", gap:7, minWidth:0, width:"100%" }}>
                   <span style={{ fontSize:compact?12.5:lay.n>2?12.5:14.5, fontWeight:650, color:missed?C.faint:C.ink, textDecoration:missed?"line-through":"none", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis", minWidth:0 }}>{b.label||<span style={{ color:C.faint, fontWeight:500 }}>Untitled</span>}</span>
                   {isPlanned(b) && <span title="From the Sunday plan" style={{ fontSize:9, color:C.teal, opacity:0.8, flexShrink:0 }}>✦</span>}
                   {compact && <span style={{ marginLeft:"auto", fontSize:10.5, color:C.dim, fontVariantNumeric:"tabular-nums", flexShrink:0 }}>{hhmm(b.t)}</span>}
                 </div>
-                {!compact && <div style={{ fontSize:11, color:lifted?C.ink:C.dim, marginTop:2, fontWeight:lifted?700:400, fontVariantNumeric:"tabular-nums" }}>{hhmm(b.t)}–{hhmm(b.e)}{missed?" · skipped":""}</div>}
+                {!compact && <div style={{ fontSize:11, color:lifted?C.ink:C.dim, marginTop:2, fontWeight:lifted?700:400, fontVariantNumeric:"tabular-nums" }}>{hhmm(lbl.t)}–{hhmm(lbl.e)}{live?` · ${durLabel(lbl.e-lbl.t)}`:""}{missed?" · skipped":""}</div>}
                 {b.note && h>=76 && !lifted && <div style={{ fontSize:11.5, color:missed?C.faint:C.dim, marginTop:5, lineHeight:1.35, overflow:"hidden", display:"-webkit-box", WebkitLineClamp:Math.max(1,Math.floor((h-58)/16)), WebkitBoxOrient:"vertical", whiteSpace:"normal" }}>{b.note}</div>}
                 {/* one tap → bin (Dan, 2 Nov: "reintroduce the one click trash button"). Undo + the bin restore it. */}
-                {!lifted && <button aria-label="Delete block" onMouseDown={stop} onTouchStart={stop} onClick={(e)=>{ e.stopPropagation(); buzz(); delBlock(b.id); }}
+                {!lifted && !sel && <button aria-label="Delete block" onMouseDown={stop} onTouchStart={stop} onClick={(e)=>{ e.stopPropagation(); buzz(); delBlock(b.id); }}
                   style={{ position:"absolute", top:compact?"50%":4, right:4, transform:compact?"translateY(-50%)":"none", width:compact?22:26, height:compact?22:26, borderRadius:7, border:"none", background:"transparent", color:C.faint, cursor:"pointer", padding:0, display:"flex", alignItems:"center", justifyContent:"center", opacity:0.75 }}>
                   <TrashIcon size={compact?12:14}/>
                 </button>}
               </div>
             );
           })}
+
+          {/* resize handles for the selected block: a small dot you see, a 56×44 target you hit */}
+          {(()=>{ const b=blocks.find(x=>x.id===selected); if(!b||pen||b.status==="missed") return null;
+            const live=dd&&dd.id===b.id&&dd.axis==="v"&&dd.started; const pv=live?{ t:dd.pt, e:dd.pe }:b;
+            const lay=cols[b.id]||{ col:0, n:1 }; const w=inner/lay.n; const left=6+lay.col*w, right=left+w-(lay.n>1?4:0);
+            const col=CATS[b.cat]||C.dim; const top=timeToY(pv.t), bot=top+blockH(pv);
+            const H=(mode,y,x,top)=> <div key={mode} aria-label={mode==="resize-t"?"Drag to change the start":"Drag to change the end"}
+              onMouseDown={(e)=>startBlock(e,b,mode)} onTouchStart={(e)=>startBlock(e,b,mode)} onClick={(e)=>e.stopPropagation()}
+              style={{ position:"absolute", top:top?y-30:y-12, left:x-26, width:52, height:42, zIndex:40, display:"flex", alignItems:top?"flex-end":"flex-start", justifyContent:"center", padding:"5px 0",
+                touchAction:"none", cursor:"ns-resize", transition:live?"none":"top .14s ease-out" }}>
+              <div style={{ width:13, height:13, borderRadius:"50%", background:C.panel, border:`2.5px solid ${col}`, boxShadow:"0 1px 5px rgba(0,0,0,.55)" }}/>
+            </div>;
+            // both on the right edge: the bin hides while selected, so nothing else lives there, and
+            // the hit areas sit mostly outside the block so they never swallow a tap on the title
+            const x=Math.max(left+22,right-22);
+            return <>{H("resize-t",top+1,x,true)}{H("resize-b",bot-1,x,false)}</>; })()}
 
           {isToday && now>=DAY_START && now<=DAY_END && (
             <div style={{ position:"absolute", top:timeToY(now), left:0, right:0, borderTop:`2px solid ${C.red}`, zIndex:7, pointerEvents:"none" }}>
@@ -1236,7 +1284,7 @@ function Timeline({ blocks,onChange,isToday=false,isPast=false,sketch,onSketch,o
             {strokeRef.current && <path d={pathD(strokeRef.current.pts)} stroke={strokeRef.current.color} strokeWidth={2.5} fill="none" strokeLinecap="round" strokeLinejoin="round"/>}
           </svg>
 
-          {blocks.length===0 && !pen && <div style={{ position:"absolute", top:40, left:0, right:0, textAlign:"center", color:C.faint, fontSize:12, pointerEvents:"none", padding:"0 12px" }}>Tap the grid to add a block · hold a block to pick it up · drag its edge to resize</div>}
+          {blocks.length===0 && !pen && <div style={{ position:"absolute", top:40, left:0, right:0, textAlign:"center", color:C.faint, fontSize:12, pointerEvents:"none", padding:"0 12px" }}>Tap the grid to add a block · hold a block to pick it up · drag its round handles to resize</div>}
         </div>
       </div>
       </div>
@@ -1475,7 +1523,7 @@ function TodayView({ day,date,setDate,upd,dayTypes,applyDayType,links,allDays,fl
       <Panel accent={C.pink} title="Day" right={
         <div style={{ display:"flex", alignItems:"center", gap:10 }}>
           {bin.length>0 && <button onClick={()=>setShowBin(true)} style={{ background:"none", border:`1px solid ${C.line}`, borderRadius:8, padding:"3px 9px", color:C.dim, cursor:"pointer", fontSize:11 }}>🗑 {bin.length}</button>}
-          <span style={{ fontSize:11, color:C.faint }}>tap to add · hold to move · swipe to skip</span>
+          <span style={{ fontSize:11, color:C.faint }}>tap to add · hold to select, drag the dots to resize · swipe to skip</span>
         </div>}>
         <div data-timeline>
           <Timeline blocks={day.blocks} onChange={setBlocks} isToday={isToday} isPast={isPast} sketch={day.sketch} onSketch={setSketch} onDeleteId={deleteToBin} />
